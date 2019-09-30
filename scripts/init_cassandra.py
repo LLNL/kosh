@@ -35,6 +35,9 @@ drop table {root}_targets
 
 create_commands = """
 create table {root}_metadata (id timeuuid , id_type int , name text, value text, primary key (id, id_type, name))
+create index on {root}_metadata (name)
+create index on {root}_metadata (value)
+create index on {root}_metadata (id_type)
 create table {root}_datasets (id timeuuid, creator int, name text, primary key (id, creator))
 create table {root}_users(id int, name text, primary key (name, id))
 create table {root}_permissions(user_id int, resource_id text, resource_type int, permission int, primary key (user_id, resource_id, resource_type))
@@ -55,7 +58,8 @@ for table in tables:
     if table.startswith("{}_array".format(args.tables_root)):
         try:
             session.execute("drop table {}".format(table))
-        except Exception:
+        except Exception as err:
+            print("EEROR: ", err)
             pass
 
 # Create tables

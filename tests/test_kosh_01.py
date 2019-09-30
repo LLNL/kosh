@@ -2,6 +2,8 @@ from  kosh import KoshStore
 store = KoshStore(engine="cassandra", username="cdoutrix", token="OcJSDIFN2eTjg10cy/Lu/zRK8y8Jx6lmcZtxM4baat0=", cluster=["localhost",], keyspace="cdoutrix_k")
 #DS = store.create()  # metadata={"publisher":"Some pub", "attr1":6, "whynot":6.7})
 DS = store.create(metadata={"publisher":"Some pub", "attr1":6, "whynot":6.7})
+DS = store.create(metadata={"publisher":"Some other pub", "attr1":16, "whynot":6.7})
+DS = store.create(metadata={"publisher":"Some random pub", "attr1":62, "ofcourse":.7})
 rows = store.__session__.execute("select * from kosh_datasets")
 for r in rows:
     print(r)

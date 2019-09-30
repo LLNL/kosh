@@ -94,13 +94,13 @@ class KoshConnectBase(object):
 
         if not isinstance(cluster_names, list):
             cluster_names = [cluster_names,]
-        print("CLUSTER TO:", cluster_names)
+        # print("CLUSTER TO:", cluster_names)
         cluster=Cluster(cluster_names, auth_provider=auth_provider)
         if keyspace is None:
             keyspace=username+"_k"
-        print("KSPACE:", keyspace)
+        # print("KSPACE:", keyspace)
         self.__session__=cluster.connect(keyspace)
-        print("CONNECTED TO:", self.__session__, auth_provider.username, auth_provider.password)
+        # print("CONNECTED TO:", self.__session__, auth_provider.username, auth_provider.password)
         self.__username__=username
         connection.setup(cluster_names, default_keyspace=keyspace,
                          auth_provider=auth_provider)
@@ -128,7 +128,7 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         Id: can be set to None to indicate new/inexisting array, otherwise point to array to read/extend
         dimensions: ignored if array already exists, otherwise dictionary with dimension names as keys and metadata as dictinoary value
         """
-        print("IN INIT OF KoshArrayCassandra")
+        # print("IN INIT OF KoshArrayCassandra")
         if Id is None:  # New array?
             Id = uuid.uuid1().hex
 
@@ -194,20 +194,14 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
 
     def __getitem__(self, *args):
         args= args[0]
-        print("ARGS FOR GET ITEM:", args)
         dims = list(self.__dims__.keys())
         values = []
         for i in range(len(args)):
-            print("ARGS OF I", i, args[i])
-            print(self.__dims__[dims[i]]["values"])
             a = self.__dims__[dims[i]]["values"][args[i]]
-            print(a, type(a), type(a[0]))
-            print(dims[i])
             vals = ", ".join([str(_) for _ in a])
             cmd = dims[i]+" IN ( {} )".format(vals)
             values.append(cmd)
         stmnt = "SELECT * FROM "+self.__table_id__ + " WHERE "+ " AND ".join(values)+";"
-        print("STATEMNT GETITEM:", stmnt)
         return self.__session__.execute(stmnt)
     
 
@@ -251,10 +245,34 @@ class KoshDatasetCassandra(KoshDatasetBaseClass, KoshBaseCassandraObject):
 
 
 class KoshStoreCassandra(KoshConnectBase, KoshStoreBaseClass):
-    def search(self, keys):
-        warnings.warn("Not implemented yet")
-        return []
+    def search(self, *atts, **keys):
+        """ Search cassandra for datasets matching some metadata
+        arguments are the metadata name we are looking for e.g search("attr1", "attr2") 
+        default is to AND, but can be changed via the __cassandra_search_operator keyword
+        """
+        print("ARGS:", atts)
+        print("KARGS:", keys)
+        if "__cassandra_search_operator" in keys:
+            __cassandra_search_operator = keys.pop("__cassandra_search_operator")
+        else:
+            __cassandra_search_operator = "AND"
+        no_values = __cassandra_search_operator.join([ "name = '{}'".format(k) for k in atts]) 
+        values = __cassandra_search_operator.join(["( name = '{}' AND value = '{}' )".format(k,v) for k,v in keys.items()])
+        if no_values != "" and values != "":
+            search_terms = no_values + " AND " + values
+        elif values == "":
+            search_terms = values
+        else:
+            search_terms = no_values
 
+        if search_terms == "":
+            raise RuntimeError("You need to pass some search argument")
+
+        search_params = "id_type={} AND ( {} )".format(types["dataset"], search_terms)
+        print("SEARCH :", search_params)
+        rows = self.__session__.execute("select id from {}_metadata where {}".format(self.__cassandraRoot__, search_params))
+        for row in rows:
+            print(row.id)
     def open(self, datasetId):
         #warnings.warn("Not implemented yet")
         return KoshDatasetCassandra(datasetId)
