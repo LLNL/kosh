@@ -10,7 +10,7 @@ parser.add_argument("--user", default="cdoutrix", help="username to connect to c
 parser.add_argument("--token", default=None, help="token to log, will try to read from ${HOME}/.cassandra/cqlshrc")
 parser.add_argument("--keyspace", default=None, help="keyspace, will try to read from ${HOME}/.cassandra/cqlshrc")
 parser.add_argument("--cluster", default="sonar8", help="Cluster")
-parser.add_argument("--tables_root", default="dkosh", help="Cluster")
+parser.add_argument("--tables_root", default="kosh", help="root for tables names")
 args = parser.parse_args()
 
 token = args.token
@@ -29,15 +29,18 @@ drop_commands = """
 drop table {root}_metadata
 drop table {root}_datasets
 drop table {root}_permissions
+drop table {root}_users
 drop table {root}_targets
 """.format(root=args.tables_root)
 
 create_commands = """
 create table {root}_metadata (id timeuuid , id_type int , name text, value text, primary key (id, id_type, name))
-create table {root}_datasets (id timeuuid primary key, name text)
-create table {root}_permissions(id timeuuid primary key, type int, user int, permission int)
-create table {root}_targets(id timeuuid primary key, soure_type int, source_parameters map<text, text>, target_url text)
-""".format(root=args.tables_root)
+create table {root}_datasets (id timeuuid, creator int, name text, primary key (id, creator))
+create table {root}_users(id int, name text, primary key (name, id))
+create table {root}_permissions(user_id int, resource_id text, resource_type int, permission int, primary key (user_id, resource_id, resource_type))
+create table {root}_targets(id timeuuid primary key, source_type int, source_parameters map<text, text>, target_url text)
+insert into {root}_users (id, name) values (0, '{user}')
+""".format(root=args.tables_root, user=args.user)
 for command in drop_commands.split("\n"):
     if len(command)>0:
         print("Executing:", command)
@@ -47,7 +50,7 @@ for command in drop_commands.split("\n"):
             pass
 
 # Now drop array tables
-tables = cluster.metadata.keyspaces[keyspace].tables
+tables = list(cluster.metadata.keyspaces[keyspace].tables.keys())
 for table in tables:
     if table.startswith("{}_array".format(args.tables_root)):
         try:
