@@ -34,7 +34,7 @@ drop table {root}_targets
 """.format(root=args.tables_root)
 
 create_commands = """
-create table {root}_metadata (id timeuuid , id_type int , name text, value text, primary key (id, id_type, name))
+create table {root}_metadata (id timeuuid , id_type int , name text, value text, primary key ((id), name, id_type, value))
 create index on {root}_metadata (name)
 create index on {root}_metadata (value)
 create index on {root}_metadata (id_type)

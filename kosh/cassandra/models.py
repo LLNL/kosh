@@ -24,7 +24,7 @@ class MetadataModel(Model):
     __table_suffix__ = "metadata"
     id = columns.TimeUUID(primary_key=True)
 
-    id_type = columns.Integer(primary_key=True)
     name = columns.Text(primary_key=True, required=True)
-    value = columns.Text()
+    id_type = columns.Integer(primary_key=True)
+    value = columns.Text(primary_key=True)
 

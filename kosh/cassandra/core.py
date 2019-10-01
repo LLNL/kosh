@@ -32,7 +32,7 @@ class KoshBaseCassandraObject(object):
             return
         exists = MetadataModel.objects(
             id=self.__id__, id_type=self.__type__, name=name)
-        if exists.count != 0:
+        if exists.count() != 0:
             # we need to drop it first, replacing
             for e in exists:
                 e.delete()
@@ -128,7 +128,6 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         Id: can be set to None to indicate new/inexisting array, otherwise point to array to read/extend
         dimensions: ignored if array already exists, otherwise dictionary with dimension names as keys and metadata as dictinoary value
         """
-        # print("IN INIT OF KoshArrayCassandra")
         if Id is None:  # New array?
             Id = uuid.uuid1().hex
 
@@ -144,10 +143,6 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         # Ok now create associted table, based on dimensions
         self.__table_id__ = "{}_array_{}".format(self.__cassandraRoot__, Id)
 
-        # class ArrayModel(Model):
-        #     value = columns.Float(primary_key=True)
-        #     __table_name__ = self.__table_id__
-
         dims = []
         primary = []
         if isinstance(dimensions, (list, tuple)):
@@ -161,11 +156,8 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         for dim in dimensions:
             dim_dict = dimensions[dim]
             dim_type = dim_dict.get("type", "float")
-            # kargs = {}
             if dim_dict.get("primary", False):
                 primary.append(dim)
-            #     kargs["primary_key"] = True
-            #  setattr(ArrayModel, dim, types_mapping[dim_type](**kargs))
             dims += [dim+" "+dim_type]
         if primary == []:
             primary=dimensions.keys()
@@ -243,38 +235,57 @@ class KoshDatasetCassandra(KoshDatasetBaseClass, KoshBaseCassandraObject):
         return st
 
 
-
 class KoshStoreCassandra(KoshConnectBase, KoshStoreBaseClass):
+    def __name_value_search(self, name, value):
+        if isinstance(value, str):
+            value = "''{}''".format(value)
+        values = "(name, id_type, value) = ('{}',  {}, '{}' )".format(name,types["dataset"], value)
+        stmnt = "select id from {}_metadata where {} allow filtering".format(self.__cassandraRoot__, values)
+        print("STE:", stmnt)
+        rows = self.__session__.execute(stmnt)
+        return rows
+
     def search(self, *atts, **keys):
         """ Search cassandra for datasets matching some metadata
         arguments are the metadata name we are looking for e.g search("attr1", "attr2") 
-        default is to AND, but can be changed via the __cassandra_search_operator keyword
+        you can further restrict by specifying exact value for a metadata via key=value
         """
-        print("ARGS:", atts)
-        print("KARGS:", keys)
-        if "__cassandra_search_operator" in keys:
-            __cassandra_search_operator = keys.pop("__cassandra_search_operator")
-        else:
-            __cassandra_search_operator = "AND"
-        no_values = __cassandra_search_operator.join([ "name = '{}'".format(k) for k in atts]) 
-        values = __cassandra_search_operator.join(["( name = '{}' AND value = '{}' )".format(k,v) for k,v in keys.items()])
-        if no_values != "" and values != "":
-            search_terms = no_values + " AND " + values
-        elif values == "":
-            search_terms = values
-        else:
-            search_terms = no_values
+        no_values = "name in ({}) and id_type={}".format(",".join(["'{}'".format(a) for a in atts]), types["dataset"])
 
-        if search_terms == "":
-            raise RuntimeError("You need to pass some search argument")
 
-        search_params = "id_type={} AND ( {} )".format(types["dataset"], search_terms)
-        print("SEARCH :", search_params)
-        rows = self.__session__.execute("select id from {}_metadata where {}".format(self.__cassandraRoot__, search_params))
+        if len(atts)==0 and len(keys)==0:
+            raise RuntimeError("You need to pass some search")
+
+        rows = self.__session__.execute("select id from {}_metadata where {} allow filtering".format(self.__cassandraRoot__, no_values))
+        ids = set()
         for row in rows:
-            print(row.id)
+            ids.add(row.id)
+        # Need to "escape quotes"
+        for k in keys:
+            value = keys[k]
+            if not isinstance(value, (list, tuple)):
+                value = [value,]
+            rows = []
+            for val in value:
+                rows += self.__name_value_search(k, val)
+            limited = set()
+            for row in rows:
+                if row.id in ids:
+                    limited.add(row.id)
+            for an_id in list(ids):
+                if not an_id in limited:
+                    ids.remove(an_id)
+
+        # Return the datasets
+        ds = []
+        for ds_id in ids:
+            ds.append(self.open(ds_id))
+        return ds
+
+        
     def open(self, datasetId):
-        #warnings.warn("Not implemented yet")
+        """Returns a dataset from Cassandra, based on its id"""
+        print("OK OPENING", datasetId)
         return KoshDatasetCassandra(datasetId)
 
     def create(self, name=None, datasetId=None, metadata={}):
@@ -283,7 +294,6 @@ class KoshStoreCassandra(KoshConnectBase, KoshStoreBaseClass):
         if datasetId is None:
             if name is None:
                 name="Unnamed Dataset"
-            print("CREATING NEW DS")
             ds=DataSetModel.create(id=uuid_from_time(time.time()), name=name, creator=self.__user_id__)
         else:
             ds=DataSetModel.objects(id=datasetId)
@@ -294,6 +304,4 @@ class KoshStoreCassandra(KoshConnectBase, KoshStoreBaseClass):
                 raise RuntimeError(
                     "Dataset Id {}, already exists, cannot create duplicate dataset".format(datasetId))
         ds=KoshDatasetCassandra(str(ds.id))
-        for name in metadata:
-            setattr(ds, name, metadata[name])
         return ds

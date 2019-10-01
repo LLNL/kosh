@@ -16,6 +16,7 @@ def row_to_numpy(rows):
 data = numpy.arange(3*5*6)
 data.shape= (3,5,6)
 a.load_from_numpy(data)
+print("A:", a)
 sub_data = row_to_numpy(a[1:3, 2:4])
 print(sub_data)
 sub_orig = data[1:3, 2:4].flat[:]
