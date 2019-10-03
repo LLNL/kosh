@@ -170,6 +170,7 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
 
     def load_from_numpy(self, data, offsets = None):
         dims = list(self.__dims__.keys()) + ["value", ]
+        print("DIMS:", dims)
         vals = ["?",] * len(dims)
         ps = self.__session__.prepare("INSERT INTO {} ( {} ) VALUES ( {} )".format(self.__table_id__, ",".join(dims), ",".join(vals)))
         # Ok did user send us dimensions values?
@@ -181,8 +182,12 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         for i in range(data.size):
             values = list(numpy.unravel_index(i, data.shape))
             values += [float(data.flat[i]),]
-            batch.add(ps, values)
-        self.__session__.execute_async(batch)
+            if data.size < 65535:
+                batch.add(ps, values)
+            else:
+                self.__session__.execute_async(ps, values)
+        if data.size < 65535:
+            self.__session__.execute_async(batch)
 
     def __getitem__(self, *args):
         args= args[0]
@@ -193,8 +198,9 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
             vals = ", ".join([str(_) for _ in a])
             cmd = dims[i]+" IN ( {} )".format(vals)
             values.append(cmd)
-        stmnt = "SELECT * FROM "+self.__table_id__ + " WHERE "+ " AND ".join(values)+";"
+        stmnt = "SELECT value FROM "+self.__table_id__ + " WHERE "+ " AND ".join(values)+";"
         return self.__session__.execute(stmnt)
+
     
 
 

@@ -1,1 +1,1 @@
-from .core import VidyaDataArrayBaseClass  # noqa
+from .kull import KullReader
