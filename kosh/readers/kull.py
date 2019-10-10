@@ -40,9 +40,7 @@ class KullReader(object):
         """
         # Metrics available
         if elt_type in ["zone", "node"]:
-            key = "zone"  # for now because of bug in reader
             metrics_avail = getattr(self.reader,"{}_metrics".format(key))
-            print("Metrics avail:", elt_type, metrics_avail, len(metrics_avail))
         elif elt_type == "srd":
             metrics_avail = self.reader.SRD
         elif elt_type == "drd":
