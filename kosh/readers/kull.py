@@ -40,7 +40,7 @@ class KullReader(object):
         """
         # Metrics available
         if elt_type in ["zone", "node"]:
-            metrics_avail = getattr(self.reader,"{}_metrics".format(key))
+            metrics_avail = getattr(self.reader,"{}_metrics".format(elt_type))
         elif elt_type == "srd":
             metrics_avail = self.reader.SRD
         elif elt_type == "drd":
@@ -113,6 +113,8 @@ class KullReader(object):
         data = None
         retrieved_elements = []
         for proc in processors:
+            if "elements" in kargs: 
+                del(kargs["elements"])
             if elements is not None:
                 # Not all elements are on a processor
                 elt = []
@@ -143,6 +145,9 @@ class KullReader(object):
             elt = kargs.get("elements", [])
             if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
                 del(kargs["elements"])
+            if len(kargs.keys()) == 1 and "cycles" in kargs:
+                # right now passing just cycles is not implemented yet
+                kargs["elements"] = list(range(len(proc_ids[proc])))
             print("KARGS:", list(kargs.keys()), proc, use_ext)
             tmp = self.reader.request(ext_type=use_ext,
                                       proc=proc,
