@@ -1,1 +1,1 @@
-from .core import KoshStoreCassandra, KoshArrayCassandra, KoshConnectBase
+from .core import KoshStoreCassandra, KoshArrayCassandra, KoshConnect

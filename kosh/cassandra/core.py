@@ -1,5 +1,5 @@
 # Cassandra implementation
-from kosh.core import KoshStoreBaseClass,  KoshDatasetBaseClass, KoshArrayBaseClass
+from kosh.core import KoshStoreClass,  KoshDataset, KoshArray
 import cassandra
 from cassandra.cluster import Cluster, Session
 from cassandra.auth import PlainTextAuthProvider
@@ -19,7 +19,7 @@ import numpy
 types = {"dataset": 0, "array": 1, "image": 2}
 
 
-class KoshBaseCassandraObject(object):
+class KoshCassandraObject(object):
     def __init__(self, Id, koshType, protected=[]):
         self.__dict__["__protected__"] = [
             "__id__", "__type__", "__protected__"] + protected
@@ -76,7 +76,7 @@ class KoshBaseCassandraObject(object):
             attributes[e.name] = eval(e.value)
         return attributes
 
-class KoshConnectBase(object):
+class KoshConnect(object):
     def __init__(self, username, token, keyspace=None, cluster=["sonar8", ], auth_provider=None, cassandraRoot="kosh"):
         # This allows me to have test tables, etc...
         self.__cassandraRoot__=cassandraRoot
@@ -121,7 +121,7 @@ class KoshConnectBase(object):
         del(self.__session__)
 
 
-class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBaseClass):
+class KoshArrayCassandra(KoshConnect, KoshCassandraObject, KoshArray):
     def __init__(self, Id, dimensions, username, token, keyspace=None, cluster=["sonar8", ], auth_provider=None, cassandraRoot="kosh"):
         """ Create a Casandra-based array, needs a connection to a cassandra database for metadata
 
@@ -131,13 +131,13 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         if Id is None:  # New array?
             Id = uuid.uuid1().hex
 
-        KoshBaseCassandraObject.__init__(self, Id, types["array"], protected=[
+        KoshCassandraObject.__init__(self, Id, types["array"], protected=[
                                           "__name__", "__creator__", "__type__", "__dims__",
                                           "__session__", "__username__", "__cassandraRoot__",
                                           "__table_id__", "__user_id__",
                                           "__readers__", "__exporters__"])
 
-        KoshConnectBase.__init__(self, username, token, keyspace, cluster, auth_provider, cassandraRoot)
+        KoshConnect.__init__(self, username, token, keyspace, cluster, auth_provider, cassandraRoot)
 
         self.__type__ = types["array"]
         # Ok now create associted table, based on dimensions
@@ -201,11 +201,6 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         stmnt = "SELECT value FROM "+self.__table_id__ + " WHERE "+ " AND ".join(values)+";"
         return self.__session__.execute(stmnt)
 
-    
-
-
-
-
     def __str__(self):
         st=""
         st += "KOSH Array\n"
@@ -219,9 +214,9 @@ class KoshArrayCassandra(KoshConnectBase, KoshBaseCassandraObject, KoshArrayBase
         st += "DONE!"
         return st
 
-class KoshDatasetCassandra(KoshDatasetBaseClass, KoshBaseCassandraObject):
+class KoshDatasetCassandra(KoshDataset, KoshCassandraObject):
     def __init__(self, Id):
-        KoshBaseCassandraObject.__init__(self, Id, types["dataset"], protected=[
+        KoshCassandraObject.__init__(self, Id, types["dataset"], protected=[
                                           "__name__", "__creator__"])
         ds=DataSetModel.objects(id=Id)[0]  # unique by design
         self.__creator__=ds.creator
@@ -241,7 +236,7 @@ class KoshDatasetCassandra(KoshDatasetBaseClass, KoshBaseCassandraObject):
         return st
 
 
-class KoshStoreCassandra(KoshConnectBase, KoshStoreBaseClass):
+class KoshStoreCassandra(KoshConnect, KoshStoreClass):
     def __name_value_search(self, name, value):
         if isinstance(value, str):
             value = "''{}''".format(value)

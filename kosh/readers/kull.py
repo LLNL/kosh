@@ -5,11 +5,21 @@ import os
 import numpy
 from collections import OrderedDict
 
-
+class Axis(object):
+    def __init__(self, id, values):
+        self.id = id
+        self.__values = values
+    def __getitem__(self, key):
+        return self.__values[key]
+    def __setitem__(self, key, value):
+        self.__values[key] = value
+    def __len__(self):
+        return len(self.__values)
+    
 class KullReader(object):
     def __init__(self, path):
         if not os.path.exists(path):
-            raise RuntimeError("bad input dir {}".format(args.run))
+            raise RuntimeError("bad input dir {}".format(path))
         self.reader = ExtractReader.MASHExtractReader(path)
         self.cycles = None
         self.elements = None
@@ -30,7 +40,9 @@ class KullReader(object):
         """
         # Metrics available
         if elt_type in ["zone", "node"]:
-            metrics_avail = getattr(self.reader,"{}_metrics".format(elt_type))
+            key = "zone"  # for now because of bug in reader
+            metrics_avail = getattr(self.reader,"{}_metrics".format(key))
+            print("Metrics avail:", elt_type, metrics_avail, len(metrics_avail))
         elif elt_type == "srd":
             metrics_avail = self.reader.SRD
         elif elt_type == "drd":
@@ -80,10 +92,10 @@ class KullReader(object):
         if cycles is not None:
             kargs["cycles"] = cycles
             n_cycles = len(cycles)
-            if elements is None:  # We need both cycle and elements at the moment....
-                elements = []
-                for ids in processors:
-                    elements += proc_ids[ids]
+            #if elements is None:  # We need both cycle and elements at the moment....
+            #    elements = []
+            #    for ids in processors:
+            #        elements += proc_ids[ids]
         else:
             n_cycles = self.reader.num_cycles
 
@@ -115,7 +127,7 @@ class KullReader(object):
                 retrieved_elements += elt
                 kargs["elements"] = elt
                 if cycles is None: # need to create cycles
-                    cycle = list(range(self.reader.num_cycles))
+                    cycles = list(range(self.reader.num_cycles))
                     kargs["cycles"] = cycles
             else:
                 n_elements = len(proc_ids[proc])
@@ -128,6 +140,12 @@ class KullReader(object):
                 use_ext = "{} metric".format(elt_type)
             else:
                 use_ext = elt_type
+            if len(cycles) == self.reader.num_cycles and "cycles" in kargs:
+                del(kargs["cycles"])
+            elt = kargs.get("elements", [])
+            if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
+                del(kargs["elements"])
+            print("KARGS:", list(kargs.keys()), proc, use_ext)
             tmp = self.reader.request(ext_type=use_ext,
                                       proc=proc,
                                       **kargs)
@@ -153,22 +171,22 @@ class KullReader(object):
         if not axis in good_axes:
             raise RuntimeError("Invalid axis {}, available axes are: {}".format(axis, good_axes))
         if axis == "cycles":
-            return list(range(self.reader.num_cycles))
+            return Axis(axis, list(range(self.reader.num_cycles)))
         elif axis == "elements":
-            return self.ids[elt]
+            return Axis(axis, self.ids[elt])
         elif axis == "metrics":
-            return self.metrics_avail[elt]
+            return Axis(axis, self.metrics_avail[elt])
         elif axis == "direction" and elt == "drd":
-            return [0,1]
+            return Axis(axis, [0,1])
         else:
             raise RuntimeError("Invalid axis {} for element type {}".format(axis, elt))
 
     def getAxisList(self, elt):
         axes_ids = ["cycles", "elements", "metrics"]
         if elt in ["drd"]:
-            axes_ids.insert(-2, "direction")
-        axes = OrderedDict()
+            axes_ids.insert(-1, "direction")
+        axes = []
         for axis in axes_ids:
-            axes[axis] = {"values": self.getAxis(axis, elt)}
+            axes.append(self.getAxis(axis, elt))
         return axes
 

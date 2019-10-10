@@ -7,5 +7,7 @@ setup(name="kosh",
       url="https://lc.llnl.gov/bitbucket/projects/ASCAML/repos/kosh/browse",
       packages=find_packages(),
       package_dir={'kosh': 'kosh'},
-      scripts=["scripts/init_cassandra.py"],
+      scripts=["scripts/init_cassandra.py",
+          "scripts/init_sina.py",
+          ],
 )
