@@ -12,7 +12,7 @@ print(DS)
 
 #print(DS.associated_data)
 
-myfile = DS.get(DS.associated_data[0])
+myfile = DS.loadFromStore(DS.associated_data[0])
 print(type(myfile))
 
 myother = KoshSinaFile(Id=DS.associated_data[0], filetype="text", record_handler=DS.__record_handler__)

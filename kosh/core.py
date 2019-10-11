@@ -96,7 +96,7 @@ class KoshDataset(object):
         if self.associated_data is not None:
             st += "--- Associated Data ---\n"
             for a in self.associated_data:
-                st2 = str(self.get(a))
+                st2 = str(self.loadFromStore(a))
                 st += "\n\t".join(st2.split("\n"))
         return st
     
@@ -107,17 +107,29 @@ class KoshDataset(object):
         elif not source.__id__ in self.associated_data:
             self.associated_data.append(source.__id__)
 
-    def get(self, Id, loader=None):
+    def loadFromStore(self, Id, loader=None):
         """ Get an object """
-        return self.__store__.get(Id, loader)
+        return self.__store__.loadFromStore(Id, loader)
 
 class KoshLoader(object):
     def __init__(self, types):
         """ types is a dictionary on known type that can be loaded as key and export format as values"""
         self.types = types
+        print("NOT HERE!")
     def known_types(self):
         return list(self.types.keys())
     def known_export_format(self, format):
         return self.types.get(format, [])
-    def load(self, target_type, *args, **kargs):
+    def loadFromStore(self, target_type, *args, **kargs):
         raise RuntimeError("Not Implemented Yet")
+
+class KoshFileLoader(KoshLoader):
+    def open(self, Id):
+        record = self.loadFromStore(Id)
+        if record.type == "hdf5":
+                return h5py.File(record.path)
+        else:
+            return open(record.path)
+    def get(self, Id, *args, **kargs):
+        file = self.open(Id)
+        return file(*args, **kargs)
