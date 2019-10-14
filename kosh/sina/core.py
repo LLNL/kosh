@@ -1,5 +1,6 @@
 import uuid
-from kosh.core import KoshStoreClass,  KoshDataset, KoshArray, KoshFile, KoshHDF5File, KoshLoader
+from kosh.core import KoshStoreClass,  KoshDataset, KoshArray
+from kosh.core import KoshFile, KoshHDF5File, KoshFileLoader, KoshLoader
 
 class KoshSinaObject(object):
     def __init__(self, Id, koshType, protected, record_handler):
@@ -94,9 +95,6 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
                                     record_handler=record_handler)
         self.path = path
         self.type = filetype
-        #record = self.__record_handler__.get(self.__id__)
-
-        
 
 
 class KoshSinaHDF5File(KoshHDF5File, KoshSinaFile):
@@ -107,35 +105,30 @@ class KoshSinaLoader(KoshLoader):
         """ types is a dictionary on known type that can be loaded as key and export format as values"""
         self.types = types
         self.__record_handler = record_handler
-    def open(self, Id):
-        record = self.__record_handler.get(Id)
-        if record["type"] == "dataset":
-            return KoshDatasetSina(Id, record_handler=self.__record_handler, store=self)
-        elif record["type"] == "file":
-            if record["data"]["type"] == "hdf5":
-                return h5py.File(record["data"]["path"]["value"])
-            else:
-                return open(record["data"]["path"]["value"])
 
-    def load(self, Id, format, *args, **kargs):
-        record = self.__record_handler.get(Id)
-        if record["type"] == "dataset":
-            raise RuntimeError("Cannot load a dataset yet")
-        elif record["type"] == "file":
-            if record["data"]["type"] == "hdf5":
-                return KoshHDF5SinaFile(Id=Id, filetype="hdf5", record_handler=self.__record_handler).open()[kargs["variable"]]
-            else:
-                return KoshSinaFile(Id=Id, filetype=record["data"]["type"]["value"], record_handler=self.__record_handler).open().read()
-
-    def get(self, Id):
+    def loadFromStore(self, Id,*args, **kargs):
         record = self.__record_handler.get(Id)
         if record["type"] == "dataset":
             return KoshDatasetSina(datasetId, record_handler=self.__record_handler)
-        elif record["type"] == "file":
+        else:
+            raise RuntimeError("Cannot load a {} yet".format(record["type"]))
+
+class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
+    def __init__(self, types, record_handler):
+        self.types = types
+        self.__record_handler = record_handler
+
+    def loadFromStore(self, Id,*args, **kargs):
+        record = self.__record_handler.get(Id)
+        if record["type"] == "file":
             if record["data"]["type"] == "hdf5":
                 return KoshHDF5SinaFile(Id=Id, filetype="hdf5", record_handler=self.__record_handler)
             else:
                 return KoshSinaFile(Id=Id, filetype=record["data"]["type"]["value"], record_handler=self.__record_handler)
+        elif record["type"] != "file":
+            raise RuntimeError("Cannot load record of type {}".format(record["type"]))
+
+
 
         
 class KoshStoreSina(KoshStoreClass):
@@ -159,7 +152,7 @@ class KoshStoreSina(KoshStoreClass):
             raise RuntimeError("Internal errors, more than one user match!")
         self.__user_id__ = list(inter_recs)[0]
         self.loaders = []
-        self.add_loader(KoshSinaLoader({"dataset": [], "file": ["numpy", "binary"]}, self.__record_handler))
+        self.add_loader(KoshSinaFileLoader({"file": ["numpy", "binary"]}, self.__record_handler))
 
 
     def create(self, name=None, datasetId=None, metadata={}):
@@ -192,26 +185,26 @@ class KoshStoreSina(KoshStoreClass):
         else:
             return loader.open(Id)
 
-    def load(self, Id, format=None, loader=None, *args, **kargs):
+    def loadFromStore(self, Id, loader=None):
         """returns an associated source to a specific format, possibly via a specified loader"""
         record = self.__record_handler.get(Id)
         if loader is None:
             for l in self.loaders:
                 if record["type"] in l.known_types():
-                    if format is None or format in l.known_export_formats():
-                        return l.load(Id, format, *args, **kargs)
+                        return l.loadFromStore(Id)
         else:
-            return loader.load(Id, format, *args, **kargs)
+            return loader.loadFromStore(Id)
 
-    def get(self, Id, loader=None):
+    def get(self, Id, format=None, loader=None, *args, **kargs):
         """returns an associated source"""
         record = self.__record_handler.get(Id)
         if loader is None:
             for l in self.loaders:
                 if record["type"] in l.known_types():
-                    return l.get(Id)
+                    if format is None or format in l.known_export_formats():
+                        return l.get(Id, format, *args, **kargs)
         else:
-            return loader.get(Id)
+            return loader.get(Id, format, *args, **kargs)
 
 
     def search(self, *atts, **keys):
