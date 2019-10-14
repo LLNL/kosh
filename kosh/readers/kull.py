@@ -131,16 +131,18 @@ class KullReader(object):
                     kargs["cycles"] = cycles
             else:
                 n_elements = len(proc_ids[proc])
+            if "metrics" in kargs:
+                n_metrics_avail == len(metrics)
             # Final shape for one processor
             if elt_type in ["zone", "node", "srd"]:
-                sh = (n_cycles, n_elements, n_metrics_avail)
+                sh = [n_cycles, n_elements, n_metrics_avail]
             elif elt_type == "drd":
-                sh = (n_cycles, n_elements, 2, n_metrics_avail)
+                sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
             else:
                 use_ext = elt_type
-            if len(cycles) == self.reader.num_cycles and "cycles" in kargs:
+            if cycles is not None and len(cycles) == self.reader.num_cycles and "cycles" in kargs:
                 del(kargs["cycles"])
             elt = kargs.get("elements", [])
             if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
@@ -148,25 +150,32 @@ class KullReader(object):
             if len(kargs.keys()) == 1 and "cycles" in kargs:
                 # right now passing just cycles is not implemented yet
                 kargs["elements"] = list(range(len(proc_ids[proc])))
+            if len(metrics_indices) != 0 and len(kargs)==0:
+                kargs["metrics"] = metrics
+                print("VOILA")
+                metrics_indices = range(len(metrics_indices))
+                sh[-1] = len(metrics)
             print("KARGS:", list(kargs.keys()), proc, use_ext)
             tmp = self.reader.request(ext_type=use_ext,
                                       proc=proc,
                                       **kargs)
             tmp.shape=sh
             print("TMP:", tmp.dtype, tmp.shape)
+            if len(metrics_indices) !=0:
+                # We need to return only the metrics wanted
+                out = None
+                for indx in metrics_indices:
+                    print("indx:", indx)
+                    if out is None:
+                        out = tmp[...,indx:indx+1]
+                    else:
+                        out = numpy.concatenate((out, tmp[...,indx:indx+1]), axis=-1)
+                tmp = out
+            print("Post metrics:", tmp.shape)
             if data is None:  # fist time
                 data = tmp
             else:
                 data = numpy.concatenate((data, tmp), axis=1)
-        if len(metrics_indices) !=0:
-            # We need to return only the metrics wanted
-            out = None
-            for indx in metrics_indices:
-                if out is None:
-                    out = data[...,indx:indx+1]
-                else:
-                    out = numpy.concatenate((out, data[...,indx:indx+1]))
-            data = out
         return data
 
     def getAxis(self, axis, elt):
