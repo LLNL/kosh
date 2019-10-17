@@ -1,2 +1,3 @@
 from .core import KoshStore  # noqa
-from . import readers
+from .arrays import KoshAxis  # noqa
+from . import readers  # noqa

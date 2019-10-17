@@ -4,17 +4,8 @@ import ExtractReader
 import os
 import numpy
 from collections import OrderedDict
+from kosh.arrays import KoshAxis
 
-class Axis(object):
-    def __init__(self, id, values):
-        self.id = id
-        self.__values = values
-    def __getitem__(self, key):
-        return self.__values[key]
-    def __setitem__(self, key, value):
-        self.__values[key] = value
-    def __len__(self):
-        return len(self.__values)
     
 class KullReader(object):
     def __init__(self, path):
@@ -147,9 +138,9 @@ class KullReader(object):
             elt = kargs.get("elements", [])
             if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
                 del(kargs["elements"])
-            if len(kargs.keys()) == 1 and "cycles" in kargs:
-                # right now passing just cycles is not implemented yet
-                kargs["elements"] = list(range(len(proc_ids[proc])))
+            #if len(kargs.keys()) == 1 and "cycles" in kargs:
+            #    # right now passing just cycles is not implemented yet
+            #    kargs["elements"] = list(range(len(proc_ids[proc])))
             if len(metrics_indices) != 0 and len(kargs)==0:
                 kargs["metrics"] = metrics
                 print("VOILA")
@@ -183,13 +174,13 @@ class KullReader(object):
         if not axis in good_axes:
             raise RuntimeError("Invalid axis {}, available axes are: {}".format(axis, good_axes))
         if axis == "cycles":
-            return Axis(axis, list(range(self.reader.num_cycles)))
+            return KoshAxis(axis, list(range(self.reader.num_cycles)))
         elif axis == "elements":
-            return Axis(axis, self.ids[elt])
+            return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":
-            return Axis(axis, self.metrics_avail[elt])
+            return KoshAxis(axis, self.metrics_avail[elt])
         elif axis == "direction" and elt == "drd":
-            return Axis(axis, [0,1])
+            return KoshAxis(axis, [0,1])
         else:
             raise RuntimeError("Invalid axis {} for element type {}".format(axis, elt))
 
