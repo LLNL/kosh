@@ -78,8 +78,8 @@ def KoshStore(engine, *args, **kargs):
         from .cassandra import KoshStoreCassandra
         return KoshStoreCassandra(*args, **kargs)
     elif engine.lower() == "sina":
-        from .sina import KoshStoreSina
-        return KoshStoreSina(*args, **kargs)
+        from .sina import KoshSinaStore
+        return KoshSinaStore(*args, **kargs)
 
 class KoshDataset(object):
     def __repr__(self):
@@ -154,4 +154,5 @@ class KullLoader(KoshLoader):
     
     def open(self, Id):
         obj = self.loadFromStore(Id)
+        rec = obj.__store__.__record_handler__.get(Id)
         return KullReader(obj.path)

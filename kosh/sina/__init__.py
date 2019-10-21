@@ -1,1 +1,1 @@
-from .core import KoshDatasetSina, KoshStoreSina, KoshSinaFile
+from .core import KoshSinaDataset, KoshSinaStore, KoshSinaFile

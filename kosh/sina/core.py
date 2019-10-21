@@ -6,7 +6,7 @@ class KoshSinaObject(object):
     def __init__(self, Id, koshType, protected, record_handler):
         self.__dict__["__record_handler__"] = record_handler
         self.__dict__["__protected__"] = [
-            "__id__", "__type__", "__protected__", "__record_handler__"] + protected
+            "__id__", "__type__", "__protected__", "__record_handler__", "__store__"] + protected
         self.__dict__["__id__"] = Id
         self.__dict__["__type__"] = koshType
 
@@ -67,17 +67,17 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
                 record.add_data("path", path)
                 record.add_data("type", filetype)
                 store.__record_handler__.insert(record)
-        files_filter = store.__record_handler__.get_all_of_type("file", ids_only=True)
 
 
         KoshSinaObject.__init__(self, Id, "file",
-                                    protected=["path", "type"],
+                                    #protected=["path", "type"],
+                                    protected=[],
                                     record_handler=store.__record_handler__)
-        self.path = path
-        self.type = filetype
+        self.__store__ = store
+        print("*****************************************", self.path, "******************************************")
 
 
-class KoshDatasetSina(KoshSinaObject, KoshDataset):
+class KoshSinaDataset(KoshSinaObject, KoshDataset):
     def __init__(self,datasetId, store):
         KoshSinaObject.__init__(self, datasetId, "dataset",
                                     protected=["__name__", "__creator__", "__store__"],
@@ -104,7 +104,9 @@ class KoshSinaLoader(KoshLoader):
     def loadFromStore(self, Id,*args, **kargs):
         record = self.store.__record_handler__.get(Id)
         if record["type"] == "dataset":
-            return KoshDatasetSina(Id, store=self.store)
+            return KoshSinaDataset(Id, store=self.store)
+        elif record["type"] == "file":
+            return KoshSinaFile(Id, store=self.store)
         else:
             return KoshSinaObject(Id, record["type"], protected=[], record_handler=self.store.__record_handler__)
 
@@ -125,7 +127,7 @@ class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
             raise RuntimeError("Cannot load record of type {}".format(record["type"]))
     
         
-class KoshStoreSina(KoshStoreClass):
+class KoshSinaStore(KoshStoreClass):
     def __init__(self, username, sql='sql', db_path=None, node_ip_list=["192.168.64.8",], keyspace=None):
         KoshStoreClass.__init__(self)
         if sql == "sql":
@@ -168,7 +170,7 @@ class KoshStoreSina(KoshStoreClass):
         for k in metadata:
             ds.add_data(k, metadata[k])
         self.__record_handler__.insert(ds)
-        ds=KoshDatasetSina(Id, store=self)
+        ds=KoshSinaDataset(Id, store=self)
         return ds
 
     def open(self, Id, loader=None):
