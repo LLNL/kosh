@@ -47,27 +47,6 @@ class KoshSinaObject(object):
             attributes[a] = record["data"][a]["value"]
         return attributes
 
-
-class KoshDatasetSina(KoshSinaObject, KoshDataset):
-    def __init__(self,datasetId, store):
-        KoshSinaObject.__init__(self, datasetId, "dataset",
-                                    protected=["__name__", "__creator__", "__store__"],
-                                    record_handler=store.__record_handler__)
-        record = store.__record_handler__.get(self.__id__)
-        self.__creator__=record["data"]["creator"]["value"]
-        self.__name__= record["data"]["name"]["value"]
-        self.__store__ = store
-        self.__record_handler__ = store.__record_handler__
-    
-    def add_file(self, path, filetype, metadata={}):
-        """ Add a file as a source of data for this dataset
-        required: path and type of file
-        optional: metadata"""
-        if filetype == "hdf5":
-            self.add(KoshHDF5SinaFile(path=path, filetype="hdf5", metadata=metadata, record_handler=self.__record_handler__))
-        else:
-            self.add(KoshSinaFile(path=path, filetype=filetype, metadata=metadata, record_handler=self.__record_handler__))
-
 class KoshSinaFile(KoshSinaObject, KoshFile):
     def __init__(self, Id=None, path="", filetype=None, metadata={}, store=None):
         if Id is None:
@@ -77,10 +56,10 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
                 raise RuntimeError("You need to pass a path")
             record.add_data("path", path)
             record.add_data("type", filetype)
-            record_handler.insert(record)
+            store.__record_handler__.insert(record)
         else:
             try:
-                record = record_handler.get(Id)
+                record = store.__record_handler__.get(Id)
             except:
                 record = Record(id=Id, type="file")
                 if path == "":
@@ -98,8 +77,23 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
         self.type = filetype
 
 
-class KoshSinaHDF5File(KoshHDF5File, KoshSinaFile):
-    pass
+class KoshDatasetSina(KoshSinaObject, KoshDataset):
+    def __init__(self,datasetId, store):
+        KoshSinaObject.__init__(self, datasetId, "dataset",
+                                    protected=["__name__", "__creator__", "__store__"],
+                                    record_handler=store.__record_handler__)
+        record = store.__record_handler__.get(self.__id__)
+        self.__creator__=record["data"]["creator"]["value"]
+        self.__name__= record["data"]["name"]["value"]
+        self.__store__ = store
+        self.__record_handler__ = store.__record_handler__
+    
+    def add_file(self, path, filetype, metadata={}):
+        """ Add a file as a source of data for this dataset
+        required: path and type of file
+        optional: metadata"""
+        self.add(KoshSinaFile(path=path, filetype=filetype, metadata=metadata, store=self.__store__))
+
 
 class KoshSinaLoader(KoshLoader):
     def __init__(self, types, store):
@@ -112,7 +106,7 @@ class KoshSinaLoader(KoshLoader):
         if record["type"] == "dataset":
             return KoshDatasetSina(Id, store=self.store)
         else:
-            raise RuntimeError("Cannot load a {} yet".format(record["type"]))
+            return KoshSinaObject(Id, record["type"], protected=[], record_handler=self.store.__record_handler__)
 
     def open(self, Id, *args, **kargs):
         return self.loadFromStore(Id, *args, **kargs)
@@ -120,21 +114,20 @@ class KoshSinaLoader(KoshLoader):
 class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
     def __init__(self, types, store):
         self.types = types
+        self.__store__ = store
         self.__record_handler__ = store.__record_handler__
 
     def loadFromStore(self, Id,*args, **kargs):
         record = self.__record_handler__.get(Id)
         if record["type"] == "file":
-            if record["data"]["type"] == "hdf5":
-                return KoshHDF5SinaFile(Id=Id, filetype="hdf5", record_handler=self.__record_handler__)
-            else:
-                return KoshSinaFile(Id=Id, filetype=record["data"]["type"]["value"], record_handler=self.__record_handler__)
+            return KoshSinaFile(Id=Id, path=record["data"]["path"]["value"], filetype=record["data"]["type"]["value"], store=self.__store__)
         elif record["type"] != "file":
             raise RuntimeError("Cannot load record of type {}".format(record["type"]))
     
         
 class KoshStoreSina(KoshStoreClass):
     def __init__(self, username, sql='sql', db_path=None, node_ip_list=["192.168.64.8",], keyspace=None):
+        KoshStoreClass.__init__(self)
         if sql == "sql":
             import sina.datastores.sql as sina
             self.__factory = sina.DAOFactory(db_path=db_path)
@@ -153,8 +146,8 @@ class KoshStoreSina(KoshStoreClass):
         elif len(inter_recs) > 1:
             raise RuntimeError("Internal errors, more than one user match!")
         self.__user_id__ = list(inter_recs)[0]
-        self.loaders = []
-        self.add_loader(KoshSinaLoader({"dataset": []}, self))
+        self.storeLoader = KoshSinaLoader({"dataset": []}, self)
+        self.add_loader(self.storeLoader)
         self.add_loader(KoshSinaFileLoader({"file": ["numpy", "binary"]}, self))
 
 
@@ -182,6 +175,12 @@ class KoshStoreSina(KoshStoreClass):
         """returns an associated source to a specific format, possibly via a specified loader"""
         record = self.__record_handler__.get(Id)
         if loader is None:
+            # sometime types have subtypes (e.g 'file') let's look if we understand a subtype
+            if "type" in record["data"]:
+                for l in self.loaders:
+                    if record["data"]["type"]["value"] in l.known_types():
+                        return l.open(Id)
+            # Ok could not open the actual subtype, looking at generic type
             for l in self.loaders:
                 if record["type"] in l.known_types():
                     return l.open(Id)
@@ -192,9 +191,15 @@ class KoshStoreSina(KoshStoreClass):
         """returns an associated source to a specific format, possibly via a specified loader"""
         record = self.__record_handler__.get(Id)
         if loader is None:
+            # sometime types have subtypes (e.g 'file') let's look if we understand a subtype
+            if "type" in record["data"]:
+                for l in self.loaders:
+                    if record["data"]["type"]["value"] in l.known_types():
+                        return l.loadFromStore(Id)
+            # Ok could not open the actual subtype, looking at generic type
             for l in self.loaders:
                 if record["type"] in l.known_types():
-                        return l.loadFromStore(Id)
+                    return l.loadFromStore(Id)
         else:
             return loader.loadFromStore(Id)
 
@@ -216,8 +221,8 @@ class KoshStoreSina(KoshStoreClass):
         you can further restrict by specifying exact value for a metadata via key=value
         """
         sina_kargs = {}
-        #for att in atts:
-        #    sina_kargs[att] = DataRange(min=None, max=None)
+        for att in atts:
+            sina_kargs[att] = DataRange(min=None, max=None)
         sina_kargs.update(keys)
 
         match = self.__record_handler__.data_query(**sina_kargs)

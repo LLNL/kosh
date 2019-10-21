@@ -4,6 +4,11 @@ class KoshAgent(object):
 
 
 class KoshStoreClass(object):
+    def __init__(self):
+        self.loaders= []
+        self.storeLoader = KoshLoader({"dataset": []})
+        self.add_loader(KullLoader(self))
+
     agent = KoshAgent()
     def connect(self):
         """Connect to engine DB"""
@@ -33,7 +38,7 @@ class KoshData(object):
         raise NotImplementedError()
 
     def __repr__(self):
-        """pretty print"""
+        """repr"""
         raise NotImplementedError()
 
 class KoshFile(KoshData):
@@ -78,7 +83,7 @@ def KoshStore(engine, *args, **kargs):
 
 class KoshDataset(object):
     def __repr__(self):
-        """pretty print"""
+        """repr"""
         raise NotImplementedError()
     def __str__(self):
         st=""
@@ -94,7 +99,7 @@ class KoshDataset(object):
                     continue
                 st += "\t{}: {}\n".format(a, atts[a])
         if self.associated_data is not None:
-            st += "--- Associated Data ---\n"
+            st += "--- Associated Data ({})---\n".format(len(self.associated_data))
             for a in self.associated_data:
                 st2 = str(self.loadFromStore(a))
                 st += "\n\t".join(st2.split("\n"))
@@ -105,17 +110,20 @@ class KoshDataset(object):
         if self.associated_data is None:
             self.associated_data = [source.__id__,]
         elif not source.__id__ in self.associated_data:
-            self.associated_data.append(source.__id__)
+            self.associated_data += [source.__id__,]
 
     def loadFromStore(self, Id, loader=None):
-        """ Get an object """
+        """ Get an object from store"""
         return self.__store__.loadFromStore(Id, loader)
+
+    def open(self, Id, loader=None):
+        """ Open an object from store"""
+        return self.__store__.open(Id, loader)
 
 class KoshLoader(object):
     def __init__(self, types):
         """ types is a dictionary on known type that can be loaded as key and export format as values"""
         self.types = types
-        print("NOT HERE!")
     def known_types(self):
         return list(self.types.keys())
     def known_export_format(self, format):
@@ -133,3 +141,17 @@ class KoshFileLoader(KoshLoader):
     def get(self, Id, *args, **kargs):
         file = self.open(Id)
         return file(*args, **kargs)
+
+
+from .loaders import KullReader
+class KullLoader(KoshLoader):
+    def __init__(self, store):
+        self.types = {"kull": ["numpy"]}
+        self.__store__ = store
+
+    def loadFromStore(self, Id):
+        return self.__store__.loadFromStore(Id, self.__store__.storeLoader)
+    
+    def open(self, Id):
+        obj = self.loadFromStore(Id)
+        return KullReader(obj.path)

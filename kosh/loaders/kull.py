@@ -5,6 +5,7 @@ import os
 import numpy
 from collections import OrderedDict
 from kosh.arrays import KoshAxis
+from kosh.core import KoshLoader
 
     
 class KullReader(object):
@@ -193,3 +194,15 @@ class KullReader(object):
             axes.append(self.getAxis(axis, elt))
         return axes
 
+class KullLoader(KoshLoader):
+    def __init__(self, store):
+        self.types = ["kull",]
+        self.__store__ = store
+
+    def loadFromStore(self, Id):
+        return self.__store__.loadFromStore(Id)
+    
+    def open(self, Id):
+        obj = self.loadFromStore(Id)
+        print("TYPE:", obj.type)
+        return KullReader(obj.path)
