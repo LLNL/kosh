@@ -11,16 +11,17 @@ DS.add_file("sina.sql", "text")
 print(DS)
 
 
-#print(DS.associated_data)
+#print(DS.__associated_data__)
 
-myfile = DS.loadFromStore(DS.associated_data[0])
+myfile = DS.loadFromStore(DS.__associated_data__[0])
 print(type(myfile))
 
-myother = KoshSinaFile(Id=DS.associated_data[0], filetype="text", store=DS.__store__)
+myother = KoshSinaFile(Id=DS.__associated_data__[0], mimetype="text", store=DS.__store__)
 print(type(myother))
 
 
-search = list(store.search(publisher=DataRange("", "ZZZZ"), attr1=6))
+search = store.search(publisher=DataRange("", "ZZZZ"), attr1=6)
+print(len(search), search[0])
 
-print(len(search))
-
+search = store.search(publisher=DataRange("", "ZZZZ"), attr1=6, ids_only=True)
+print(len(search), search[0])

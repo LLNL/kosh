@@ -48,51 +48,92 @@ class KoshSinaObject(object):
         return attributes
 
 class KoshSinaFile(KoshSinaObject, KoshFile):
-    def __init__(self, Id=None, path="", filetype=None, metadata={}, store=None):
+    def __init__(self, Id=None, uri="", mimetype=None, metadata={}, store=None):
         if Id is None:
             Id = uuid.uuid1().hex
             record = Record(id=Id, type="file")
-            if path == "":
-                raise RuntimeError("You need to pass a path")
-            record.add_data("path", path)
-            record.add_data("type", filetype)
+            if uri == "":
+                raise RuntimeError("You need to pass a uri to the data")
+            record.add_data("uri", uri)
+            record.add_data("type", mimetype)
             store.__record_handler__.insert(record)
         else:
             try:
                 record = store.__record_handler__.get(Id)
             except:
                 record = Record(id=Id, type="file")
-                if path == "":
-                    raise RuntimeError("You need to pass a path")
-                record.add_data("path", path)
-                record.add_data("type", filetype)
+                if uri == "":
+                    raise RuntimeError("You need to pass a uri to the data")
+                record.add_data("uri", uri)
+                record.add_data("type", mimetype)
                 store.__record_handler__.insert(record)
 
 
         KoshSinaObject.__init__(self, Id, "file",
-                                    #protected=["path", "type"],
                                     protected=[],
                                     record_handler=store.__record_handler__)
         self.__store__ = store
-        print("*****************************************", self.path, "******************************************")
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
     def __init__(self,datasetId, store):
         KoshSinaObject.__init__(self, datasetId, "dataset",
-                                    protected=["__name__", "__creator__", "__store__"],
+                                    protected=["__name__", "__creator__", "__store__", "__associated_data__"],
                                     record_handler=store.__record_handler__)
         record = store.__record_handler__.get(self.__id__)
         self.__creator__=record["data"]["creator"]["value"]
         self.__name__= record["data"]["name"]["value"]
         self.__store__ = store
         self.__record_handler__ = store.__record_handler__
+        self.__associated_data__ = [record["files"][f]["kosh_id"] for f in record["files"]]
     
-    def add_file(self, path, filetype, metadata={}):
+    def add_file(self, uri, mimetype, metadata={}):
         """ Add a file as a source of data for this dataset
-        required: path and type of file
+        required: uri and mimetype of file
         optional: metadata"""
-        self.add(KoshSinaFile(path=path, filetype=filetype, metadata=metadata, store=self.__store__))
+        rec = self.__record_handler__.get(self.__id__)
+        rec.add_file(uri, mimetype)
+        kosh_file = KoshSinaFile(uri=uri, mimetype=mimetype, metadata=metadata, store=self.__store__)
+        rec["files"][uri]["kosh_id"] = kosh_file.__id__
+        self.__record_handler__.delete(self.__id__)
+        self.__record_handler__.insert(rec)
+        self.add(kosh_file)
+
+    def search(self, *atts, **keys):
+        """ Search associated data matching some metadata
+        arguments are the metadata name we are looking for e.g search("attr1", "attr2") 
+        you can further restrict by specifying exact value for a metadata via key=value
+        you can return ids only by using: ids_only=True
+        """
+        if self.__associated_data__ is None:
+            return []
+        sina_kargs = {}
+        ids_only = keys.pop("ids_only", False)
+        for att in atts:
+            sina_kargs[att] = DataRange(min=None, max=None)
+        sina_kargs.update(keys)
+
+        match = self.__record_handler__.data_query(**sina_kargs)
+        # instantly restrict to associated data
+        inter_recs = set(match).intersection(set(self.__associated_data__))
+        # restrict to datatypes
+        """
+        ok_types = set()
+        for rec in self.__associated_data__:
+            r = self.__record_handler__.get(rec)
+            ok_types.add(r["type"])
+        print("Found:", ok_types, "types")
+
+        # go thru associated types 
+        for ok in ok_types:
+            ds_filter = self.__record_handler__.get_all_of_type(ok, ids_only=True)
+            inter_recs = inter_recs.intersection(set(ds_filter))
+        """
+        if ids_only:
+            return list(inter_recs)
+        else:
+            return [self.loadFromStore(rec) for rec in inter_recs]
+
 
 
 class KoshSinaLoader(KoshLoader):
@@ -122,7 +163,7 @@ class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
     def loadFromStore(self, Id,*args, **kargs):
         record = self.__record_handler__.get(Id)
         if record["type"] == "file":
-            return KoshSinaFile(Id=Id, path=record["data"]["path"]["value"], filetype=record["data"]["type"]["value"], store=self.__store__)
+            return KoshSinaFile(Id=Id, uri=record["data"]["uri"]["value"], mimetype=record["data"]["type"]["value"], store=self.__store__)
         elif record["type"] != "file":
             raise RuntimeError("Cannot load record of type {}".format(record["type"]))
     
@@ -166,7 +207,7 @@ class KoshSinaStore(KoshStoreClass):
         ds=Record(id=Id, type="dataset")
         ds.add_data("creator", self.__user_id__)
         ds.add_data("name", name)
-        ds.add_data("associated_data", None)
+        ds.add_data("__associated_data__", None)
         for k in metadata:
             ds.add_data(k, metadata[k])
         self.__record_handler__.insert(ds)
@@ -221,8 +262,10 @@ class KoshSinaStore(KoshStoreClass):
         """ Search cassandra for datasets matching some metadata
         arguments are the metadata name we are looking for e.g search("attr1", "attr2") 
         you can further restrict by specifying exact value for a metadata via key=value
+        you can return ids only by using: ids_only=True
         """
         sina_kargs = {}
+        ids_only = keys.pop("ids_only", False)
         for att in atts:
             sina_kargs[att] = DataRange(min=None, max=None)
         sina_kargs.update(keys)
@@ -230,4 +273,7 @@ class KoshSinaStore(KoshStoreClass):
         match = self.__record_handler__.data_query(**sina_kargs)
         ds_filter = self.__record_handler__.get_all_of_type("dataset", ids_only=True)
         inter_recs = set(match).intersection(set(ds_filter))
-        return [self.open(rec) for rec in inter_recs]
+        if ids_only:
+            return list(inter_recs)
+        else:
+            return [self.open(rec) for rec in inter_recs]
