@@ -1,3 +1,4 @@
 from .core import KoshStore  # noqa
 from .arrays import KoshAxis  # noqa
-from . import readers  # noqa
+from .schemas import KoshSchema  # noqa
+from . import loaders  # noqa

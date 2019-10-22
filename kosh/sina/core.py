@@ -1,6 +1,6 @@
 import uuid
 from kosh.core import KoshStoreClass,  KoshDataset, KoshArray
-from kosh.core import KoshFile, KoshHDF5File, KoshFileLoader, KoshLoader
+from kosh.core import KoshFile, KoshFileLoader, KoshLoader
 
 class KoshSinaObject(object):
     def __init__(self, Id, koshType, protected, record_handler):
@@ -17,7 +17,7 @@ class KoshSinaObject(object):
         if name == "__attributes__":
             return self.__getattributes__()
         if not name in record["data"]:
-            raise RuntimeError(
+            raise AttributeError(
                 "Object {} does not have {} attribute".format(self.__id__, name))
         return record["data"][name]["value"]
 
@@ -147,7 +147,7 @@ class KoshSinaLoader(KoshLoader):
         if record["type"] == "dataset":
             return KoshSinaDataset(Id, store=self.store)
         elif record["type"] == "file":
-            return KoshSinaFile(Id, store=self.store)
+            return KoshSinaFile(Id, store=self.store, uri=record["data"]["uri"]["value"], mimetype=record["data"]["type"]["value"])
         else:
             return KoshSinaObject(Id, record["type"], protected=[], record_handler=self.store.__record_handler__)
 
@@ -238,12 +238,15 @@ class KoshSinaStore(KoshStoreClass):
             if "type" in record["data"]:
                 for l in self.loaders:
                     if record["data"]["type"]["value"] in l.known_types():
+                        print("Using loader:", l)
                         return l.loadFromStore(Id)
             # Ok could not open the actual subtype, looking at generic type
             for l in self.loaders:
                 if record["type"] in l.known_types():
+                    print("Using i loader:", l)
                     return l.loadFromStore(Id)
         else:
+            print("Using user loader:", loader)
             return loader.loadFromStore(Id)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):

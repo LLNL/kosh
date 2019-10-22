@@ -27,6 +27,9 @@ class KoshStoreClass(object):
         raise NotImplementedError()
     def add_loader(self, loader):
         self.loaders.append(loader)
+    
+    def schema(self, schema_name):
+        return NotImplementedError("method not implemented yet")
 
 class KoshData(object):
     def registerReader(self, name, reader):
@@ -37,13 +40,15 @@ class KoshData(object):
         """Method to get data"""
         raise NotImplementedError()
 
-    def __repr__(self):
-        """repr"""
-        raise NotImplementedError()
-
 class KoshFile(KoshData):
     def open(self, mode="r"):
-        return open(self.uri, mode)
+        if self.type == "hdf5":
+            import h5py
+            return h5py.File(self.uri, mode)
+        else:
+            return open(self.uri, mode)
+
+
     def __str__(self):
         st=""
         st += "\nKOSH FILE\n"
@@ -56,12 +61,6 @@ class KoshFile(KoshData):
             for a in sorted(atts):
                 st += "\t{}: {}\n".format(a, atts[a])
         return st
-
-class KoshHDF5File(KoshFile):
-    def open(self):
-        import h5py
-        return h5py.File(self.uri)
-
 
 class KoshArray(KoshData):
     def __init__(self, dimensions):
@@ -81,9 +80,6 @@ def KoshStore(engine, *args, **kargs):
         return KoshSinaStore(*args, **kargs)
 
 class KoshDataset(object):
-    def __repr__(self):
-        """repr"""
-        raise NotImplementedError()
     def __str__(self):
         st=""
         st += "KOSH DATASET\n"
