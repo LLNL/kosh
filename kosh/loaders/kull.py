@@ -207,7 +207,7 @@ class KullReader(object):
 
 class KullLoader(KoshLoader):
     def __init__(self, store):
-        self.types = ["kull", ]
+        self.types = {"kull": ["numpy", ]}
         self.__store__ = store
 
     def loadFromStore(self, Id):

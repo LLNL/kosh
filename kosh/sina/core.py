@@ -44,7 +44,11 @@ class KoshSinaObject(object):
 
     def listattributes(self):
         record = self.__record_handler__.get(self.__id__)
-        return list(record["data"].keys())
+        attributes = list(record["data"].keys())
+        for att in self.__protected__:
+            if att in attributes:
+                attributes.remove(att)
+        return sorted(attributes)
 
     def __getattributes__(self):
         record = self.__record_handler__.get(self.__id__)
@@ -132,20 +136,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         match = self.__record_handler__.data_query(**sina_kargs)
         # instantly restrict to associated data
         inter_recs = set(match).intersection(set(self.__associated_data__))
-        # restrict to datatypes
-        """
-        ok_types = set()
-        for rec in self.__associated_data__:
-            r = self.__record_handler__.get(rec)
-            ok_types.add(r["type"])
-        print("Found:", ok_types, "types")
 
-        # go thru associated types
-        for ok in ok_types:
-            ds_filter = self.__record_handler__.get_all_of_type(ok,
-                                                                ids_only=True)
-            inter_recs = inter_recs.intersection(set(ds_filter))
-        """
         if ids_only:
             return list(inter_recs)
         else:
@@ -272,15 +263,12 @@ class KoshSinaStore(KoshStoreClass):
             if "type" in record["data"]:
                 for l in self.loaders:
                     if record["data"]["type"]["value"] in l.known_types():
-                        print("Using loader:", l)
                         return l.loadFromStore(Id)
             # Ok could not open the actual subtype, looking at generic type
             for l in self.loaders:
                 if record["type"] in l.known_types():
-                    print("Using i loader:", l)
                     return l.loadFromStore(Id)
         else:
-            print("Using user loader:", loader)
             return loader.loadFromStore(Id)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):
@@ -302,14 +290,21 @@ class KoshSinaStore(KoshStoreClass):
         """  # noqa
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
+        # Until fix in sina
+        if len(atts) != 0:
+            raise NotImplementedError("Need key/value at the moment")
         for att in atts:
-            sina_kargs[att] = DataRange(min=None, max=None)
+            sina_kargs[att] = DataRange(min=-1.e99999, max=1.e99999)
         sina_kargs.update(keys)
 
-        match = self.__record_handler__.data_query(**sina_kargs)
         ds_filter = self.__record_handler__.get_all_of_type(
             "dataset", ids_only=True)
-        inter_recs = set(match).intersection(set(ds_filter))
+        if len(sina_kargs) != 0:  # no restriction, all datsets
+            match = self.__record_handler__.data_query(**sina_kargs)
+            inter_recs = set(match).intersection(set(ds_filter))
+        else:
+            inter_recs = list(ds_filter)
+
         if ids_only:
             return list(inter_recs)
         else:
