@@ -1,13 +1,18 @@
-import sys
-sys.path.append("/g/g19/cdoutrix/git/mashextract/tools")  # noqa
-import ExtractReader
 import os
+import sys
+sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
+try:
+    import ExtractReader
+except ImportError:
+    import warnings
+    warnings.warn(
+        "Could not import ExtractReader, will not be able to read"
+        " MASHExtract files")
 import numpy
-from collections import OrderedDict
 from kosh.arrays import KoshAxis
-from kosh.core import KoshLoader
+from .core import KoshLoader
 
-    
+
 class KullReader(object):
     def __init__(self, path):
         if not os.path.exists(path):
@@ -21,18 +26,18 @@ class KullReader(object):
         for elt in ["zone", "node", "srd", "drd"]:
             metrics_avail, proc_ids = self.query(elt)
             self.proc_ids[elt] = proc_ids
-            self.metrics_avail[elt] = metrics_avail 
+            self.metrics_avail[elt] = metrics_avail
             ids = []
             for lst in proc_ids:
                 ids += lst
             self.ids[elt] = ids
 
     def query(self, elt_type):
-        """Retrieve certain cycle/metrics 
+        """Retrieve certain cycle/metrics
         """
         # Metrics available
         if elt_type in ["zone", "node"]:
-            metrics_avail = getattr(self.reader,"{}_metrics".format(elt_type))
+            metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
         elif elt_type == "srd":
             metrics_avail = self.reader.SRD
         elif elt_type == "drd":
@@ -49,11 +54,15 @@ class KullReader(object):
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
-            proc_ids.append(getattr(self.reader, "getGlobal{}Ids".format(get_proc_ids))(proc).tolist())
+            proc_ids.append(
+                getattr(
+                    self.reader,
+                    "getGlobal{}Ids".format(get_proc_ids))(proc).tolist())
             n_elements += len(proc_ids[-1])
         return metrics_avail, proc_ids
 
-    def get_elements(self, elt_type, cycles=None, elements=None, metrics=None, processors=[]):
+    def get_elements(self, elt_type, cycles=None,
+                     elements=None, metrics=None, processors=[]):
         metrics_avail = self.metrics_avail[elt_type]
         proc_ids = self.proc_ids[elt_type]
         n_metrics_avail = len(metrics_avail)
@@ -75,37 +84,32 @@ class KullReader(object):
                     if e in proc_ids[proc]:
                         missing = False
                 if missing:
-                    raise RuntimeError("Missing {} element # {}".format(node_or_zone, e))
+                    raise RuntimeError(
+                        "Missing {} element # {}".format(
+                            elt_type, e))
             n_elements = len(elements)
 
         kargs = {}
         if cycles is not None:
             kargs["cycles"] = cycles
             n_cycles = len(cycles)
-            #if elements is None:  # We need both cycle and elements at the moment....
-            #    elements = []
-            #    for ids in processors:
-            #        elements += proc_ids[ids]
         else:
             n_cycles = self.reader.num_cycles
 
         metrics_indices = []
         if metrics is not None:
-            n_metrics = len(metrics)
             for m in metrics:
                 if m not in metrics_avail:
                     raise RuntimeError("Metrics {} not available".format(m))
                 else:
                     metrics_indices.append(metrics_avail.index(m))
         else:
-            n_metrics = n_metrics_avail
             metrics = metrics_avail
-            
 
         data = None
         retrieved_elements = []
         for proc in processors:
-            if "elements" in kargs: 
+            if "elements" in kargs:
                 del(kargs["elements"])
             if elements is not None:
                 # Not all elements are on a processor
@@ -118,7 +122,7 @@ class KullReader(object):
                     continue
                 retrieved_elements += elt
                 kargs["elements"] = elt
-                if cycles is None: # need to create cycles
+                if cycles is None:  # need to create cycles
                     cycles = list(range(self.reader.num_cycles))
                     kargs["cycles"] = cycles
             else:
@@ -134,15 +138,16 @@ class KullReader(object):
                 use_ext = "{} metric".format(elt_type)
             else:
                 use_ext = elt_type
-            if cycles is not None and len(cycles) == self.reader.num_cycles and "cycles" in kargs:
+            if cycles is not None and len(
+                    cycles) == self.reader.num_cycles and "cycles" in kargs:
                 del(kargs["cycles"])
             elt = kargs.get("elements", [])
             if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
                 del(kargs["elements"])
-            #if len(kargs.keys()) == 1 and "cycles" in kargs:
+            # if len(kargs.keys()) == 1 and "cycles" in kargs:
             #    # right now passing just cycles is not implemented yet
             #    kargs["elements"] = list(range(len(proc_ids[proc])))
-            if len(metrics_indices) != 0 and len(kargs)==0:
+            if len(metrics_indices) != 0 and len(kargs) == 0:
                 kargs["metrics"] = metrics
                 print("VOILA")
                 metrics_indices = range(len(metrics_indices))
@@ -151,17 +156,18 @@ class KullReader(object):
             tmp = self.reader.request(ext_type=use_ext,
                                       proc=proc,
                                       **kargs)
-            tmp.shape=sh
+            tmp.shape = sh
             print("TMP:", tmp.dtype, tmp.shape)
-            if len(metrics_indices) !=0:
+            if len(metrics_indices) != 0:
                 # We need to return only the metrics wanted
                 out = None
                 for indx in metrics_indices:
                     print("indx:", indx)
                     if out is None:
-                        out = tmp[...,indx:indx+1]
+                        out = tmp[..., indx:indx + 1]
                     else:
-                        out = numpy.concatenate((out, tmp[...,indx:indx+1]), axis=-1)
+                        out = numpy.concatenate(
+                            (out, tmp[..., indx:indx + 1]), axis=-1)
                 tmp = out
             print("Post metrics:", tmp.shape)
             if data is None:  # fist time
@@ -172,8 +178,10 @@ class KullReader(object):
 
     def getAxis(self, axis, elt):
         good_axes = ["cycles", "elements", "metrics", "direction"]
-        if not axis in good_axes:
-            raise RuntimeError("Invalid axis {}, available axes are: {}".format(axis, good_axes))
+        if axis not in good_axes:
+            raise RuntimeError(
+                "Invalid axis {}, available axes are: {}".format(
+                    axis, good_axes))
         if axis == "cycles":
             return KoshAxis(axis, list(range(self.reader.num_cycles)))
         elif axis == "elements":
@@ -181,9 +189,11 @@ class KullReader(object):
         elif axis == "metrics":
             return KoshAxis(axis, self.metrics_avail[elt])
         elif axis == "direction" and elt == "drd":
-            return KoshAxis(axis, [0,1])
+            return KoshAxis(axis, [0, 1])
         else:
-            raise RuntimeError("Invalid axis {} for element type {}".format(axis, elt))
+            raise RuntimeError(
+                "Invalid axis {} for element type {}".format(
+                    axis, elt))
 
     def getAxisList(self, elt):
         axes_ids = ["cycles", "elements", "metrics"]
@@ -194,15 +204,15 @@ class KullReader(object):
             axes.append(self.getAxis(axis, elt))
         return axes
 
+
 class KullLoader(KoshLoader):
     def __init__(self, store):
-        self.types = ["kull",]
+        self.types = ["kull", ]
         self.__store__ = store
 
     def loadFromStore(self, Id):
         return self.__store__.loadFromStore(Id)
-    
+
     def open(self, Id):
         obj = self.loadFromStore(Id)
-        print("TYPE:", obj.type)
         return KullReader(obj.path)

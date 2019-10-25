@@ -15,7 +15,8 @@ class KoshTest(unittest.TestCase):
     def test_connect(self):
         self.init_db()
         if self.engine == "sina":
-            KoshStore(engine="sina", username=os.getlogin(), sql='sql',
+            # os.getlogin does not work on my WSL
+            KoshStore(engine="sina", username=os.environ["USER"], sql='sql',
                       db_path=kosh_test_sql_file)
 
     def init_db(self):
@@ -28,3 +29,4 @@ class KoshTest(unittest.TestCase):
                 sys.prefix, kosh_test_sql_file)
             p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
             o, e = p.communicate()
+            print("Errors:", e)
