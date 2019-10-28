@@ -10,7 +10,7 @@ class KoshLoader(object):
     def known_export_format(self, format):
         return self.types.get(format, [])
 
-    def loadFromStore(self, Id, *args, **kargs):
+    def load(self, Id, *args, **kargs):
         raise RuntimeError("Not Implemented Yet")
 
     def open(self, Id):
@@ -24,7 +24,7 @@ class KoshLoader(object):
 class KoshFileLoader(KoshLoader):
     def open(self, Id):
         import h5py
-        record = self.loadFromStore(Id)
+        record = self.load(Id)
         if record.type == "hdf5":
             return h5py.File(record.uri)
         else:

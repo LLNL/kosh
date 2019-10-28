@@ -210,9 +210,9 @@ class KullLoader(KoshLoader):
         self.types = {"kull": ["numpy", ]}
         self.__store__ = store
 
-    def loadFromStore(self, Id):
-        return self.__store__.loadFromStore(Id)
+    def load(self, Id):
+        return self.__store__.load(Id)
 
     def open(self, Id):
-        obj = self.loadFromStore(Id)
+        obj = self.load(Id)
         return KullReader(obj.path)

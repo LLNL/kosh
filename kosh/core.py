@@ -107,7 +107,7 @@ class KoshDataset(object):
             st += "--- Associated Data ({})---\n".format(
                 len(self.__associated_data__))
             for a in self.__associated_data__:
-                st2 = str(self.loadFromStore(a))
+                st2 = str(self.load(a))
                 st += "\n\t".join(st2.split("\n"))
         return st
 
@@ -120,14 +120,14 @@ class KoshDataset(object):
             self.__associated_data__ += [source.__id__, ]
         print("In associated data (end):", self.__associated_data__)
 
-    def loadFromStore(self, Id, loader=None):
+    def load(self, Id, loader=None):
         """ Get an object from store"""
-        return self.__store__.loadFromStore(Id, loader)
+        return self.__store__.load(Id, loader)
 
     def open(self, Id, loader=None):
         """ Open an object from store"""
         return self.__store__.open(Id, loader)
 
-    def get(self, Id, loader=None, *args, **kargs):
-        """ Open an object from store"""
-        return self.__store__.get(Id, loader=loader, *args, **kargs)
+    #def get(self, Id, loader=None, *args, **kargs):
+    #    """ Open an object from store"""
+    #    return self.__store__.get(Id, loader=loader, *args, **kargs)

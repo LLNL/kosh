@@ -39,11 +39,11 @@ class KoshTest(unittest.TestCase):
             store = KoshStore(engine="sina", username=os.environ["USER"], sql='sql',
                       db_path=kosh_db)
         return store, kosh_db
-    def tiest_connect(self):
+    def test_connect(self):
         store, kosh_test_sql_file = self.connect()
         os.remove(kosh_test_sql_file)
 
-    def tiest_add_dataset(self):
+    def test_add_dataset(self):
         store, kosh_db = self.connect()
         # Check it's empy
         self.assertEqual(len(store.search()), 0)
@@ -99,7 +99,3 @@ class KoshTest(unittest.TestCase):
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
         os.remove(kosh_db)
-
-
-
-

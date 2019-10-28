@@ -140,7 +140,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if ids_only:
             return list(inter_recs)
         else:
-            return [self.loadFromStore(rec) for rec in inter_recs]
+            return [self.load(rec) for rec in inter_recs]
 
 
 class KoshSinaLoader(KoshLoader):
@@ -150,7 +150,7 @@ class KoshSinaLoader(KoshLoader):
         self.types = types
         self.store = store
 
-    def loadFromStore(self, Id, *args, **kargs):
+    def load(self, Id, *args, **kargs):
         record = self.store.__record_handler__.get(Id)
         if record["type"] == "dataset":
             return KoshSinaDataset(Id, store=self.store)
@@ -163,7 +163,7 @@ class KoshSinaLoader(KoshLoader):
             ], record_handler=self.store.__record_handler__)
 
     def open(self, Id, *args, **kargs):
-        return self.loadFromStore(Id, *args, **kargs)
+        return self.load(Id, *args, **kargs)
 
 
 class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
@@ -172,7 +172,7 @@ class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
         self.__store__ = store
         self.__record_handler__ = store.__record_handler__
 
-    def loadFromStore(self, Id, *args, **kargs):
+    def load(self, Id, *args, **kargs):
         record = self.__record_handler__.get(Id)
         if record["type"] == "file":
             return KoshSinaFile(Id=Id, uri=record["data"]["uri"]["value"],
@@ -253,7 +253,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             return loader.open(Id)
 
-    def loadFromStore(self, Id, loader=None):
+    def load(self, Id, loader=None):
         """returns an associated source to a specific format,
         possibly via a specified loader"""
         record = self.__record_handler__.get(Id)
@@ -263,13 +263,13 @@ class KoshSinaStore(KoshStoreClass):
             if "type" in record["data"]:
                 for l in self.loaders:
                     if record["data"]["type"]["value"] in l.known_types():
-                        return l.loadFromStore(Id)
+                        return l.load(Id)
             # Ok could not open the actual subtype, looking at generic type
             for l in self.loaders:
                 if record["type"] in l.known_types():
-                    return l.loadFromStore(Id)
+                    return l.load(Id)
         else:
-            return loader.loadFromStore(Id)
+            return loader.load(Id)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):
         """returns an associated source"""
