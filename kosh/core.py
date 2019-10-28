@@ -128,6 +128,6 @@ class KoshDataset(object):
         """ Open an object from store"""
         return self.__store__.open(Id, loader)
 
-    #def get(self, Id, loader=None, *args, **kargs):
+    # def get(self, Id, loader=None, *args, **kargs):
     #    """ Open an object from store"""
     #    return self.__store__.get(Id, loader=loader, *args, **kargs)
