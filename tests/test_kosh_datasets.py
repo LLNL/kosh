@@ -1,6 +1,8 @@
 import os
 from koshbase import KoshTest
 import kosh
+import textwrap
+
 
 class KoshTestDataset(KoshTest):
     def test_add_dataset(self):
@@ -29,6 +31,20 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(ds.listattributes(), ["creator", "name"])
         with self.assertRaises(AttributeError) as err:
             print(ds.person)
+        
+        printTestResults = """\
+KOSH DATASET
+        id: {id}
+        name:Unnamed Dataset
+        creator: {creator}
+
+--- Attributes ---
+        creator: {creator}
+        name: Unnamed Dataset
+--- Associated Data (0)---
+""".format(id=ds.__id__, creator=ds.creator)
+        print(ds)
+        self.assertEqual(str(ds).replace("\t","        "), printTestResults)
         os.remove(kosh_db)
 
     def test_search_datasets_in_store(self):
