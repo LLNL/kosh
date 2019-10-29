@@ -116,6 +116,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         self.__record_handler__.delete(self.__id__)
         self.__record_handler__.insert(rec)
         self.add(kosh_file)
+        return self.__store__.load(kosh_file.__id__)
 
     def search(self, *atts, **keys):
         """ Search associated data matching some metadata
@@ -133,9 +134,12 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             sina_kargs[att] = DataRange(min=None, max=None)
         sina_kargs.update(keys)
 
-        match = self.__record_handler__.data_query(**sina_kargs)
-        # instantly restrict to associated data
-        inter_recs = set(match).intersection(set(self.__associated_data__))
+        if len(sina_kargs) == 0:
+            inter_recs = self.__associated_data__
+        else:
+            match = self.__record_handler__.data_query(**sina_kargs)
+            # instantly restrict to associated data
+            inter_recs = set(match).intersection(set(self.__associated_data__))
 
         if ids_only:
             return list(inter_recs)

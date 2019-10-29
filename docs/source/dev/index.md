@@ -67,12 +67,31 @@ Given a unique id or a Kosh-understood object, associates this object to the dat
 File objects are to be associated to datsets, they should have a unique id, and the following two attributes:
 
 `uri`: Describing how to get to the data.
-`mime-type`: what kind of data is in this file.
+`mime_type`: what kind of data is in this file.
 
 Loader will rely on this information to be accessible in order to deal with file objects.
 
+## Data Object
+
+Data Object are returned by the loader, this allows for a pseudo constant representation accross formats
+common attributes are:
+`mime_type`: what kind of data
+
+Potentially one can implement storing the DataObject directly in the store, or decide to access them via files.
+
+### Array Object
+
+At the moment only array objects are implemented
+
+They have the following methods
+
+#### getAxisList()
+
+#### getAxis()
+
+#### __getslice__/__setslice__
 
 ## Loader Objects
 
-Loader object allow for rare/custom representation of data and for custom implementation of data access.
+Loader object allow for querying/ingestion of custom data representation and/or custom implementation of such query/ingestion.
 

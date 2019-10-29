@@ -13,7 +13,7 @@ from kosh.arrays import KoshAxis
 from .core import KoshLoader
 
 
-class KullReader(object):
+class MashReader(object):
     def __init__(self, path):
         if not os.path.exists(path):
             raise RuntimeError("bad input dir {}".format(path))
@@ -24,7 +24,7 @@ class KullReader(object):
         self.proc_ids = {}
         self.ids = {}
         for elt in ["zone", "node", "srd", "drd"]:
-            metrics_avail, proc_ids = self.query(elt)
+            metrics_avail, proc_ids = self.__query(elt)
             self.proc_ids[elt] = proc_ids
             self.metrics_avail[elt] = metrics_avail
             ids = []
@@ -32,7 +32,7 @@ class KullReader(object):
                 ids += lst
             self.ids[elt] = ids
 
-    def query(self, elt_type):
+    def __query(self, elt_type):
         """Retrieve certain cycle/metrics
         """
         # Metrics available
@@ -176,6 +176,8 @@ class KullReader(object):
                 data = numpy.concatenate((data, tmp), axis=1)
         return data
 
+    get = get_elements
+
     def getAxis(self, axis, elt):
         good_axes = ["cycles", "elements", "metrics", "direction"]
         if axis not in good_axes:
@@ -205,9 +207,9 @@ class KullReader(object):
         return axes
 
 
-class KullLoader(KoshLoader):
+class MashLoader(KoshLoader):
     def __init__(self, store):
-        self.types = {"kull": ["numpy", ]}
+        self.types = {"mash": ["numpy", ]}
         self.__store__ = store
 
     def load(self, Id):
@@ -215,4 +217,4 @@ class KullLoader(KoshLoader):
 
     def open(self, Id):
         obj = self.load(Id)
-        return KullReader(obj.path)
+        return MashReader(obj.path)

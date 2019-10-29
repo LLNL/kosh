@@ -1,2 +1,2 @@
 from .core import KoshLoader, KoshFileLoader  # noqa
-from .kull import KullLoader  # noqa
+from .mash import MashLoader  # noqa

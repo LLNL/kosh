@@ -1,6 +1,6 @@
 import os
 from koshbase import KoshTest
-
+import kosh
 
 class KoshTestDataset(KoshTest):
     def test_add_dataset(self):
@@ -31,14 +31,13 @@ class KoshTestDataset(KoshTest):
             print(ds.person)
         os.remove(kosh_db)
 
-    def test_search_datasets(self):
+    def test_search_datasets_in_store(self):
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds = store.create(metadata={"key1": 2, "key2": "B"})
         ds = store.create(metadata={"key1": 3, "key3": "c"})
         ds = store.create(metadata={"key1": 4, "key3": "d", "key2": "D"})
-        """
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
         with self.assertRaises(NotImplementedError):
@@ -47,8 +46,7 @@ class KoshTestDataset(KoshTest):
             self.assertEqual(len(store.search("key2")), 3)
         with self.assertRaises(NotImplementedError):
             self.assertEqual(len(store.search("key3")), 2)
-        # Remove this when above passes
-        """
+        # Remove this when above passes outside of exceptions
         from sina.utils import DataRange
         self.assertEqual(len(store.search(key1=DataRange(min=-1.e40))), 4)
         self.assertEqual(len(store.search(key2=DataRange(min=""))), 3)
@@ -59,3 +57,21 @@ class KoshTestDataset(KoshTest):
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
         os.remove(kosh_db)
+
+    def test_add_file(self):
+        store, kosh_db = self.connect()
+        # Create many datasets
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        self.assertEqual(len(ds.search()), 0)
+        ds.add_file("tests/baselines/mash/node_extracts2", "kull")
+        self.assertEqual(len(ds.search()), 1)
+        # adding again does not create additional entry
+        with self.assertRaises(ValueError):
+            ds.add_file("tests/baselines/mash/node_extracts2", "kull")
+        self.assertEqual(len(ds.search()), 1)
+        f = ds.add_file("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
+        self.assertTrue(isinstance(f, kosh.core.KoshFile))
+        self.assertEqual(len(ds.search()), 2)
+        self.assertEqual(len(ds.search(type="hdf5")), 1)
+        self.assertEqual(len(ds.search(type="kull")), 1)
+        self.assertEqual(len(ds.search(type="nan")), 0)

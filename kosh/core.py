@@ -1,5 +1,5 @@
 # Core module for our Kosh data access
-from .loaders import KullLoader, KoshLoader
+from .loaders import MashLoader, KoshLoader
 
 
 class KoshAgent(object):
@@ -10,7 +10,7 @@ class KoshStoreClass(object):
     def __init__(self):
         self.loaders = []
         self.storeLoader = KoshLoader({"dataset": []})
-        self.add_loader(KullLoader(self))
+        self.add_loader(MashLoader(self))
 
     agent = KoshAgent()
 
@@ -113,12 +113,10 @@ class KoshDataset(object):
 
     def add(self, source):
         """ Add data to datset"""
-        print("In associated data:", self.__associated_data__)
         if self.__associated_data__ is None:
             self.__associated_data__ = [source.__id__, ]
         elif source.__id__ not in self.__associated_data__:
             self.__associated_data__ += [source.__id__, ]
-        print("In associated data (end):", self.__associated_data__)
 
     def load(self, Id, loader=None):
         """ Get an object from store"""
