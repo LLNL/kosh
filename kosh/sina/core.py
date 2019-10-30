@@ -26,8 +26,8 @@ class KoshSinaObject(object):
         return record["data"][name]["value"]
 
     def __setattr__(self, name, value):
-        if name in self.__protected__:
-            self.__dict__[name] = value
+        if name in self.__protected__:  # Cannot set protected attributes
+            # self.__dict__[name] = value
             return
         record = self.__record_handler__.get(self.__id__)
         record["data"][name] = {"value": value}
@@ -83,7 +83,7 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
         KoshSinaObject.__init__(self, Id, "file",
                                 protected=[],
                                 record_handler=store.__record_handler__)
-        self.__store__ = store
+        self.__dict__["__store__"] = store
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
@@ -94,12 +94,12 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                     "__associated_data__"],
                                 record_handler=store.__record_handler__)
         record = store.__record_handler__.get(self.__id__)
-        self.__creator__ = record["data"]["creator"]["value"]
-        self.__name__ = record["data"]["name"]["value"]
-        self.__store__ = store
-        self.__record_handler__ = store.__record_handler__
-        self.__associated_data__ = [record["files"]
-                                    [f]["kosh_id"] for f in record["files"]]
+        self.__dict__["__creator__"] = record["data"]["creator"]["value"]
+        self.__dict__["__name__"] = record["data"]["name"]["value"]
+        self.__dict__["__store__"] = store
+        self.__dict__["__record_handler__"] = store.__record_handler__
+        self.__dict__["__associated_data__"] = [record["files"]
+                                                [f]["kosh_id"] for f in record["files"]]
 
     def add_file(self, uri, mimetype, metadata={}):
         """ Add a file as a source of data for this dataset
@@ -173,8 +173,8 @@ class KoshSinaLoader(KoshLoader):
 class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
     def __init__(self, types, store):
         self.types = types
-        self.__store__ = store
-        self.__record_handler__ = store.__record_handler__
+        self.__dict__["__store__"] = store
+        self.__dict__["__record_handler__"] = store.__record_handler__
 
     def load(self, Id, *args, **kargs):
         record = self.__record_handler__.get(Id)
@@ -202,7 +202,7 @@ class KoshSinaStore(KoshStoreClass):
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
-        self.__record_handler__ = self.__factory.create_record_dao()
+        self.__dict__["__record_handler__"] = self.__factory.create_record_dao()
         users_filter = self.__record_handler__.get_all_of_type(
             "user", ids_only=True)
         names_filter = self.__record_handler__.data_query(username=username)

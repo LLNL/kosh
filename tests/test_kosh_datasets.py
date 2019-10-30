@@ -1,7 +1,6 @@
 import os
 from koshbase import KoshTest
 import kosh
-import textwrap
 
 
 class KoshTestDataset(KoshTest):
@@ -31,7 +30,15 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(ds.listattributes(), ["creator", "name"])
         with self.assertRaises(AttributeError) as err:
             print(ds.person)
-        
+        # Protected Attributes
+        self.assertEqual(ds.__type__, "dataset")
+        # Make sure you can't change it
+        ds.__type__ = "another_type"
+        self.assertEqual(ds.__type__, "dataset")
+        # Make sure you cannot delete it
+        del(ds.__type__)
+        self.assertEqual(ds.__type__, "dataset")
+
         printTestResults = """\
 KOSH DATASET
         id: {id}
