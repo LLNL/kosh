@@ -8,6 +8,6 @@ setup(name="kosh",
       packages=find_packages(),
       package_dir={'kosh': 'kosh'},
       scripts=["scripts/init_cassandra.py",
-          "scripts/init_sina.py",
-          ],
-)
+               "scripts/init_sina.py",
+               ],
+      )
