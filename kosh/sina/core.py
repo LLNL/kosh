@@ -59,7 +59,7 @@ class KoshSinaObject(object):
 
 
 class KoshSinaFile(KoshSinaObject, KoshFile):
-    def __init__(self, Id=None, uri="", mimetype=None,
+    def __init__(self, Id=None, uri="", mime_type=None,
                  metadata={}, store=None):
         if Id is None:
             Id = uuid.uuid1().hex
@@ -67,7 +67,7 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
             if uri == "":
                 raise RuntimeError("You need to pass a uri to the data")
             record.add_data("uri", uri)
-            record.add_data("type", mimetype)
+            record.add_data("type", mime_type)
             store.__record_handler__.insert(record)
         else:
             try:
@@ -77,7 +77,7 @@ class KoshSinaFile(KoshSinaObject, KoshFile):
                 if uri == "":
                     raise RuntimeError("You need to pass a uri to the data")
                 record.add_data("uri", uri)
-                record.add_data("type", mimetype)
+                record.add_data("type", mime_type)
                 store.__record_handler__.insert(record)
 
         KoshSinaObject.__init__(self, Id, "file",
@@ -101,15 +101,15 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         self.__dict__["__associated_data__"] = [record["files"]
                                                 [f]["kosh_id"] for f in record["files"]]
 
-    def add_file(self, uri, mimetype, metadata={}):
+    def add_file(self, uri, mime_type, metadata={}):
         """ Add a file as a source of data for this dataset
-        required: uri and mimetype of file
+        required: uri and mime_type of file
         optional: metadata"""
         rec = self.__record_handler__.get(self.__id__)
-        rec.add_file(uri, mimetype)
+        rec.add_file(uri, mime_type)
         kosh_file = KoshSinaFile(
             uri=uri,
-            mimetype=mimetype,
+            mime_type=mime_type,
             metadata=metadata,
             store=self.__store__)
         rec["files"][uri]["kosh_id"] = kosh_file.__id__
@@ -161,7 +161,7 @@ class KoshSinaLoader(KoshLoader):
         elif record["type"] == "file":
             return KoshSinaFile(
                 Id, store=self.store, uri=record["data"]["uri"]["value"],
-                mimetype=record["data"]["type"]["value"])
+                mime_type=record["data"]["type"]["value"])
         else:
             return KoshSinaObject(Id, record["type"], protected=[
             ], record_handler=self.store.__record_handler__)
@@ -180,7 +180,7 @@ class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
         record = self.__record_handler__.get(Id)
         if record["type"] == "file":
             return KoshSinaFile(Id=Id, uri=record["data"]["uri"]["value"],
-                                mimetype=record["data"]["type"]["value"],
+                                mime_type=record["data"]["type"]["value"],
                                 store=self.__store__)
         elif record["type"] != "file":
             raise RuntimeError(
