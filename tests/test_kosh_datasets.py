@@ -86,15 +86,15 @@ KOSH DATASET
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(ds.search()), 0)
-        ds.add_file("tests/baselines/mash/node_extracts2", "kull")
+        ds.add_file("tests/baselines/mash/node_extracts2", "mash")
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
         with self.assertRaises(ValueError):
-            ds.add_file("tests/baselines/mash/node_extracts2", "kull")
+            ds.add_file("tests/baselines/mash/node_extracts2", "mash")
         self.assertEqual(len(ds.search()), 1)
         f = ds.add_file("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
-        self.assertTrue(isinstance(f, kosh.core.KoshFile))
+        self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
         self.assertEqual(len(ds.search()), 2)
-        self.assertEqual(len(ds.search(type="hdf5")), 1)
-        self.assertEqual(len(ds.search(type="kull")), 1)
-        self.assertEqual(len(ds.search(type="nan")), 0)
+        self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
+        self.assertEqual(len(ds.search(mime_type="mash")), 1)
+        self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)

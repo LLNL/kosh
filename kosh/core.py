@@ -9,7 +9,7 @@ class KoshAgent(object):
 class KoshStoreClass(object):
     def __init__(self):
         self.loaders = []
-        self.storeLoader = KoshLoader({"dataset": []})
+        self.storeLoader = KoshLoader({"dataset": []}, self)
         self.add_loader(MashLoader(self))
 
     agent = KoshAgent()
@@ -38,40 +38,14 @@ class KoshStoreClass(object):
 
 
 class KoshData(object):
-    def registerReader(self, name, reader):
-        """adds a loader type """
-        self.__readers__[name] = {reader}
-
     def get(self, type=None):
         """Method to get data"""
         raise NotImplementedError()
+    __call__ = get
 
-
-class KoshFile(KoshData):
-    def open(self, mode="r"):
-        if self.type == "hdf5":
-            import h5py
-            return h5py.File(self.uri, mode)
-        else:
-            return open(self.uri, mode)
-
-    def __str__(self):
-        st = ""
-        st += "\nKOSH FILE\n"
-        st += "\tid: {}\n".format(self.__id__)
-        st += "\turi: {}\n".format(self.uri)
-        st += "\ttype: {}\n".format(self.type)
-        atts = self.__attributes__
-        if len(atts) > 0:
-            st += "\n--- Attributes ---\n"
-            for a in sorted(atts):
-                st += "\t{}: {}\n".format(a, atts[a])
-        return st
-
-
-class KoshArray(KoshData):
-    def __init__(self, dimensions):
-        self.__dimensions__ = dimensions
+    def list_features(self):
+        """Method to list features"""
+        raise NotImplementedError()
 
 
 def KoshStore(engine, *args, **kargs):
@@ -118,14 +92,26 @@ class KoshDataset(object):
         elif source.__id__ not in self.__associated_data__:
             self.__associated_data__ += [source.__id__, ]
 
-    def load(self, Id, loader=None):
-        """ Get an object from store"""
-        return self.__store__.load(Id, loader)
-
     def open(self, Id, loader=None):
         """ Open an object from store"""
         return self.__store__.open(Id, loader)
 
-    # def get(self, Id, loader=None, *args, **kargs):
-    #    """ Open an object from store"""
-    #    return self.__store__.get(Id, loader=loader, *args, **kargs)
+    def get(self, feature, Id=None, loader=None, *args, **kargs):
+        """ Open an object from store"""
+        possible_ids = []
+        # we need to figure which associated data has the feature
+        if Id is None:
+            for a in self.__associated_data__:
+                obj = self.open(a, loader=loader)
+                if feature in obj.list_features():
+                    possible_ids.append(a)
+        else:
+            possible_ids = [Id, ]
+        for Id in possible_ids:
+            try:
+                return self.open(Id, loader=loader).get(feature, *args,
+                                                        **kargs)
+            except Exception:
+                pass
+        raise Exception("could not get feature '{}' from dataset '{}'".format(
+            feature, self.__id__))

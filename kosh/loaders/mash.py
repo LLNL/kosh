@@ -149,15 +149,12 @@ class MashReader(object):
             #    kargs["elements"] = list(range(len(proc_ids[proc])))
             if len(metrics_indices) != 0 and len(kargs) == 0:
                 kargs["metrics"] = metrics
-                print("VOILA")
                 metrics_indices = range(len(metrics_indices))
                 sh[-1] = len(metrics)
-            print("KARGS:", list(kargs.keys()), proc, use_ext)
             tmp = self.reader.request(ext_type=use_ext,
                                       proc=proc,
                                       **kargs)
             tmp.shape = sh
-            print("TMP:", tmp.dtype, tmp.shape)
             if len(metrics_indices) != 0:
                 # We need to return only the metrics wanted
                 out = None
@@ -169,7 +166,6 @@ class MashReader(object):
                         out = numpy.concatenate(
                             (out, tmp[..., indx:indx + 1]), axis=-1)
                 tmp = out
-            print("Post metrics:", tmp.shape)
             if data is None:  # fist time
                 data = tmp
             else:
@@ -206,6 +202,24 @@ class MashReader(object):
             axes.append(self.getAxis(axis, elt))
         return axes
 
+    def getFeature(self, feature, *args, **kargs):
+        """ Features are listed as elt/feature"""
+        sp = feature.split("/")
+        if len(sp) == 1:
+            elt = sp[0]
+            feature = None
+        else:
+            elt, feature = sp[:2]
+        return self.get_elements(elt, metrics=feature, *args, **kargs)
+
+    def listFeatures(self):
+        out = []
+        for elt in ["zone", "node", "srd", "drd"]:
+            metrics_avail = self.metrics_avail[elt]
+            for m in metrics_avail:
+                out.append("{}/{}".format(elt, m))
+        return out
+
 
 class MashLoader(KoshLoader):
     def __init__(self, store):
@@ -218,3 +232,7 @@ class MashLoader(KoshLoader):
     def open(self, Id):
         obj = self.load(Id)
         return MashReader(obj.path)
+
+    def getFeature(self, Id, feature, *args, **kargs):
+        reader = self.open(Id)
+        reader.getFeature(feature, *args, **kargs)

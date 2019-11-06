@@ -1,17 +1,31 @@
 import uuid
 from kosh.core import KoshStoreClass, KoshDataset
-from kosh.core import KoshFile
-from kosh.loaders import KoshFileLoader, KoshLoader
+from kosh.loaders import KoshLoader
 
 
 class KoshSinaObject(object):
-    def __init__(self, Id, koshType, protected, record_handler):
+    def __init__(self, Id, store, koshType,
+                 record_handler, protected=[], metadata={}):
+        if Id is None:
+            Id = uuid.uuid1().hex
+            record = Record(id=Id, type="file")
+            store.__record_handler__.insert(record)
+        else:
+            try:
+                record = store.__record_handler__.get(Id)
+            except BaseException:
+                record = Record(id=Id, type="file")
+                store.__record_handler__.insert(record)
+
         self.__dict__["__record_handler__"] = record_handler
         self.__dict__["__protected__"] = [
             "__id__", "__type__", "__protected__",
             "__record_handler__", "__store__"] + protected
         self.__dict__["__id__"] = Id
         self.__dict__["__type__"] = koshType
+        self.__dict__["__store__"] = store
+        for att, value in metadata.items():
+            setattr(self, att, value)
 
     def __getattr__(self, name):
         if name in self.__dict__["__protected__"]:
@@ -58,48 +72,21 @@ class KoshSinaObject(object):
         return attributes
 
 
-class KoshSinaFile(KoshSinaObject, KoshFile):
-    def __init__(self, Id=None, uri="", mime_type=None,
-                 metadata={}, store=None):
-        if Id is None:
-            Id = uuid.uuid1().hex
-            record = Record(id=Id, type="file")
-            if uri == "":
-                raise RuntimeError("You need to pass a uri to the data")
-            record.add_data("uri", uri)
-            record.add_data("type", mime_type)
-            store.__record_handler__.insert(record)
-        else:
-            try:
-                record = store.__record_handler__.get(Id)
-            except BaseException:
-                record = Record(id=Id, type="file")
-                if uri == "":
-                    raise RuntimeError("You need to pass a uri to the data")
-                record.add_data("uri", uri)
-                record.add_data("type", mime_type)
-                store.__record_handler__.insert(record)
-
-        KoshSinaObject.__init__(self, Id, "file",
-                                protected=[],
-                                record_handler=store.__record_handler__)
-        self.__dict__["__store__"] = store
-
-
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
     def __init__(self, datasetId, store):
-        KoshSinaObject.__init__(self, datasetId, "dataset",
+        KoshSinaObject.__init__(self, datasetId, koshType="dataset",
                                 protected=[
                                     "__name__", "__creator__", "__store__",
                                     "__associated_data__"],
-                                record_handler=store.__record_handler__)
+                                record_handler=store.__record_handler__,
+                                store=store)
         record = store.__record_handler__.get(self.__id__)
         self.__dict__["__creator__"] = record["data"]["creator"]["value"]
         self.__dict__["__name__"] = record["data"]["name"]["value"]
-        self.__dict__["__store__"] = store
         self.__dict__["__record_handler__"] = store.__record_handler__
         self.__dict__["__associated_data__"] = [record["files"]
-                                                [f]["kosh_id"] for f in record["files"]]
+                                                [f]["kosh_id"] for f in
+                                                record["files"]]
 
     def add_file(self, uri, mime_type, metadata={}):
         """ Add a file as a source of data for this dataset
@@ -107,16 +94,18 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         optional: metadata"""
         rec = self.__record_handler__.get(self.__id__)
         rec.add_file(uri, mime_type)
-        kosh_file = KoshSinaFile(
-            uri=uri,
-            mime_type=mime_type,
-            metadata=metadata,
-            store=self.__store__)
+        kosh_file = KoshSinaObject(Id=None,
+                                   koshType="file",
+                                   store=self.__store__,
+                                   metadata=metadata,
+                                   record_handler=self.__record_handler__)
+        kosh_file.uri = uri
+        kosh_file.mime_type = mime_type
         rec["files"][uri]["kosh_id"] = kosh_file.__id__
         self.__record_handler__.delete(self.__id__)
         self.__record_handler__.insert(rec)
         self.add(kosh_file)
-        return self.__store__.load(kosh_file.__id__)
+        return kosh_file
 
     def search(self, *atts, **keys):
         """ Search associated data matching some metadata
@@ -144,7 +133,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if ids_only:
             return list(inter_recs)
         else:
-            return [self.load(rec) for rec in inter_recs]
+            return [self.__store__._load(rec) for rec in inter_recs]
 
 
 class KoshSinaLoader(KoshLoader):
@@ -154,38 +143,13 @@ class KoshSinaLoader(KoshLoader):
         self.types = types
         self.store = store
 
-    def load(self, Id, *args, **kargs):
+    def open(self, Id, *args, **kargs):
         record = self.store.__record_handler__.get(Id)
         if record["type"] == "dataset":
             return KoshSinaDataset(Id, store=self.store)
-        elif record["type"] == "file":
-            return KoshSinaFile(
-                Id, store=self.store, uri=record["data"]["uri"]["value"],
-                mime_type=record["data"]["type"]["value"])
         else:
             return KoshSinaObject(Id, record["type"], protected=[
             ], record_handler=self.store.__record_handler__)
-
-    def open(self, Id, *args, **kargs):
-        return self.load(Id, *args, **kargs)
-
-
-class KoshSinaFileLoader(KoshFileLoader, KoshSinaLoader):
-    def __init__(self, types, store):
-        self.types = types
-        self.__dict__["__store__"] = store
-        self.__dict__["__record_handler__"] = store.__record_handler__
-
-    def load(self, Id, *args, **kargs):
-        record = self.__record_handler__.get(Id)
-        if record["type"] == "file":
-            return KoshSinaFile(Id=Id, uri=record["data"]["uri"]["value"],
-                                mime_type=record["data"]["type"]["value"],
-                                store=self.__store__)
-        elif record["type"] != "file":
-            raise RuntimeError(
-                "Cannot load record of type {}".format(
-                    record["type"]))
 
 
 class KoshSinaStore(KoshStoreClass):
@@ -214,8 +178,6 @@ class KoshSinaStore(KoshStoreClass):
         self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader({"dataset": []}, self)
         self.add_loader(self.storeLoader)
-        self.add_loader(KoshSinaFileLoader(
-            {"file": ["numpy", "binary"]}, self))
 
     def create(self, name=None, datasetId=None, metadata={}):
         """create a new (possibly named) dataset"""
@@ -239,52 +201,39 @@ class KoshSinaStore(KoshStoreClass):
         ds = KoshSinaDataset(Id, store=self)
         return ds
 
-    def open(self, Id, loader=None):
-        """returns an associated source to a specific format,
-        possibly via a specified loader"""
+    def _find_loader(self, Id):
+        """returns a loader that can open Id
+        """
         record = self.__record_handler__.get(Id)
-        if loader is None:
-            # sometime types have subtypes (e.g 'file') let's look if we
-            # understand a subtype
-            if "type" in record["data"]:
-                for l in self.loaders:
-                    if record["data"]["type"]["value"] in l.known_types():
-                        return l.open(Id)
-            # Ok could not open the actual subtype, looking at generic type
+        # sometime types have subtypes (e.g 'file') let's look if we
+        # understand a subtype
+        if "mime_type" in record["data"]:
             for l in self.loaders:
-                if record["type"] in l.known_types():
-                    return l.open(Id)
-        else:
-            return loader.open(Id)
+                if record["data"]["mime_type"]["value"] in l.known_types():
+                    return l
+        # Ok could not open the actual subtype, looking at generic type
+        for l in self.loaders:
+            if record["type"] in l.known_types():
+                return l
 
-    def load(self, Id, loader=None):
-        """returns an associated source to a specific format,
-        possibly via a specified loader"""
-        record = self.__record_handler__.get(Id)
+    def open(self, Id, loader=None):
         if loader is None:
-            # sometime types have subtypes (e.g 'file') let's look if we
-            # understand a subtype
-            if "type" in record["data"]:
-                for l in self.loaders:
-                    if record["data"]["type"]["value"] in l.known_types():
-                        return l.load(Id)
-            # Ok could not open the actual subtype, looking at generic type
-            for l in self.loaders:
-                if record["type"] in l.known_types():
-                    return l.load(Id)
-        else:
-            return loader.load(Id)
+            loader = self._find_loader(Id)
+        return loader.open(Id)
+
+    def _load(self, Id):
+        """returns an associated source"""
+        record = self.__record_handler__.get(Id)
+        return KoshSinaObject(Id, koshType=record["type"],
+                              record_handler=self.__record_handler__,
+                              store=self)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):
         """returns an associated source"""
-        record = self.__record_handler__.get(Id)
         if loader is None:
-            for l in self.loaders:
-                if record["type"] in l.known_types():
-                    if format is None or format in l.known_export_formats():
-                        return l.get(Id, format, *args, **kargs)
-        else:
-            return loader.get(Id, format, *args, **kargs)
+            loader = self._find_loader(Id)
+
+        return loader.get(Id, format, *args, **kargs)
 
     def search(self, *atts, **keys):
         """ Search cassandra for datasets matching some metadata
