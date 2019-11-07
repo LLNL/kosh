@@ -217,10 +217,12 @@ class KoshSinaStore(KoshStoreClass):
                 return ld
 
     def open(self, Id, loader=None):
+        if loader is not None:
+            print(type(loader))
         if loader is None:
             loader = self._find_loader(Id)
         else:
-            loader = loader(self.__store__._load(Id))
+            loader = loader(self._load(Id))
         return loader.open()
 
     def _load(self, Id):
@@ -235,7 +237,7 @@ class KoshSinaStore(KoshStoreClass):
         if loader is None:
             loader = self._find_loader(Id)
 
-        return loader(self.__store__._load(Id)).get(format, *args, **kargs)
+        return loader(self._load(Id)).get(format, *args, **kargs)
 
     def search(self, *atts, **keys):
         """ Search cassandra for datasets matching some metadata

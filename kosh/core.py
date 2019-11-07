@@ -103,8 +103,8 @@ class KoshDataset(object):
         # we need to figure which associated data has the feature
         if Id is None:
             for a in self.__associated_data__:
-                obj = self.open(a, loader=loader)
-                if feature in obj.list_features():
+                ld = self.__store__._find_loader(a)
+                if feature in ld.list_features():
                     possible_ids.append(a)
         else:
             possible_ids = [Id, ]
