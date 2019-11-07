@@ -202,7 +202,7 @@ class MashReader(object):
             axes.append(self.getAxis(axis, elt))
         return axes
 
-    def getFeature(self, feature, *args, **kargs):
+    def get(self, feature, *args, **kargs):
         """ Features are listed as elt/feature"""
         sp = feature.split("/")
         if len(sp) == 1:
@@ -212,27 +212,23 @@ class MashReader(object):
             elt, feature = sp[:2]
         return self.get_elements(elt, metrics=feature, *args, **kargs)
 
-    def listFeatures(self):
+
+class MashLoader(KoshLoader):
+    def __init__(self, obj):
+        super(MashLoader, self).__init__(obj, {"mash": ["numpy", ]})
+
+    def open(self):
+        return MashReader(self.obj.uri)
+
+    def get(self, feature, *args, **kargs):
+        reader = self.open()
+        reader.get(feature, *args, **kargs)
+
+    def list_features(self):
+        reader = self.open()
         out = []
         for elt in ["zone", "node", "srd", "drd"]:
-            metrics_avail = self.metrics_avail[elt]
+            metrics_avail = reader.metrics_avail[elt]
             for m in metrics_avail:
                 out.append("{}/{}".format(elt, m))
         return out
-
-
-class MashLoader(KoshLoader):
-    def __init__(self, store):
-        self.types = {"mash": ["numpy", ]}
-        self.__store__ = store
-
-    def load(self, Id):
-        return self.__store__.load(Id)
-
-    def open(self, Id):
-        obj = self.load(Id)
-        return MashReader(obj.path)
-
-    def getFeature(self, Id, feature, *args, **kargs):
-        reader = self.open(Id)
-        reader.getFeature(feature, *args, **kargs)

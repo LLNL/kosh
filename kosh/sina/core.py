@@ -137,19 +137,16 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
 
 class KoshSinaLoader(KoshLoader):
-    def __init__(self, types, store):
-        """ types is a dictionary on known type that can be loaded
-        as key and export format as values"""
-        self.types = types
-        self.store = store
+    def __init__(self, obj, types={"dataset": []}):
+        super(KoshSinaLoader, self).__init__(obj, types)
 
-    def open(self, Id, *args, **kargs):
-        record = self.store.__record_handler__.get(Id)
+    def open(self, *args, **kargs):
+        record = self.obj.__store__.__record_handler__.get(self.obj.__id__)
         if record["type"] == "dataset":
-            return KoshSinaDataset(Id, store=self.store)
+            return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__)
         else:
-            return KoshSinaObject(Id, record["type"], protected=[
-            ], record_handler=self.store.__record_handler__)
+            return KoshSinaObject(self.obj.__id__, record["type"], protected=[
+            ], record_handler=self.obj.__store__.__record_handler__)
 
 
 class KoshSinaStore(KoshStoreClass):
@@ -176,7 +173,7 @@ class KoshSinaStore(KoshStoreClass):
         elif len(inter_recs) > 1:
             raise RuntimeError("Internal errors, more than one user match!")
         self.__user_id__ = list(inter_recs)[0]
-        self.storeLoader = KoshSinaLoader({"dataset": []}, self)
+        self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
 
     def create(self, name=None, datasetId=None, metadata={}):
@@ -205,21 +202,26 @@ class KoshSinaStore(KoshStoreClass):
         """returns a loader that can open Id
         """
         record = self.__record_handler__.get(Id)
+        obj = self._load(Id)
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype
         if "mime_type" in record["data"]:
-            for l in self.loaders:
-                if record["data"]["mime_type"]["value"] in l.known_types():
-                    return l
+            for ld in self.loaders:
+                ld = ld(obj)
+                if record["data"]["mime_type"]["value"] in ld.known_types():
+                    return ld
         # Ok could not open the actual subtype, looking at generic type
-        for l in self.loaders:
-            if record["type"] in l.known_types():
-                return l
+        for ld in self.loaders:
+            ld = ld(obj)
+            if record["type"] in ld.known_types():
+                return ld
 
     def open(self, Id, loader=None):
         if loader is None:
             loader = self._find_loader(Id)
-        return loader.open(Id)
+        else:
+            loader = loader(self.__store__._load(Id))
+        return loader.open()
 
     def _load(self, Id):
         """returns an associated source"""
@@ -233,7 +235,7 @@ class KoshSinaStore(KoshStoreClass):
         if loader is None:
             loader = self._find_loader(Id)
 
-        return loader.get(Id, format, *args, **kargs)
+        return loader(self.__store__._load(Id)).get(format, *args, **kargs)
 
     def search(self, *atts, **keys):
         """ Search cassandra for datasets matching some metadata

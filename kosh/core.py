@@ -1,5 +1,5 @@
 # Core module for our Kosh data access
-from .loaders import MashLoader, KoshLoader
+from .loaders import MashLoader, KoshLoader, KoshFileLoader
 
 
 class KoshAgent(object):
@@ -9,8 +9,9 @@ class KoshAgent(object):
 class KoshStoreClass(object):
     def __init__(self):
         self.loaders = []
-        self.storeLoader = KoshLoader({"dataset": []}, self)
-        self.add_loader(MashLoader(self))
+        self.storeLoader = KoshLoader
+        self.add_loader(KoshFileLoader)
+        self.add_loader(MashLoader)
 
     agent = KoshAgent()
 
