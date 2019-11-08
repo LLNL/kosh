@@ -1,1 +1,1 @@
-from .core import KoshSinaDataset, KoshSinaStore, KoshSinaFile  # noqa
+from .core import KoshSinaDataset, KoshSinaStore  # noqa
