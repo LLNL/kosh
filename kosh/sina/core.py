@@ -1,7 +1,7 @@
 import uuid
 from kosh.core import KoshStoreClass, KoshDataset
 from kosh.loaders import KoshLoader
-
+import warnings
 
 class KoshSinaObject(object):
     def __init__(self, Id, store, koshType,
@@ -169,9 +169,13 @@ class KoshSinaStore(KoshStoreClass):
         names_filter = self.__record_handler__.data_query(username=username)
         inter_recs = set(users_filter).intersection(set(names_filter))
         if len(inter_recs) == 0:
-            raise RuntimeError("Unknown user: {}".format(username))
+            # raise ConnectionRefusedError("Unknown user: {}".format(username))
+            # For now just letting anyone log in as anonymous
+            warnings.warn("Unknown user, you will be logged as anonymous user")
+            names_filter = self.__record_handler__.data_query(username="anonymous")
+            inter_recs = set(users_filter).intersection(set(names_filter))
         elif len(inter_recs) > 1:
-            raise RuntimeError("Internal errors, more than one user match!")
+            raise SystemError("Internal error, more than one user match!")
         self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
