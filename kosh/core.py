@@ -93,8 +93,14 @@ class KoshDataset(object):
         elif source.__id__ not in self.__associated_data__:
             self.__associated_data__ += [source.__id__, ]
 
-    def open(self, Id, loader=None):
+    def open(self, Id=None, loader=None):
         """ Open an object from store"""
+        if Id is None:
+            if len(self.__associated_data__) == 0:
+                Id = self.__associated_data__[0]
+            else:
+                for Id in self.__associated_data__:
+                    return self.__store__.open(Id, loader)
         return self.__store__.open(Id, loader)
 
     def get(self, feature, Id=None, loader=None, *args, **kargs):
