@@ -82,7 +82,7 @@ class KoshDataset(object):
             st += "--- Associated Data ({})---\n".format(
                 len(self.__associated_data__))
             for a in self.__associated_data__:
-                st2 = str(self.load(a))
+                st2 = str(self.open(a))
                 st += "\n\t".join(st2.split("\n"))
         return st
 

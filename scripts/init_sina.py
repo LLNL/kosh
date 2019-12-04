@@ -28,11 +28,11 @@ for typ in record_handler.get_available_types():
     for rec in record_handler.get_all_of_type(typ):
         record_handler.delete(rec.id)
 # Create users
-user = Record(id=uuid.uuid1().hex, type="user")
+uid = uuid.uuid4().hex
+user = Record(id=uid, type="user")
 user.add_data("username", args.user)
-user = Record(id=uuid.uuid1().hex, type="user")
-user.add_data("username", "anonymous")
-
 record_handler.insert(user)
-
-print("recs users:", list(record_handler.get_all_of_type("user")))
+uid = uuid.uuid4().hex
+user = Record(id=uid, type="user")
+user.add_data("username", "anonymous")
+record_handler.insert(user)
