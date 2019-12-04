@@ -40,7 +40,7 @@ class KoshLoader(object):
         return self.types.get(format, [])
 
     def open(self):
-        raise NotImplementedError
+        return self
 
     def get(self, feature, *args, **kargs):
         """return a feature from the loaded object"""

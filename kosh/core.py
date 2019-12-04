@@ -103,6 +103,17 @@ class KoshDataset(object):
                     return self.__store__.open(Id, loader)
         return self.__store__.open(Id, loader)
 
+    def list_features(self, Id=None):
+        features = []
+        if Id is None:
+            for a in self.__associated_data__:
+                ld = self.__store__._find_loader(a)
+                features += ld.list_features()
+        else:
+            ld = self.__store__._find_loader(Id)
+            features = ld.list_features()
+        return features
+
     def get(self, feature, Id=None, loader=None, *args, **kargs):
         """ Open an object from store"""
         possible_ids = []
