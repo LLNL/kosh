@@ -1,13 +1,14 @@
 import uuid
 from kosh.core import KoshStoreClass, KoshDataset
 from kosh.loaders import KoshLoader
+import warnings
 
 
 class KoshSinaObject(object):
     def __init__(self, Id, store, koshType,
                  record_handler, protected=[], metadata={}):
         if Id is None:
-            Id = uuid.uuid1().hex
+            Id = uuid.uuid4().hex
             record = Record(id=Id, type="file")
             store.__record_handler__.insert(record)
         else:
@@ -164,14 +165,19 @@ class KoshSinaStore(KoshStoreClass):
         from sina.utils import DataRange
         global Record, DataRange
         self.__dict__["__record_handler__"] = self.__factory.create_record_dao()
-        users_filter = self.__record_handler__.get_all_of_type(
-            "user", ids_only=True)
-        names_filter = self.__record_handler__.data_query(username=username)
+        users_filter = list(self.__record_handler__.get_all_of_type(
+            "user", ids_only=True))
+        names_filter = list(self.__record_handler__.data_query(username=username))
+        print(names_filter)
         inter_recs = set(users_filter).intersection(set(names_filter))
         if len(inter_recs) == 0:
-            raise RuntimeError("Unknown user: {}".format(username))
+            # raise ConnectionRefusedError("Unknown user: {}".format(username))
+            # For now just letting anyone log in as anonymous
+            warnings.warn("Unknown user, you will be logged as anonymous user")
+            names_filter = self.__record_handler__.data_query(username="anonymous")
+            inter_recs = set(users_filter).intersection(set(names_filter))
         elif len(inter_recs) > 1:
-            raise RuntimeError("Internal errors, more than one user match!")
+            raise SystemError("Internal error, more than one user match!")
         self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
@@ -181,7 +187,7 @@ class KoshSinaStore(KoshStoreClass):
         if name is None:
             name = "Unnamed Dataset"
         if datasetId is None:
-            Id = uuid.uuid1().hex
+            Id = uuid.uuid4().hex
         else:
             if datasetId in self.__record_handler__.get_all_of_type(
                     "dataset", ids_only=True):
