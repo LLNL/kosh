@@ -126,10 +126,10 @@ class KoshDataset(object):
         else:
             possible_ids = [Id, ]
         for Id in possible_ids:
-            try:
+            #try:
                 return self.open(Id, loader=loader).get(feature, *args,
                                                         **kargs)
-            except Exception:
-                pass
+            #except Exception:
+            #    pass
         raise Exception("could not get feature '{}' from dataset '{}'".format(
             feature, self.__id__))
