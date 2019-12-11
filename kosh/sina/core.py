@@ -73,6 +73,11 @@ class KoshSinaObject(object):
         return attributes
 
 
+class KoshSinaFile(KoshSinaObject):
+    def open(self):
+        return self.__store__.open(self.__id__)
+
+
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
     def __init__(self, datasetId, store):
         KoshSinaObject.__init__(self, datasetId, koshType="dataset",
@@ -145,6 +150,8 @@ class KoshSinaLoader(KoshLoader):
         record = self.obj.__store__.__record_handler__.get(self.obj.__id__)
         if record["type"] == "dataset":
             return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__)
+        if record["type"] == "file":
+            return KoshSinaFile(self.obj.__id__, store=self.obj.__store__)
         else:
             return KoshSinaObject(self.obj.__id__, record["type"], protected=[
             ], record_handler=self.obj.__store__.__record_handler__)
@@ -234,9 +241,14 @@ class KoshSinaStore(KoshStoreClass):
     def _load(self, Id):
         """returns an associated source"""
         record = self.__record_handler__.get(Id)
-        return KoshSinaObject(Id, koshType=record["type"],
-                              record_handler=self.__record_handler__,
-                              store=self)
+        if record["type"] == "file":
+            return KoshSinaFile(Id, koshType=record["type"],
+                                record_handler=self.__record_handler__,
+                                store=self)
+        else:
+            return KoshSinaObject(Id, koshType=record["type"],
+                                record_handler=self.__record_handler__,
+                                store=self)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):
         """returns an associated source"""
