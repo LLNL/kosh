@@ -3,6 +3,7 @@ import os
 import shlex
 import sys
 
+
 def create_new_db(name, engine='sina', db='sql', token="", keyspace=None):
     user = os.environ["USER"]
     if db == 'sql' and name[-4:].lower() != ".sql":

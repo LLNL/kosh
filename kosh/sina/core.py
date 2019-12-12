@@ -247,8 +247,8 @@ class KoshSinaStore(KoshStoreClass):
                                 store=self)
         else:
             return KoshSinaObject(Id, koshType=record["type"],
-                                record_handler=self.__record_handler__,
-                                store=self)
+                                  record_handler=self.__record_handler__,
+                                  store=self)
 
     def get(self, Id, format=None, loader=None, *args, **kargs):
         """returns an associated source"""
