@@ -133,3 +133,11 @@ class KoshDataset(object):
                 pass
         raise Exception("could not get feature '{}' from dataset '{}'".format(
             feature, self.__id__))
+
+    def __dir__(self):
+        current = set(super(KoshDataset, self).__dir__())
+        try:
+            atts = set(self.listattributes() + self.__protected__)
+        except Exception:
+            atts = set()
+        return list(current.union(atts))
