@@ -63,7 +63,7 @@ We recommend adding the following packages h5py, jupyter-lab and tqdm. Nosetests
 #### Conda
 
 ```
-conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels nbtqdm
+conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm
 ```
 
 ```
