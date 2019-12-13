@@ -175,7 +175,6 @@ class KoshSinaStore(KoshStoreClass):
         users_filter = list(self.__record_handler__.get_all_of_type(
             "user", ids_only=True))
         names_filter = list(self.__record_handler__.data_query(username=username))
-        print(names_filter)
         inter_recs = set(users_filter).intersection(set(names_filter))
         if len(inter_recs) == 0:
             # raise ConnectionRefusedError("Unknown user: {}".format(username))
