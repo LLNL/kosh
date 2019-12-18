@@ -1,5 +1,16 @@
 # Installing Kosh
 
+## Easy/No reading
+
+If you do not want to read all this and simply copy/paste use the pages bellow
+### conda
+
+Copy/paste from [here](copy_paste_conda.md)
+
+### pip
+
+Copy/paste from [here](copy_paste_pip.md)
+
 ## Pre-requisites
 
 ### Some environement
@@ -26,6 +37,7 @@ python -m virtualenv kosh
 
 We use Sina to manage/store metadata, make sure you look at the casandra section i you plan on using cassandra.
 
+Sina is on LC's bitbucket [here](https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse)
 
 Sina. For details see [Sina's Readme](https://lc.llnl.gov/workflow/docs/sina/readme.html)
 
@@ -63,7 +75,7 @@ We recommend adding the following packages h5py, jupyter-lab and tqdm. Nosetests
 #### Conda
 
 ```
-conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm
+conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm pytorch torchvision
 ```
 
 ```
@@ -80,3 +92,10 @@ pip install h5py jupyterlab tqdm
 pip install nose
 ```
 
+### Jupyter
+
+Make sure you get your env registered on LC jupyter lab via:
+
+```bash
+python -m ipykernel install --user --name sonar-custom --display-name "Kosh Environment"
+```
