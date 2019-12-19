@@ -229,8 +229,6 @@ class KoshSinaStore(KoshStoreClass):
                 return ld
 
     def open(self, Id, loader=None):
-        if loader is not None:
-            print(type(loader))
         if loader is None:
             loader = self._find_loader(Id)
         else:

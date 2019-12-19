@@ -159,7 +159,6 @@ class MashReader(object):
                 # We need to return only the metrics wanted
                 out = None
                 for indx in metrics_indices:
-                    print("indx:", indx)
                     if out is None:
                         out = tmp[..., indx:indx + 1]
                     else:
@@ -210,7 +209,7 @@ class MashReader(object):
             feature = None
         else:
             elt, feature = sp[:2]
-        return self.get_elements(elt, metrics=feature, *args, **kargs)
+        return self.get_elements(elt, metrics=[feature, ], *args, **kargs)
 
 
 class MashLoader(KoshLoader):

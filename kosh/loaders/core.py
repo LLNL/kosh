@@ -14,6 +14,7 @@ class KoshGenericObjectFromFile(object):
     def __init__(self, *args, **kwds):
         self.args = args
         self.kwds = kwds
+        self.file_obj = open(*self.args, **self.kwds)
 
     def __enter__(self):
         self.file_obj = open(*self.args, **self.kwds)
@@ -22,7 +23,7 @@ class KoshGenericObjectFromFile(object):
     def __exit__(self, *args):
         self.file_obj.close()
 
-    def get(self):
+    def get(self, feature, *args, **kargs):
         return self.file_obj.read()
 
 
@@ -36,7 +37,7 @@ class KoshLoader(object):
     def known_types(self):
         return list(self.types.keys())
 
-    def known_export_format(self, format):
+    def known_load_formats(self, format):
         return self.types.get(format, [])
 
     def open(self):
@@ -51,7 +52,7 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
-    def __init__(self, obj, types={"file": ["numpy"]}):
+    def __init__(self, obj, types={"file": []}):
         super(KoshFileLoader, self).__init__(obj, types)
 
     def open(self, mode='r'):
@@ -73,10 +74,17 @@ class KoshFileLoader(KoshLoader):
         """ List features in file, for hdf5 you can pass extra argument to
 navigate groups"""
         if self.obj.mime_type == "hdf5" and has_hdf5:
-            with h5py.File(self.obj.uri) as f:
+            with h5py.File(self.obj.uri, "r") as f:
+                keys = []
                 if len(args) == 0:
-                    return f.keys()
+                    for k in f.keys():
+                        if hasattr(f[k], "keys"):
+                            for k2 in f[k].keys():
+                                keys.append(f"{k}/{k2}")
+                        else:
+                            keys.append(k)
+                    return keys
                 else:
-                    return f[args[0]].keys()
+                    return list(f[args[0]].keys())
         else:
             return []

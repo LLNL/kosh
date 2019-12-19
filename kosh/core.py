@@ -103,32 +103,32 @@ class KoshDataset(object):
                     return self.__store__.open(Id, loader)
         return self.__store__.open(Id, loader)
 
-    def list_features(self, Id=None):
+    def list_features(self, Id=None, *args, **kargs):
         features = []
         if Id is None:
             for a in self.__associated_data__:
                 ld = self.__store__._find_loader(a)
-                features += ld.list_features()
+                features += ld.list_features(*args, **kargs)
         else:
             ld = self.__store__._find_loader(Id)
-            features = ld.list_features()
+            features = ld.list_features(*args, **kargs)
         return features
 
-    def get(self, feature, Id=None, loader=None, *args, **kargs):
+    def get(self, feature=None, Id=None, loader=None, *args, **kargs):
         """ Open an object from store"""
         possible_ids = []
         # we need to figure which associated data has the feature
         if Id is None:
             for a in self.__associated_data__:
                 ld = self.__store__._find_loader(a)
-                if feature in ld.list_features():
+                if feature in ld.list_features() or feature is None:
                     possible_ids.append(a)
         else:
             possible_ids = [Id, ]
         for Id in possible_ids:
             try:
-                return self.open(Id, loader=loader).get(feature, *args,
-                                                        **kargs)
+                op = self.open(Id, loader=loader)
+                return op.get(feature, *args, **kargs)
             except Exception:
                 pass
         raise Exception("could not get feature '{}' from dataset '{}'".format(

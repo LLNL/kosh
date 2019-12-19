@@ -4,6 +4,7 @@ import sys
 import shlex
 from subprocess import PIPE, Popen
 from kosh import KoshStore
+import kosh
 import uuid
 import logging
 
@@ -23,11 +24,7 @@ class KoshTest(unittest.TestCase):
             kosh_test_sql_file = "kosh_test_{}.sql".format(uuid.uuid1().hex)
             if os.path.exists(kosh_test_sql_file):
                 os.remove(kosh_test_sql_file)
-
-            cmd = "{}/bin/python scripts/init_sina.py --sina_db={}".format(
-                sys.prefix, kosh_test_sql_file)
-            p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
-            o, e = p.communicate()
+            kosh.utils.create_new_db(kosh_test_sql_file[:-4])
             return kosh_test_sql_file
 
     def connect(self, engine=None):
