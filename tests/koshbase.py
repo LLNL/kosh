@@ -33,6 +33,6 @@ class KoshTest(unittest.TestCase):
         kosh_db = self.init_db(engine)
         if engine == "sina":
             # os.getlogin does not work on my WSL
-            store = KoshStore(engine="sina", username=os.environ["USER"], sql='sql',
-                      db_path=kosh_db)
+            store = KoshStore(engine="sina", username=os.environ["USER"], db='sql',
+                      db_uri=kosh_db)
         return store, kosh_db

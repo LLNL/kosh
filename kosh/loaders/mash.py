@@ -15,6 +15,12 @@ from .core import KoshLoader
 
 class MashReader(object):
     def __init__(self, path):
+        """MashReader is a layer on top of MASHExtract Extracter
+
+        :param path: Path to directory where extract was done
+        :type path: str
+        :raises RuntimeError: Input directory does not exists
+        """
         if not os.path.exists(path):
             raise RuntimeError("bad input dir {}".format(path))
         self.reader = ExtractReader.MASHExtractReader(path)
@@ -33,7 +39,13 @@ class MashReader(object):
             self.ids[elt] = ids
 
     def __query(self, elt_type):
-        """Retrieve certain cycle/metrics
+        """__query Retrieve certain cycle/metrics
+
+        :param elt_type: The elements to query (node/zone/etc..)
+        :type elt_type: str
+        :raises RuntimeError: Unknown element
+        :return: list of metrics available for this element and processors ids
+        :rtype: tuple
         """
         # Metrics available
         if elt_type in ["zone", "node"]:
@@ -63,6 +75,23 @@ class MashReader(object):
 
     def get_elements(self, elt_type, cycles=None,
                      elements=None, metrics=None, processors=[]):
+        """get_elements fetches desired elements
+
+        :param elt_type: The type of element desired (node, zone, ...)
+        :type elt_type: str
+        :param cycles: cycles to retrieve, defaults to None which means all
+        :type cycles: list, optional
+        :param elements: list of elements desired (node ids), defaults to None which means all
+        :type elements: list, optional
+        :param metrics: metrics to retrieve, defaults to None which means all
+        :type metrics: list, optional
+        :param processors: processors to retrieve, defaults to [] which means all
+        :type processors: list, optional
+        :raises RuntimeError: Element not available
+        :raises RuntimeError: Metric not available
+        :return: array of shape (cycles, elements, metrics)
+        :rtype: numpy.ndarray
+        """
         metrics_avail = self.metrics_avail[elt_type]
         proc_ids = self.proc_ids[elt_type]
         n_metrics_avail = len(metrics_avail)
@@ -174,6 +203,17 @@ class MashReader(object):
     get = get_elements
 
     def getAxis(self, axis, elt):
+        """getAxis get an axis (dimension info) for an element
+
+        :param axis: name of axis to retrieve
+        :type axis: str
+        :param elt: element type for which axis is requested
+        :type elt: str
+        :raises RuntimeError: [description]
+        :raises RuntimeError: [description]
+        :return: axis
+        :rtype: KoshAxis
+        """
         good_axes = ["cycles", "elements", "metrics", "direction"]
         if axis not in good_axes:
             raise RuntimeError(
@@ -193,6 +233,13 @@ class MashReader(object):
                     axis, elt))
 
     def getAxisList(self, elt):
+        """getAxisList returns all axes information for an element type
+
+        :param elt: element type (node, zone, ...)
+        :type elt: str
+        :return: list of Kosh axes
+        :rtype: type
+        """
         axes_ids = ["cycles", "elements", "metrics"]
         if elt in ["drd"]:
             axes_ids.insert(-1, "direction")
@@ -202,7 +249,13 @@ class MashReader(object):
         return axes
 
     def get(self, feature, *args, **kargs):
-        """ Features are listed as elt/feature"""
+        """get a metric out of the reader
+
+        :param feature: element/metric to retrieve
+        :type feature: str
+        :return: data
+        :rtype: numpy.ndarray
+        """
         sp = feature.split("/")
         if len(sp) == 1:
             elt = sp[0]
@@ -214,16 +267,39 @@ class MashReader(object):
 
 class MashLoader(KoshLoader):
     def __init__(self, obj):
+        """MashLoader for Kosh to be able to read in MASHExtract files
+
+        :param KoshLoader: Kosh loaders base class
+        :type KoshLoader: KoshLoader
+        :param obj: Kosh obj reference
+        """
         super(MashLoader, self).__init__(obj, {"mash": ["numpy", ]})
 
     def open(self):
+        """open the mash reader
+
+        :return: MashReader
+        :rtype: MashReader
+        """
         return MashReader(self.obj.uri)
 
     def get(self, feature, *args, **kargs):
+        """get a feature
+
+        :param feature: in this case element/metric
+        :type feature: str
+        :return: numpy array
+        :rtype: numpy.ndarray
+        """
         reader = self.open()
-        reader.get(feature, *args, **kargs)
+        return reader.get(feature, *args, **kargs)
 
     def list_features(self):
+        """list_features lists features available
+
+        :return: list of features you can retrieve
+        :rtype: list
+        """
         reader = self.open()
         out = []
         for elt in ["zone", "node", "srd", "drd"]:

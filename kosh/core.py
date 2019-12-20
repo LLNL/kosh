@@ -1,4 +1,5 @@
 # Core module for our Kosh data access
+from abc import ABCMeta, abstractmethod
 from .loaders import MashLoader, KoshLoader, KoshFileLoader
 
 
@@ -6,7 +7,7 @@ class KoshAgent(object):
     """Class to manage permissions etc..."""
 
 
-class KoshStoreClass(object):
+class KoshStoreClass(object, metaclass=ABCMeta):
     def __init__(self):
         self.loaders = []
         self.storeLoader = KoshLoader
@@ -15,53 +16,52 @@ class KoshStoreClass(object):
 
     agent = KoshAgent()
 
-    def connect(self):
-        """Connect to engine DB"""
-        raise NotImplementedError()
-
+    @abstractmethod
     def search(self):
-        """search datasets"""
+        """search store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
         raise NotImplementedError()
 
+    @abstractmethod
     def open(self):
-        """open dataset(s)"""
+        """open an object in the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
         raise NotImplementedError()
 
+    @abstractmethod
     def create(self):
-        """return publisher object"""
+        """create a dataset
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
         raise NotImplementedError()
 
     def add_loader(self, loader):
         self.loaders.append(loader)
 
-    def schema(self, schema_name):
-        return NotImplementedError("method not implemented yet")
-
-
-class KoshData(object):
-    def get(self, type=None):
-        """Method to get data"""
-        raise NotImplementedError()
-    __call__ = get
-
-    def list_features(self):
-        """Method to list features"""
-        raise NotImplementedError()
-
 
 def KoshStore(engine, *args, **kargs):
-    known_engines = ["cassandra", "sina"]
-    if not engine.lower() in known_engines:
+    """KoshStore return a store based on a specific engine
+
+    :param engine: The engine used by the store (currently sina only)
+    :type engine: str
+    :raises RuntimeError: [description]
+    :return: [description]
+    :rtype: [type]
+    """
+    known_engines = ["sina", ]
+    # Initialize and returns access class
+    if engine.lower() == "sina":
+        from .sina import KoshSinaStore
+        return KoshSinaStore(*args, **kargs)
+    else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
                 engine, known_engines))
-    # Initialize and returns access class
-    if engine.lower() == "cassandra":
-        from .cassandra import KoshStoreCassandra
-        return KoshStoreCassandra(*args, **kargs)
-    elif engine.lower() == "sina":
-        from .sina import KoshSinaStore
-        return KoshSinaStore(*args, **kargs)
 
 
 class KoshDataset(object):
@@ -87,35 +87,69 @@ class KoshDataset(object):
         return st
 
     def add(self, source):
-        """ Add data to datset"""
+        """add data to a dataset
+
+        :param source: Data to add
+        """
         if self.__associated_data__ is None:
             self.__associated_data__ = [source.__id__, ]
         elif source.__id__ not in self.__associated_data__:
             self.__associated_data__ += [source.__id__, ]
 
     def open(self, Id=None, loader=None):
-        """ Open an object from store"""
+        """open an object associated with a dataset
+
+        :param Id: id of object to open, defaults to None which means first one.
+        :type Id: str, optional
+        :param loader: loader to use for this object, defaults to None
+        :type loader: KoshLoader, optional
+        :raises RuntimeError: object id not associated with dataset
+        :return: object ready to be used
+        """
         if Id is None:
-            if len(self.__associated_data__) == 0:
+            if len(self.__associated_data__) > 0:
                 Id = self.__associated_data__[0]
             else:
                 for Id in self.__associated_data__:
                     return self.__store__.open(Id, loader)
+        elif Id not in self.__associated_data__:
+            raise RuntimeError(f"object {Id} is not associated with this dataset")
         return self.__store__.open(Id, loader)
 
     def list_features(self, Id=None, *args, **kargs):
+        """list_features list features available
+
+        :param Id: id of object to get list of features from, defaults to None which means all
+        :type Id: str, optional
+        :raises RuntimeError: object id not associated with dataset
+        :return: list of features available
+        :rtype: list
+        """
         features = []
         if Id is None:
             for a in self.__associated_data__:
                 ld = self.__store__._find_loader(a)
                 features += ld.list_features(*args, **kargs)
+        elif Id not in self.__associated_data__:
+            raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             ld = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
         return features
 
     def get(self, feature=None, Id=None, loader=None, *args, **kargs):
-        """ Open an object from store"""
+        """get data for a specific feature
+
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :param Id: object to read in, defaults to None
+        :type Id: str, optional
+        :param loader: loader to use to get data, defaults to None means pick for me
+        :raises RuntimeException: could not get feature
+        :raises RuntimeError: object id not associated with dataset
+        :return: [description]
+        :rtype: [type]
+        """
         possible_ids = []
         # we need to figure which associated data has the feature
         if Id is None:
@@ -123,6 +157,8 @@ class KoshDataset(object):
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features() or feature is None:
                     possible_ids.append(a)
+        elif Id not in self.__associated_data__:
+            raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             possible_ids = [Id, ]
         for Id in possible_ids:
@@ -135,6 +171,10 @@ class KoshDataset(object):
             feature, self.__id__))
 
     def __dir__(self):
+        """__dir__ list functions and attributes associated with dataset
+        :return: functions, methods, attribute associated with this dataset
+        :rtype: list
+        """
         current = set(super(KoshDataset, self).__dir__())
         try:
             atts = set(self.listattributes() + self.__protected__)
