@@ -252,7 +252,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             if not self.__store__.__sync__:
                 mem = sina_sql.DAOFactory(db_path=":memory:")
                 handler = mem.create_record_dao()
-                handler.insert_many(list(self.__store__.__sync__dict__.values()))
+                for rec in self.__store__.__sync__dict__.values():
+                    handler.insert(rec)
                 match_mem = list(handler.data_query(**sina_kargs))
                 # check that tweaks didn't remove a possible dataset
                 yank = []
@@ -476,7 +477,8 @@ class KoshSinaStore(KoshStoreClass):
         if not self.__sync__:
             mem = sina_sql.DAOFactory(db_path=":memory:")
             handler = mem.create_record_dao()
-            handler.insert_many(list(self.__sync__dict__.values()))
+            for rec in self.__sync__dict__.values():
+                handler.insert(rec)
             ds_filter += list(handler.get_all_of_type("dataset", ids_only=True))
 
         if len(sina_kargs) != 0:  # no restriction, all datsets
@@ -574,10 +576,10 @@ class KoshSinaStore(KoshStoreClass):
                 del_keys.append(key)
             except Exception:
                 update_records.append(local)
-        if len(del_keys) > 0:
-            self.__record_handler__.delete_many(del_keys)
-        if len(update_records) > 0:
-            self.__record_handler__.insert_many(update_records)
+        for key in del_keys:
+            self.__record_handler__.delete(key)
+        for rec in update_records:
+            self.__record_handler__.insert(rec)
         for key in list(keys):
             del(self.__sync__dict__[key])
 
