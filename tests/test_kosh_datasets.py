@@ -38,7 +38,6 @@ class KoshTestDataset(KoshTest):
         # Make sure you cannot delete it
         del(ds.__type__)
         self.assertEqual(ds.__type__, "dataset")
-
         printTestResults = """\
 KOSH DATASET
         id: {id}
@@ -52,6 +51,8 @@ KOSH DATASET
 """.format(id=ds.__id__, creator=ds.creator)
         print(ds)
         self.assertEqual(str(ds).replace("\t","        "), printTestResults)
+        store.sync()
+        del(store)
         os.remove(kosh_db)
 
     def test_search_datasets_in_store(self):
@@ -79,6 +80,8 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
+        store.sync()
+        del(store)
         os.remove(kosh_db)
 
     def test_add_file(self):
@@ -98,3 +101,6 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
+        store.sync()
+        del(store)
+        os.remove(kosh_db)

@@ -8,11 +8,13 @@ class KoshAgent(object):
 
 
 class KoshStoreClass(object, metaclass=ABCMeta):
-    def __init__(self):
+    def __init__(self, sync):
         self.loaders = []
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         self.add_loader(MashLoader)
+        self.__sync__ = sync
+        self.__sync__dict__ = {}
 
     agent = KoshAgent()
 
@@ -44,11 +46,13 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         self.loaders.append(loader)
 
 
-def KoshStore(engine, *args, **kargs):
+def KoshStore(engine, sync=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param engine: The engine used by the store (currently sina only)
     :type engine: str
+    :param sync: Does Kosh sync automatically to the db (True) or on demand (False)
+    :type sync: bool
     :raises RuntimeError: [description]
     :return: [description]
     :rtype: [type]
@@ -57,7 +61,7 @@ def KoshStore(engine, *args, **kargs):
     # Initialize and returns access class
     if engine.lower() == "sina":
         from .sina import KoshSinaStore
-        return KoshSinaStore(*args, **kargs)
+        return KoshSinaStore(sync=sync, *args, **kargs)
     else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
