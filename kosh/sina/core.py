@@ -576,10 +576,8 @@ class KoshSinaStore(KoshStoreClass):
                 del_keys.append(key)
             except Exception:
                 update_records.append(local)
-        for key in del_keys:
-            self.__record_handler__.delete(key)
-        for rec in update_records:
-            self.__record_handler__.insert(rec)
+        self.__record_handler__.delete(del_keys)
+        self.__record_handler__.insert(update_records)
         for key in list(keys):
             del(self.__sync__dict__[key])
 
