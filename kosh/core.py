@@ -79,26 +79,16 @@ class KoshDataset(object):
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
             for a in sorted(atts):
-                if a == "__associated_data__":
+                if a == "_associated_data_":
                     continue
                 st += "\t{}: {}\n".format(a, atts[a])
-        if self.__associated_data__ is not None:
+        if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
-                len(self.__associated_data__))
-            for a in self.__associated_data__:
+                len(self._associated_data_))
+            for a in self._associated_data_:
                 st2 = str(self.open(a))
                 st += "\n\t".join(st2.split("\n"))
         return st
-
-    def add(self, source):
-        """add data to a dataset
-
-        :param source: Data to add
-        """
-        if self.__associated_data__ is None:
-            self.__associated_data__ = [source.__id__, ]
-        elif source.__id__ not in self.__associated_data__:
-            self.__associated_data__ += [source.__id__, ]
 
     def open(self, Id=None, loader=None):
         """open an object associated with a dataset
@@ -111,12 +101,12 @@ class KoshDataset(object):
         :return: object ready to be used
         """
         if Id is None:
-            if len(self.__associated_data__) > 0:
-                Id = self.__associated_data__[0]
+            if len(self._associated_data_) > 0:
+                Id = self._associated_data_[0]
             else:
-                for Id in self.__associated_data__:
+                for Id in self._associated_data_:
                     return self.__store__.open(Id, loader)
-        elif Id not in self.__associated_data__:
+        elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         return self.__store__.open(Id, loader)
 
@@ -131,10 +121,10 @@ class KoshDataset(object):
         """
         features = []
         if Id is None:
-            for a in self.__associated_data__:
+            for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
                 features += ld.list_features(*args, **kargs)
-        elif Id not in self.__associated_data__:
+        elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             ld = self.__store__._find_loader(Id)
@@ -157,11 +147,11 @@ class KoshDataset(object):
         possible_ids = []
         # we need to figure which associated data has the feature
         if Id is None:
-            for a in self.__associated_data__:
+            for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features() or feature is None:
                     possible_ids.append(a)
-        elif Id not in self.__associated_data__:
+        elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             possible_ids = [Id, ]

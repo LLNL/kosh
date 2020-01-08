@@ -64,11 +64,16 @@ class KoshSinaObject(object):
 
         :param name: attribute to retrieve
         :type name: str
-        :raises AttributeError: could not retireve attribute
+        :raises AttributeError: could not retrieve attribute
         :return: requested attribute value
         """
         if name in self.__dict__["__protected__"]:
-            return self.__dict__[name]
+            if name == "_associated_data_":
+                record = self.get_record()
+                # print("REC IN ASSOVCIATED:", record["files"])
+                return [record["files"][f]["kosh_id"] for f in record["files"]]
+            else:
+                return self.__dict__[name]
         record = self.get_record()
         if name == "__attributes__":
             return self.__getattributes__()
@@ -127,6 +132,9 @@ class KoshSinaObject(object):
         if name in self.__protected__:
             return
         record = self.get_record()
+        last_modif_att = f"{name}_last_modified"
+        now = time.time()
+        record["user_defined"][last_modif_att] = now
         del(record["data"][name])
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
@@ -183,19 +191,16 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         super(KoshSinaDataset, self).__init__(datasetId, koshType="dataset",
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
-                                                         "__associated_data__"],
+                                                         "_associated_data_"],
                                               record_handler=store.__record_handler__,
                                               store=store)
         self.__dict__["__record_handler__"] = store.__record_handler__
         record = self.get_record()
         self.__dict__["__creator__"] = record["data"]["creator"]["value"]
         self.__dict__["__name__"] = record["data"]["name"]["value"]
-        self.__dict__["__associated_data__"] = [record["files"]
-                                                [f]["kosh_id"] for f in
-                                                record["files"]]
 
-    def add_file(self, uri, mime_type, metadata={}):
-        """add_file associates a file with dataset
+    def associate(self, uri, mime_type, metadata={}):
+        """associates a uri/mime_type with this dataset
 
         :param uri: uri to access file
         :type uri: str
@@ -208,8 +213,15 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         """
 
         rec = self.get_record()
-        rec.add_file(uri, mime_type)
-        kosh_file = KoshSinaObject(Id=None,
+        try:
+            rec.add_file(uri, mime_type)
+            Id = None
+        except Exception:
+            # file already in there
+            # Let's get the matching id
+            rec = self.search(file=uri)
+            print("REC FOUND:", rec, uri)
+        kosh_file = KoshSinaObject(Id=Id,
                                    koshType="file",
                                    store=self.__store__,
                                    metadata=metadata,
@@ -220,7 +232,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(rec)
-        self.add(kosh_file)
         return kosh_file
 
     def search(self, *atts, **keys):
@@ -236,7 +247,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :rtype: list
         """
 
-        if self.__associated_data__ is None:
+        if self._associated_data_ is None:
             return []
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
@@ -244,17 +255,29 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             sina_kargs[att] = DataRange(min=-9.e999999)
         sina_kargs.update(keys)
 
-        if len(sina_kargs) == 0:
-            inter_recs = self.__associated_data__
-        else:
-            match = list(self.__record_handler__.data_query(**sina_kargs))
+        inter_recs = self._associated_data_
+        if len(sina_kargs) != 0:
+            file_uri = sina_kargs.pop("file", None)
+            if len(sina_kargs) == 0:
+                match = inter_recs
+            else:
+                match = list(self.__record_handler__.data_query(**sina_kargs))
+            if file_uri is not None:
+                file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
+                match = set(match).intersection(file_match)
             # instantly restrict to associated data
             if not self.__store__.__sync__:
                 mem = sina_sql.DAOFactory(db_path=":memory:")
                 handler = mem.create_record_dao()
                 for rec in self.__store__.__sync__dict__.values():
                     handler.insert(rec)
-                match_mem = list(handler.data_query(**sina_kargs))
+                if len(sina_kargs) == 0:
+                    match_mem = inter_recs
+                else:
+                    match_mem = list(handler.data_query(**sina_kargs))
+                if file_uri is not None:
+                    file_match = list(handler.get_given_document_uri(file_uri, inter_recs, True))
+                    match_mem = set(matc_mem).intersection(file_match)
                 # check that tweaks didn't remove a possible dataset
                 yank = []
                 for m in match:
@@ -264,7 +287,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 for y in yank:
                     match.remove(y)
                 match += match_mem
-            inter_recs = set(match).intersection(set(self.__associated_data__))
+            inter_recs = set(match).intersection(set(self._associated_data_))
 
         if ids_only:
             return list(inter_recs)
@@ -345,7 +368,11 @@ class KoshSinaStore(KoshStoreClass):
         else:
             record = self.__record_handler__.get(Id)
             self.__sync__dict__[Id] = record
-        record["user_defined"][f"last_update_from_db"] = time.time()
+            keys = list(record["user_defined"].keys())
+            for key in keys:
+                if key[-14:] == "_last_modified":
+                    del(record["user_defined"][key])
+            record["user_defined"]["last_update_from_db"] = time.time()
         return record
 
     def create(self, name="Unnamed Dataset", datasetId=None, metadata={}):
@@ -369,16 +396,16 @@ class KoshSinaStore(KoshStoreClass):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
-        ds = Record(id=Id, type="dataset")
-        ds.add_data("creator", self.__user_id__)
-        ds.add_data("name", name)
-        ds.add_data("__associated_data__", None)
+        rec = Record(id=Id, type="dataset")
+        rec.add_data("creator", self.__user_id__)
+        rec.add_data("name", name)
+        rec.add_data("_associated_data_", None)
         for k in metadata:
-            ds.add_data(k, metadata[k])
+            rec.add_data(k, metadata[k])
         if self.__sync__:
-            self.__record_handler__.insert(ds)
+            self.__record_handler__.insert(rec)
         else:
-            self.__sync__dict__[Id] = ds
+            self.__sync__dict__[Id] = rec
         ds = KoshSinaDataset(Id, store=self)
         return ds
 
@@ -514,24 +541,40 @@ class KoshSinaStore(KoshStoreClass):
         conflicts = {}
         for key in keys:
             local_record = self.__sync__dict__[key]
-            last_local = local_record["user_defined"]["last_update_from_db"]
+            # Dataset created locally on unsynced store do not have this attribute
+            last_local = local_record["user_defined"].get("last_update_from_db", -1)
             try:
                 db_record = self.__record_handler__.get(key)
                 for att in db_record["user_defined"]:
+                    conflict = False
                     if att[-14:] != "_last_modified":
                         continue
                     name = att[:-14]
                     last_db = db_record["user_defined"][att]
                     if last_db > last_local and att in local_record["user_defined"]:
                         # Conflict
-                        conf = {name: (db_record["data"][name]["value"],
-                                       last_db,
-                                       local_record["data"][name]["value"],
-                                       local_record["user_defined"][att])}
-                        if key not in conflicts:
-                            conflicts[key] = conf
+                        print("Pot conflict")
+                        if name not in local_record["data"]:  # deleted locally
+                            if name in db_record["data"]:
+                                print("deleted locally")
+                                conflict = True
                         else:
-                            conflicts[key].update(conf)
+                            if name not in db_record["data"]:
+                                print("Gone from db")
+                                conflict = True
+                            elif db_record["data"][name]["value"] != local_record["data"][name]["value"]:
+                                print("Values differ")
+                                conflict = True
+                        if conflict:
+                            conf = {name: (db_record["data"].get(name, {"value": "deleted"})["value"],
+                                        last_db,
+                                        local_record["data"].get(name, {"value": "deleted"})["value"],
+                                        local_record["user_defined"][att])}
+                            if key not in conflicts:
+                                conflicts[key] = conf
+                            else:
+                                conflicts[key].update(conf)
+                            conflicts[key]["last_check_from_db"] = last_local
             except BaseException:  # It's a new record no conflict
                 pass
         return conflicts
@@ -554,7 +597,10 @@ class KoshSinaStore(KoshStoreClass):
             msg = "Conflicts exist objects have been modified in db and locally"
             for key in conflicts:
                 msg += "\nObject id:{}".format(key)
+                msg += "\n\tLast read from db: {}".format(conflicts[key]["last_check_from_db"])
                 for k in conflicts[key]:
+                    if k == "last_check_from_db":
+                        continue
                     st = "\n\t"+k+" modified to value '{}' at {} in db, modified locally to '{}' at {}"
                     st = st.format(*conflicts[key][k])
                     msg += st
@@ -569,12 +615,16 @@ class KoshSinaStore(KoshStoreClass):
                 for att in local["user_defined"]:
                     if att[-14:] == "_last_modified":  # We touched it
                         name = att[:-14]
-                        if local["user_defined"][att] > db["user_defined"][att]:
+                        if name not in local["data"]:  # we deleted it
+                            if name in db["data"]:
+                                del(db["data"][name])
+                        elif local["user_defined"][att] > db["user_defined"][att]:
                             db["data"][name] = local["data"][name]
                             db["user_defined"][att] = local["user_defined"][att]
                 update_records.append(db)
                 del_keys.append(key)
-            except Exception:
+            except Exception as err:
+                print("Not in del because:", err)
                 update_records.append(local)
         self.__record_handler__.delete(del_keys)
         self.__record_handler__.insert(update_records)
@@ -583,4 +633,4 @@ class KoshSinaStore(KoshStoreClass):
 
     def __del__(self):
         """Delete a Kosh store, we make sure we sync before we go"""
-        self.sync()
+        #self.sync()

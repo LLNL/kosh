@@ -53,5 +53,37 @@ class KoshTestSync(KoshTest):
         ds1.test_sync = "I changed it after you"
         with self.assertRaises(RuntimeError):
             ds2.sync()
+        with self.assertRaises(RuntimeError):
+            ds2.sync()
         self.assertEqual(ds2.test_sync, "I changed it")
+        with self.assertRaises(RuntimeError):
+            ds2.sync()
         self.assertEqual(ds1.test_sync, "I changed it after you")
+        with self.assertRaises(RuntimeError):
+            ds2.sync()
+        ds2.test_sync = ds1.test_sync
+        ds2.sync()
+        self.assertEqual(ds1.test_sync, "I changed it after you")
+        self.assertEqual(ds2.test_sync, "I changed it after you")
+        
+        # Now testing deletion stuff
+        del(ds1.test_sync)
+        ds2.test_sync = "Ok let's change you"
+        with self.assertRaises(RuntimeError):
+            ds2.sync()
+        del(ds2.test_sync)
+        ds2.sync()
+
+        ds2.associate("ghost", "not_real")
+        self.assertNotEqual(ds2._associated_data_, ds1._associated_data_)
+        ds1.associate("ghostly","fake")
+        ds2.associate("ghostlier", "not_real_as_well")
+        print("b4 We hve:", ds1._associated_data_)
+        print("b4 We hve:", ds2._associated_data_)
+        ds2.sync()
+        print("af We hve:", ds1._associated_data_)
+        print("af We hve:", ds2._associated_data_)
+        self.assertEqual(ds2._associated_data_, ds1._associated_data_)
+        print("DS!:", ds1._associated_data_)
+
+

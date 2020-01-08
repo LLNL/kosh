@@ -84,23 +84,24 @@ KOSH DATASET
         del(store)
         os.remove(kosh_db)
 
-    def test_add_file(self):
+    def test_associate(self):
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(ds.search()), 0)
-        ds.add_file("tests/baselines/mash/node_extracts2", "mash")
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        self.assertEqual(len(ds.search()), 1)
+        # Make sure associating again will not create additional data
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
         with self.assertRaises(ValueError):
-            ds.add_file("tests/baselines/mash/node_extracts2", "mash")
+            ds.associate("tests/baselines/mash/node_extracts2", "mash2")
         self.assertEqual(len(ds.search()), 1)
-        f = ds.add_file("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
+        f = ds.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
         self.assertEqual(len(ds.search()), 2)
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
-        store.sync()
-        del(store)
         os.remove(kosh_db)
