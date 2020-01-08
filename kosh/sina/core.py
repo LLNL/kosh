@@ -248,6 +248,9 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
 
+        "file" is a special key that will return the kosh object associated
+        with this dataset for the given uri.  e.g store.search(file=uri)
+
         :return: list of matching objects associated with dataset
         :rtype: list
         """
@@ -496,6 +499,9 @@ class KoshSinaStore(KoshStoreClass):
         via key=value
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
+
+        "file" is a special key that will return all records being associated
+        with the given "uri", e.g store.search(file=uri)
 
         :return: list of matching objects in store
         :rtype: list
