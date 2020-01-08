@@ -219,8 +219,13 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         except Exception:
             # file already in there
             # Let's get the matching id
-            rec = self.search(file=uri)
-            print("REC FOUND:", rec, uri)
+            existing_mime = rec["files"][uri]["mimetype"]
+            if existing_mime != mime_type:
+                raise ValueError("file {} is already associated with this dataset"
+            " with mime_type '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+            else:
+                Id = rec["files"][uri]["kosh_id"]
+    
         kosh_file = KoshSinaObject(Id=Id,
                                    koshType="file",
                                    store=self.__store__,
@@ -258,13 +263,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         inter_recs = self._associated_data_
         if len(sina_kargs) != 0:
             file_uri = sina_kargs.pop("file", None)
+            print("File uri:", file_uri)
             if len(sina_kargs) == 0:
                 match = inter_recs
             else:
                 match = list(self.__record_handler__.data_query(**sina_kargs))
-            if file_uri is not None:
-                file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
-                match = set(match).intersection(file_match)
             # instantly restrict to associated data
             if not self.__store__.__sync__:
                 mem = sina_sql.DAOFactory(db_path=":memory:")
@@ -276,7 +279,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 else:
                     match_mem = list(handler.data_query(**sina_kargs))
                 if file_uri is not None:
-                    file_match = list(handler.get_given_document_uri(file_uri, inter_recs, True))
                     match_mem = set(matc_mem).intersection(file_match)
                 # check that tweaks didn't remove a possible dataset
                 yank = []
@@ -287,7 +289,15 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 for y in yank:
                     match.remove(y)
                 match += match_mem
+            if file_uri is not None:
+                rec = self.get_record()
+                files = rec["files"].keys()
+                if file_uri in files:
+                    match = [rec["files"][file_uri]["kosh_id"], ]
+                else:
+                    match =[]
             inter_recs = set(match).intersection(set(self._associated_data_))
+            print("MATCH NOW:", match)
 
         if ids_only:
             return list(inter_recs)
@@ -508,7 +518,8 @@ class KoshSinaStore(KoshStoreClass):
                 handler.insert(rec)
             ds_filter += list(handler.get_all_of_type("dataset", ids_only=True))
 
-        if len(sina_kargs) != 0:  # no restriction, all datsets
+        file_uri = sina_kargs.pop("file", None)
+        if len(sina_kargs) != 0:  # no restriction, all datasets
             match = list(self.__record_handler__.data_query(**sina_kargs))
             if not self.__sync__:
                 match_mem = list(handler.data_query(**sina_kargs))
@@ -523,7 +534,15 @@ class KoshSinaStore(KoshStoreClass):
                 match += match_mem
             inter_recs = set(match).intersection(set(ds_filter))
         else:
-            inter_recs = list(ds_filter)
+            inter_recs = set(ds_filter)
+
+        print("Before file:", inter_recs)
+        if file_uri is not None:
+            file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
+            print("FILE MATCH", file_match)
+            if not self.__sync__:
+                file_match += list(handler.get_given_document_uri(file_uri, inter_recs, True))
+            inter_recs = set(inter_recs).intersection(file_match)
 
         if ids_only:
             return list(inter_recs)
@@ -621,10 +640,12 @@ class KoshSinaStore(KoshStoreClass):
                         elif local["user_defined"][att] > db["user_defined"][att]:
                             db["data"][name] = local["data"][name]
                             db["user_defined"][att] = local["user_defined"][att]
-                update_records.append(db)
+                if db is not None:
+                    update_records.append(db)
+                else:  # db did not have that key and returned None (no error)
+                    update_records.append(local)
                 del_keys.append(key)
-            except Exception as err:
-                print("Not in del because:", err)
+            except Exception:
                 update_records.append(local)
         self.__record_handler__.delete(del_keys)
         self.__record_handler__.insert(update_records)

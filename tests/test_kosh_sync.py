@@ -2,8 +2,47 @@ import os
 from koshbase import KoshTest
 import kosh
 import time
+from sina.utils import DataRange
 
 class KoshTestSync(KoshTest):
+    def test_sync_search(self):
+        store, kosh_db = self.connect()
+        store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
+        # Create many datasets
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds2 = store2.create(metadata={"key2": "B", "key3": 3})
+        ds3 = store.create()
+        ds4 = store2.create(metadata={"key2": "C", "key3": 4})
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds2.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds3.associate("tests/baselines/mash/node_extracts2", "mash")
+
+        s = store.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 1)
+        s = store2.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 3)
+
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 1)
+        s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 2)
+
+        print("---------------------------")
+        print("---------------------------")
+        print("---------------------------")
+        print("---------------------------")
+        store2.sync()
+        s = store.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 3)
+        s = store2.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 3)
+
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 2)
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 2)
+
+
     def test_sync_dataset_attributes(self):
         store1, kosh_db = self.connect(sync=True)
         store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)

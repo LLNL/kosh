@@ -1,7 +1,7 @@
 import os
 from koshbase import KoshTest
 import kosh
-
+from sina.utils import DataRange
 
 class KoshTestDataset(KoshTest):
     def test_add_dataset(self):
@@ -105,3 +105,25 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
         os.remove(kosh_db)
+
+    def test_search(self):
+        store, kosh_db = self.connect()
+        # Create many datasets
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds2 = store.create(metadata={"key2": "B", "key3": 3})
+        ds3 = store.create()
+        ds4 = store.create(metadata={"key2": "C", "key3": 4})
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds2.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds3.associate("tests/baselines/mash/node_extracts2", "mash")
+
+        s = store.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 3)
+
+        print("***************************************************")
+        print("***************************************************")
+        print("***************************************************")
+        print("***************************************************")
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        print(list(s))
+        self.assertEqual(len(s), 2)
