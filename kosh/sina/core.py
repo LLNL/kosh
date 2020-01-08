@@ -221,7 +221,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         search = self.__store__.search(file=uri)
         if len(search) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
-        
 
     def associate(self, uri, mime_type, metadata={}):
         """associates a uri/mime_type with this dataset
@@ -245,11 +244,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             # Let's get the matching id
             existing_mime = rec["files"][uri]["mimetype"]
             if existing_mime != mime_type:
-                raise ValueError("file {} is already associated with this dataset"
-            " with mime_type '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+                raise ValueError("file {} is already associated with this dataset with mimetype"
+                                 " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
             else:
                 Id = rec["files"][uri]["kosh_id"]
-    
+
         kosh_file = KoshSinaObject(Id=Id,
                                    koshType="file",
                                    store=self.__store__,
@@ -307,8 +306,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     match_mem = inter_recs
                 else:
                     match_mem = list(handler.data_query(**sina_kargs))
-                if file_uri is not None:
-                    match_mem = set(matc_mem).intersection(file_match)
+                # if file_uri is not None:
+                #     match_mem = set(match_mem).intersection(file_match)
                 # check that tweaks didn't remove a possible dataset
                 yank = []
                 for m in match:
@@ -324,7 +323,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 if file_uri in files:
                     match = [rec["files"][file_uri]["kosh_id"], ]
                 else:
-                    match =[]
+                    match = []
             inter_recs = set(match).intersection(set(self._associated_data_))
 
         if ids_only:
@@ -422,7 +421,7 @@ class KoshSinaStore(KoshStoreClass):
         """
         if not isinstance(Id, str):
             Id = Id.__id__
-    
+
         rec = self.get_record(Id)
         if rec.type == "dataset":
             kosh_obj = self._load(Id)
@@ -626,7 +625,7 @@ class KoshSinaStore(KoshStoreClass):
                             # ok dealing with associated data
                             uri = att[:-27]
                             if uri not in local_record["files"]:  # deleted locally
-                                if name in db_record["files"]:
+                                if uri in db_record["files"]:
                                     conflict = True
                             else:
                                 if uri not in db_record["files"]:
@@ -635,9 +634,10 @@ class KoshSinaStore(KoshStoreClass):
                                     conflict = True
                             if conflict:
                                 conf = {uri: (db_record["files"].get(uri, {"mimetype": "deleted"})["mimetype"],
-                                            last_db,
-                                            local_record["files"].get(uri, {"mimetype": "deleted"})["mimetype"],
-                                            local_record["user_defined"][att])}
+                                              last_db,
+                                              local_record["files"].get(uri, {"mimetype": "deleted"})[
+                                    "mimetype"],
+                                    local_record["user_defined"][att])}
                                 if key not in conflicts:
                                     conflicts[key] = conf
                                 else:
@@ -656,9 +656,10 @@ class KoshSinaStore(KoshStoreClass):
                                     conflict = True
                             if conflict:
                                 conf = {name: (db_record["data"].get(name, {"value": "deleted"})["value"],
-                                            last_db,
-                                            local_record["data"].get(name, {"value": "deleted"})["value"],
-                                            local_record["user_defined"][att])}
+                                               last_db,
+                                               local_record["data"].get(
+                                                   name, {"value": "deleted"})["value"],
+                                               local_record["user_defined"][att])}
                                 if key not in conflicts:
                                     conflicts[key] = conf
                                 else:
@@ -710,9 +711,9 @@ class KoshSinaStore(KoshStoreClass):
                         if att[-27:-14] == "___associated":
                             # ok it's an associated thing
                             uri = att[:-27]
-                            if not uri in local["files"]:  # deassociated
+                            if uri not in local["files"]:  # deassociated
                                 del(db["files"][uri])
-                            elif att not in db["user_defined"]: # newly ssocaited
+                            elif att not in db["user_defined"]:  # newly associated
                                 db["files"][uri] = local["files"][uri]
                                 db["user_defined"][att] = local["user_defined"][att]
                             elif local["user_defined"][att] > db["user_defined"][att]:

@@ -131,6 +131,5 @@ class KoshTestSync(KoshTest):
         with self.assertRaises(RuntimeError):
             ds2.sync()
         ds2.deassociate("conflict")
+        ds2.associate("conflict", "conf2")
         ds2.sync()
-
-
