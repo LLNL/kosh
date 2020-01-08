@@ -27,10 +27,6 @@ class KoshTestSync(KoshTest):
         s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 2)
 
-        print("---------------------------")
-        print("---------------------------")
-        print("---------------------------")
-        print("---------------------------")
         store2.sync()
         s = store.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
@@ -117,12 +113,24 @@ class KoshTestSync(KoshTest):
         self.assertNotEqual(ds2._associated_data_, ds1._associated_data_)
         ds1.associate("ghostly","fake")
         ds2.associate("ghostlier", "not_real_as_well")
-        print("b4 We hve:", ds1._associated_data_)
-        print("b4 We hve:", ds2._associated_data_)
+        self.assertEqual(len(ds2._associated_data_), 2)
         ds2.sync()
-        print("af We hve:", ds1._associated_data_)
-        print("af We hve:", ds2._associated_data_)
+        self.assertEqual(len(ds2._associated_data_), 3)
         self.assertEqual(ds2._associated_data_, ds1._associated_data_)
-        print("DS!:", ds1._associated_data_)
+        ds2.deassociate("ghost")
+        self.assertEqual(len(ds2._associated_data_), 2)
+        self.assertEqual(len(ds1._associated_data_), 3)
+        ds2.sync()
+        self.assertEqual(len(ds1._associated_data_), 2)
+        self.assertEqual(len(ds2._associated_data_), 2)
+
+        # Ok now let's see if we do conflict
+        ds2.associate("conflict", "conf")
+        ds1.associate("conflict", "conf2")
+
+        with self.assertRaises(RuntimeError):
+            ds2.sync()
+        ds2.deassociate("conflict")
+        ds2.sync()
 
 

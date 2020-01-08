@@ -104,6 +104,8 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
+        ds.deassociate("tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(ds._associated_data_), 1)
         os.remove(kosh_db)
 
     def test_search(self):
@@ -120,10 +122,12 @@ KOSH DATASET
         s = store.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        print("***************************************************")
-        print("***************************************************")
-        print("***************************************************")
-        print("***************************************************")
         s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
-        print(list(s))
         self.assertEqual(len(s), 2)
+
+        self.assertEqual(len(ds._associated_data_), 1)
+        ds2.deassociate("tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(ds2._associated_data_), 0)
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 1)
+
