@@ -51,8 +51,6 @@ KOSH DATASET
 """.format(id=ds.__id__, creator=ds.creator)
         print(ds)
         self.assertEqual(str(ds).replace("\t","        "), printTestResults)
-        store.sync()
-        del(store)
         os.remove(kosh_db)
 
     def test_search_datasets_in_store(self):
@@ -80,8 +78,6 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
-        store.sync()
-        del(store)
         os.remove(kosh_db)
 
     def test_associate(self):
@@ -130,4 +126,5 @@ KOSH DATASET
         self.assertEqual(len(ds2._associated_data_), 0)
         s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 1)
+        os.remove(kosh_db)
 

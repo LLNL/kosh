@@ -35,8 +35,11 @@ class KoshTestSync(KoshTest):
 
         s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 2)
-        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 2)
+
+        store2.sync()
+        os.remove(kosh_db)
 
 
     def test_sync_dataset_attributes(self):
@@ -133,3 +136,5 @@ class KoshTestSync(KoshTest):
         ds2.deassociate("conflict")
         ds2.associate("conflict", "conf2")
         ds2.sync()
+        store2.sync()
+        os.remove(kosh_db)
