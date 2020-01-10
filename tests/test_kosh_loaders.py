@@ -8,28 +8,29 @@ class KoshTestLoaders(KoshTest):
     def test_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
-        ds.add_file(
+        ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
-        l = store._find_loader(ds.__associated_data__[0])
-        print("LOADER:", l)
+        l = store._find_loader(ds._associated_data_[0])
         self.assertEqual(l.known_types(), ["file"])
         self.assertEqual(l.known_load_formats("file"), [])
+        os.remove(kosh_db)
 
     def test_generic_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
-        ds.add_file("setup.py", "ascii")
-        l = store._find_loader(ds.__associated_data__[0])
+        ds.associate("setup.py", "ascii")
+        l = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
         self.assertEqual(l.known_types(), ["file"])
         self.assertEqual(l.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), str)
+        os.remove(kosh_db)
 
 
     def test_hdf5(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
-        ds.add_file(
+        ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         features = sorted(ds.list_features())
         self.assertEqual(features,
@@ -48,7 +49,7 @@ class KoshTestLoaders(KoshTest):
                           'metrics_4', 'metrics_5', 'metrics_6',
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         
-        features = sorted(ds.list_features(ds.__associated_data__[0],"node"))
+        features = sorted(ds.list_features(ds._associated_data_[0],"node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
@@ -56,6 +57,7 @@ class KoshTestLoaders(KoshTest):
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         data = ds.get("node/metrics_1")
         self.assertEqual(data.shape, (2, 18))
+        os.remove(kosh_db)
 
 
     def test_mash(self):
@@ -63,7 +65,7 @@ class KoshTestLoaders(KoshTest):
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(ds.search()), 0)
-        ds.add_file("tests/baselines/mash/node_extracts2", "mash")
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
 
         features = ds.list_features()
         self.assertEqual(features, ['zone/skew', 'zone/stretch', 'zone/taper', 'zone/average energy', 'zone/zone pressure', 'node/min corner volume', 'node/min face area', 'node/min side area',
@@ -104,3 +106,4 @@ class KoshTestLoaders(KoshTest):
         axes = mash_file.getAxisList("zone")
         self.assertEqual([a.id for a in axes], [
                          "cycles", "elements", "metrics"])
+        os.remove(kosh_db)

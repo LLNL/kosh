@@ -1,7 +1,7 @@
 import os
 from koshbase import KoshTest
 import kosh
-
+from sina.utils import DataRange
 
 class KoshTestDataset(KoshTest):
     def test_add_dataset(self):
@@ -38,7 +38,6 @@ class KoshTestDataset(KoshTest):
         # Make sure you cannot delete it
         del(ds.__type__)
         self.assertEqual(ds.__type__, "dataset")
-
         printTestResults = """\
 KOSH DATASET
         id: {id}
@@ -81,20 +80,51 @@ KOSH DATASET
         self.assertEqual(len(all_ds), 4)
         os.remove(kosh_db)
 
-    def test_add_file(self):
+    def test_associate(self):
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(ds.search()), 0)
-        ds.add_file("tests/baselines/mash/node_extracts2", "mash")
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        self.assertEqual(len(ds.search()), 1)
+        # Make sure associating again will not create additional data
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
         with self.assertRaises(ValueError):
-            ds.add_file("tests/baselines/mash/node_extracts2", "mash")
+            ds.associate("tests/baselines/mash/node_extracts2", "mash2")
         self.assertEqual(len(ds.search()), 1)
-        f = ds.add_file("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
+        f = ds.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
         self.assertEqual(len(ds.search()), 2)
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
+        ds.deassociate("tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(ds._associated_data_), 1)
+        os.remove(kosh_db)
+
+    def test_search(self):
+        store, kosh_db = self.connect()
+        # Create many datasets
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds2 = store.create(metadata={"key2": "B", "key3": 3})
+        ds3 = store.create()
+        ds4 = store.create(metadata={"key2": "C", "key3": 4})
+        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds2.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds3.associate("tests/baselines/mash/node_extracts2", "mash")
+
+        s = store.search(key2=DataRange("A"))
+        self.assertEqual(len(s), 3)
+
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 2)
+
+        self.assertEqual(len(ds._associated_data_), 1)
+        ds2.deassociate("tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(ds2._associated_data_), 0)
+        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        self.assertEqual(len(s), 1)
+        os.remove(kosh_db)
+
