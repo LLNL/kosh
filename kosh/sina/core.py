@@ -13,7 +13,7 @@ class KoshSinaObject(object):
         return self.__store__.get_record(self.__id__)
 
     def __init__(self, Id, store, koshType,
-                 record_handler, protected=[], metadata={}):
+                 record_handler, protected=[], metadata={}, schema=None):
         """__init__ sina object base class
 
         :param Id: id to use forunique identification, if None is passed set for you via uui4()
@@ -30,10 +30,11 @@ class KoshSinaObject(object):
         :type metadata: dict, optional
         """
         self.__dict__["__store__"] = store
+        self.__dict__["schema"] = schema
         self.__dict__["__record_handler__"] = record_handler
         self.__dict__["__protected__"] = [
             "__id__", "__type__", "__protected__",
-            "__record_handler__", "__store__", "__id__"] + protected
+            "__record_handler__", "__store__", "__id__", "schema"] + protected
         self.__dict__["__type__"] = koshType
         if Id is None:
             Id = uuid.uuid4().hex
@@ -91,6 +92,10 @@ class KoshSinaObject(object):
         """
         if name in self.__protected__:  # Cannot set protected attributes
             return
+
+        if self.schema is not None:
+            self.schema.validate_attribute(name, value)
+
         record = self.get_record()
         # Did it change on db since we last read it?
         last_modif_att = f"{name}_last_modified"
@@ -179,7 +184,7 @@ class KoshSinaFile(KoshSinaObject):
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
-    def __init__(self, datasetId, store):
+    def __init__(self, datasetId, store, schema=None):
         """KoshSinaDataset Sina representation of Kosh Dataset
 
         :param datasetId: dataset's unique Id
@@ -192,11 +197,16 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                                          "__name__", "__creator__", "__store__",
                                                          "_associated_data_"],
                                               record_handler=store.__record_handler__,
-                                              store=store)
+                                              store=store, schema=schema)
         self.__dict__["__record_handler__"] = store.__record_handler__
         record = self.get_record()
         self.__dict__["__creator__"] = record["data"]["creator"]["value"]
         self.__dict__["__name__"] = record["data"]["name"]["value"]
+        self.validate()
+
+    def validate(self):
+        if self.schema is not None:
+            self.schema.validate(self)
 
     def deassociate(self, uri):
         """deassociates a uri/mime_type with this dataset
@@ -434,7 +444,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             self.__record_handler__.delete(Id)
 
-    def create(self, name="Unnamed Dataset", datasetId=None, metadata={}):
+    def create(self, name="Unnamed Dataset", datasetId=None, metadata={}, schema=None):
         """create a new (possibly named) dataset
 
         :param name: name for the dataset, defaults to None
@@ -443,6 +453,8 @@ class KoshSinaStore(KoshStoreClass):
         :type datasetId: str, optional
         :param metadata: dictionary of attribute/value pair for the dataset, defaults to {}
         :type metadata: dict, optional
+        :param schema: a KoshSchema object to validate datasets and when setting attributes
+        :type schema: KoshSchema
         :raises RuntimeError: Dataset already exists
         :return: KoshSinaDataset
         :rtype: KoshSinaDataset
@@ -465,7 +477,14 @@ class KoshSinaStore(KoshStoreClass):
             self.__record_handler__.insert(rec)
         else:
             self.__sync__dict__[Id] = rec
-        ds = KoshSinaDataset(Id, store=self)
+        try:
+            ds = KoshSinaDataset(Id, store=self, schema=schema)
+        except Exception as err:  # probably schema validation error
+            if self.__sync__:
+                self.__record_handler__.delete(Id)
+            else:
+                del(self.__sync__dict__[Id])
+            raise err
         return ds
 
     def _find_loader(self, Id):
