@@ -4,6 +4,7 @@ from kosh.loaders import KoshLoader
 import warnings
 import time
 import sina.datastores.sql as sina_sql
+import os
 
 
 class KoshSinaObject(object):
@@ -374,7 +375,7 @@ class KoshSinaStore(KoshStoreClass):
         """
         KoshStoreClass.__init__(self, sync)
         if db == "sql":
-            self.__factory = sina_sql.DAOFactory(db_path=db_uri)
+            self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
         elif db == 'cass':
             import sina.datastores.cass as sina
             self.__factory = sina.DAOFactory(
@@ -405,10 +406,11 @@ class KoshSinaStore(KoshStoreClass):
         else:
             record = self.__record_handler__.get(Id)
             self.__sync__dict__[Id] = record
-            keys = list(record["user_defined"].keys())
-            for key in keys:
-                if key[-14:] == "_last_modified":
-                    del(record["user_defined"][key])
+            if not self.__sync__:  # we are not autosyncing
+                keys = list(record["user_defined"].keys())
+                for key in keys:
+                    if key[-14:] == "_last_modified":
+                        del(record["user_defined"][key])
             record["user_defined"]["last_update_from_db"] = time.time()
         return record
 
