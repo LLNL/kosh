@@ -5,6 +5,23 @@ import time
 from sina.utils import DataRange
 
 class KoshTestSync(KoshTest):
+    def test_sync_mode_switch(self):
+        store, kosh_db = self.connect()
+        self.assertTrue(store.__sync__)
+        self.assertFalse(store.synchronous())
+        self.assertFalse(store.__sync__)
+        self.assertTrue(store.synchronous())
+        self.assertTrue(store.__sync__)
+        self.assertTrue(store.synchronous(True))
+        self.assertTrue(store.__sync__)
+        self.assertFalse(store.synchronous(False))
+        self.assertFalse(store.__sync__)
+        self.assertFalse(store.synchronous(False))
+        self.assertFalse(store.__sync__)
+        self.assertTrue(store.synchronous(True))
+        self.assertTrue(store.__sync__)
+        os.remove(kosh_db)
+
     def test_sync_search(self):
         store, kosh_db = self.connect()
         store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
