@@ -68,6 +68,14 @@ class KoshSchema(object):
         self.required = required
         self.optional = optional
 
+    def __str__(self):
+        st = """Kosh Validation Object
+        Required attributes and their validations:
+        {}
+        Optional attributes and their validations:
+        {}""".format(self.required, self.optional)
+        return st
+
     def validate(self, obj):
         """validate an object through a schema
         Checks that the obj has all the required attribute
