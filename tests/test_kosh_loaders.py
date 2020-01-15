@@ -80,11 +80,11 @@ class KoshTestLoaders(KoshTest):
                                                             'node pressure', 'node temperature',
                                                             'node velocity', 'skew', 'stretch', 'taper',
                                                             'average energy', 'zone pressure'],
-                                                   'srd': [], 'drd': []})
-        self.assertEqual(mash_file.proc_ids, {'zone': [[20, 21, 22, 23]], 'node': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'srd': [
-                         [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'drd': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]]})
-        self.assertEqual(mash_file.ids, {'zone': [20, 21, 22, 23], 'node': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'srd': [
-                         10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'drd': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]})
+                                                   'scalarRlxData': [], 'dimRlxData': []})
+        self.assertEqual(mash_file.proc_ids, {'zone': [[20, 21, 22, 23]], 'node': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'scalarRlxData': [
+                         [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'dimRlxData': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]]})
+        self.assertEqual(mash_file.ids, {'zone': [20, 21, 22, 23], 'node': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'scalarRlxData': [
+                         10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'dimRlxData': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]})
         data = mash_file.get("zone/skew")
         self.assertEqual(data.shape, (2, 4, 1))
         data = mash_file.get("zone/skew", cycles=[1, ])
@@ -101,7 +101,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(data2.shape, (1, 2, 1))
         data = ds.get("zone/skew")
         self.assertEqual(data.shape, (2, 4, 1))
-        self.assertEqual([a.id for a in mash_file.getAxisList("drd")], [
+        self.assertEqual([a.id for a in mash_file.getAxisList("dimRlxData")], [
                          "cycles", "elements", "direction", "metrics"])
         axes = mash_file.getAxisList("zone")
         self.assertEqual([a.id for a in axes], [

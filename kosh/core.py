@@ -45,6 +45,24 @@ class KoshStoreClass(object, metaclass=ABCMeta):
     def add_loader(self, loader):
         self.loaders.append(loader)
 
+    def synchronous(self, mode=None):
+        """Change sync mode for the store
+
+        :param mode: The mode to True means synchronous mode, False means asynchronous, None  means switch
+                     anything else is ignored and it simply returns the mode
+        :type mode: bool
+        :return: current synchronization mode
+        :rtype: bool
+        """
+
+        if mode is None:
+            self.__sync__ = not self.__sync__
+        elif mode in [True, False]:
+            if mode and not self.__sync__:  # Going to go to always sync on need to sync first
+                self.sync()
+            self.__sync__ = mode
+        return self.__sync__
+
 
 def KoshStore(engine, sync=True, *args, **kargs):
     """KoshStore return a store based on a specific engine

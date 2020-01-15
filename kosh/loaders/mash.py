@@ -29,7 +29,7 @@ class MashReader(object):
         self.metrics_avail = {}
         self.proc_ids = {}
         self.ids = {}
-        for elt in ["zone", "node", "srd", "drd"]:
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
             metrics_avail, proc_ids = self.__query(elt)
             self.proc_ids[elt] = proc_ids
             self.metrics_avail[elt] = metrics_avail
@@ -50,10 +50,10 @@ class MashReader(object):
         # Metrics available
         if elt_type in ["zone", "node"]:
             metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
-        elif elt_type == "srd":
-            metrics_avail = self.reader.SRD
-        elif elt_type == "drd":
-            metrics_avail = self.reader.DRD
+        elif elt_type == "scalarRlxData":
+            metrics_avail = self.reader.ScalarRlx
+        elif elt_type == "dimRlxData":
+            metrics_avail = self.reader.DimRlx
         else:
             raise RuntimeError("unknow elt type:", elt_type)
 
@@ -62,7 +62,7 @@ class MashReader(object):
         proc_ids = []
         n_elements = 0
         for proc in processors:
-            if elt_type in ["srd", "drd", "node"]:
+            if elt_type in ["scalarRlxData", "dimRlxData", "node"]:
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
@@ -159,9 +159,9 @@ class MashReader(object):
             if "metrics" in kargs:
                 n_metrics_avail == len(metrics)
             # Final shape for one processor
-            if elt_type in ["zone", "node", "srd"]:
+            if elt_type in ["zone", "node", "scalarRlxData"]:
                 sh = [n_cycles, n_elements, n_metrics_avail]
-            elif elt_type == "drd":
+            elif elt_type == "dimRlxData":
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
@@ -225,7 +225,7 @@ class MashReader(object):
             return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":
             return KoshAxis(axis, self.metrics_avail[elt])
-        elif axis == "direction" and elt == "drd":
+        elif axis == "direction" and elt == "dimRlxData":
             return KoshAxis(axis, [0, 1])
         else:
             raise RuntimeError(
@@ -241,7 +241,7 @@ class MashReader(object):
         :rtype: type
         """
         axes_ids = ["cycles", "elements", "metrics"]
-        if elt in ["drd"]:
+        if elt in ["dimRlxData"]:
             axes_ids.insert(-1, "direction")
         axes = []
         for axis in axes_ids:
@@ -302,7 +302,7 @@ class MashLoader(KoshLoader):
         """
         reader = self.open()
         out = []
-        for elt in ["zone", "node", "srd", "drd"]:
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
             metrics_avail = reader.metrics_avail[elt]
             for m in metrics_avail:
                 out.append("{}/{}".format(elt, m))
