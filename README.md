@@ -25,6 +25,9 @@ sys.path.append(path_to_kosh_repo)
 ```
 
 For more details look into the [installation doc](INSTALL.md)
+# First steps
+
+See [this file](docs/source/users/index.md)
 
 # Getting Involved
 Kosh is in its infancy, and users' questions, comments, and contributions help guide its evolution. We welcome involvement and feedbacks.
@@ -36,7 +39,7 @@ Kosh main developer can be reached at: doutriaux1@llnl.gov
 # Contributing
 Contributions should be submitted as a pull request pointing to the develop branch, and must pass Kosh's CI process; to run the same checks locally, use:
 ```
-nosetests test
+nosetests tests
 ```
 
 Contributions must be made under the same license as Kosh (see the bottom of this file).
