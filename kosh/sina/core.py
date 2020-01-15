@@ -1,9 +1,11 @@
 import uuid
 from kosh.core import KoshStoreClass, KoshDataset
+from kosh.schema import KoshSchema
 from kosh.loaders import KoshLoader
 import warnings
 import time
 import sina.datastores.sql as sina_sql
+import pickle
 
 
 class KoshSinaObject(object):
@@ -30,11 +32,11 @@ class KoshSinaObject(object):
         :type metadata: dict, optional
         """
         self.__dict__["__store__"] = store
-        self.__dict__["schema"] = schema
+        self.__dict__["__schema__"] = schema
         self.__dict__["__record_handler__"] = record_handler
         self.__dict__["__protected__"] = [
             "__id__", "__type__", "__protected__",
-            "__record_handler__", "__store__", "__id__", "schema"] + protected
+            "__record_handler__", "__store__", "__id__", "__schema__"] + protected
         self.__dict__["__type__"] = koshType
         if Id is None:
             Id = uuid.uuid4().hex
@@ -77,6 +79,11 @@ class KoshSinaObject(object):
         record = self.get_record()
         if name == "__attributes__":
             return self.__getattributes__()
+        elif name == "schema":
+            if self.__dict__["__schema__"] is None and "schema" in record["data"]:
+                schema = pickle.loads(record["data"]["schema"]["value"].encode("latin1"))
+                self.__dict__["__schema__"] = schema
+            return self.__dict__["__schema__"]
         if name not in record["data"]:
             raise AttributeError(
                 "Object {} does not have {} attribute".format(self.__id__,
@@ -92,11 +99,13 @@ class KoshSinaObject(object):
         """
         if name in self.__protected__:  # Cannot set protected attributes
             return
-
-        if self.schema is not None:
+        record = self.get_record()
+        if name == "schema":
+            assert(isinstance(value, KoshSchema))
+            value.validate(self)
+        elif self.schema is not None:
             self.schema.validate_attribute(name, value)
 
-        record = self.get_record()
         # Did it change on db since we last read it?
         last_modif_att = f"{name}_last_modified"
         try:
@@ -122,6 +131,9 @@ class KoshSinaObject(object):
             self.__dict__["__protected__"] += [last_modif_att, ]
         self.__dict__[last_modif_att] = now
         record["user_defined"][last_modif_att] = now
+        if name == "schema":
+            self.__dict__["__schema__"] = value
+            value = pickle.dumps(value).decode("latin1")
         record["data"][name] = {"value": value}
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
