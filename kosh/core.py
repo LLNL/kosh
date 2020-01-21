@@ -1,6 +1,6 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
-from .loaders import MashLoader, KoshLoader, KoshFileLoader
+from .loaders import MashLoader, KoshLoader, KoshFileLoader, ImageLoader
 
 
 class KoshAgent(object):
@@ -12,6 +12,7 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         self.loaders = []
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
+        self.add_loader(ImageLoader)
         self.add_loader(MashLoader)
         self.__sync__ = sync
         self.__sync__dict__ = {}
@@ -129,7 +130,8 @@ class KoshDataset(object):
         return self.__store__.open(Id, loader)
 
     def list_features(self, Id=None, *args, **kargs):
-        """list_features list features available
+        """list_features list features available if multiple associated data lead to duplicate feature name
+        then the associated_data uri gets appended to feature name
 
         :param Id: id of associated object to get list of features from, defaults to None which means all
         :type Id: str, optional
@@ -142,6 +144,19 @@ class KoshDataset(object):
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
                 features += ld.list_features(*args, **kargs)
+            if len(features) != len(set(features)):
+                # duplicate features we need to redo
+                ided_features = []
+                for a in self._associated_data_:
+                    obj = self.__store__._load(a)
+                    ld = self.__store__._find_loader(a)
+                    these_features = ld.list_features(*args, **kargs)
+                    for feature in these_features:
+                        if features.count(feature) > 1:  # duplicate
+                            ided_features.append(f"{feature}_{obj.uri}")
+                        else:  # not duplicate name
+                            ided_features.append(feature)
+                features = ided_features
         elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:

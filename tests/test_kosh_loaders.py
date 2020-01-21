@@ -27,6 +27,20 @@ class KoshTestLoaders(KoshTest):
         os.remove(kosh_db)
 
 
+    def test_images(self):
+        store, kosh_db = self.connect()
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate(
+            "tests/baselines/images/LLNLiconWHITE.png", "png")
+        features = sorted(ds.list_features())
+        self.assertEqual(features, ["image",])
+        # Duplicate features names URI should be added
+        ds.associate(
+            "tests/baselines/images/wci_logo.gif", "gif")
+        features = sorted(ds.list_features())
+        self.assertEqual(features, ["image_tests/baselines/images/LLNLiconWHITE.png","image_tests/baselines/images/wci_logo.gif"])
+
+
     def test_hdf5(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
