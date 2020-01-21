@@ -12,9 +12,9 @@ class PILLoader(KoshLoader):
         :param obj: Kosh obj reference
         """
         super(PILLoader, self).__init__(obj, {"png": ["numpy", "bytes"],
-                                                "gif": ["numpy", "bytes"],
-                                                "image": ["numpy", "bytes"],
-                                                "tiff": ["numpy", "bytes"]})
+                                              "gif": ["numpy", "bytes"],
+                                              "image": ["numpy", "bytes"],
+                                              "tiff": ["numpy", "bytes"]})
 
     def open(self, mode="r"):
         """open the mash reader

@@ -11,6 +11,7 @@ def read_chunk(f, end='\n'):
             return out
         out += r
 
+
 class PGMLoader(KoshLoader):
     def __init__(self, obj):
         """PGMLoader for Kosh to be able to read in pgm image files
@@ -19,7 +20,7 @@ class PGMLoader(KoshLoader):
         :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(PGMLoader, self).__init__(obj, {"pgm": ["numpy",]})
+        super(PGMLoader, self).__init__(obj, {"pgm": ["numpy", ]})
 
     def open(self, mode="rb"):
         """open the mash reader
@@ -45,19 +46,19 @@ class PGMLoader(KoshLoader):
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
                 n = w*h
-                data = numpy.array([int(x) for x in f.read().decode().split()]).reshape(h,w)
+                data = numpy.array([int(x) for x in f.read().decode().split()]).reshape(h, w)
             elif magic == 'P5':  # binary encoded
-                spc = f.read(1)
+                _ = f.read(1)
                 dims = read_chunk(f)
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
                 n = w*h
-                data = numpy.frombuffer(f.read(),dtype='u1' if max_value<256 else 'u2', count=n).reshape(h,w)
+                data = numpy.frombuffer(
+                    f.read(), dtype='u1' if max_value < 256 else 'u2', count=n).reshape(h, w)
             else:
                 raise ValueError(f"Cannot read pgm magic number {magic}")
 
         return data
-
 
     def list_features(self):
         """list_features lists features available
@@ -85,11 +86,11 @@ class PGMLoader(KoshLoader):
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
             elif magic == 'P5':  # binary encoded
-                spc = f.read(1)
+                _ = f.read(1)
                 dims = read_chunk(f)
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
             else:
                 raise ValueError(f"Cannot read pgm magic number {magic}")
 
-        return {"size": (h,w), "format": f"pgm ({magic})", "max_value": max_value}
+        return {"size": (h, w), "format": f"pgm ({magic})", "max_value": max_value}

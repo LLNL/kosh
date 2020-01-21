@@ -185,7 +185,6 @@ class KoshDataset(object):
             ld = self.__store__._find_loader(Id)
         return ld.describe_feature(feature)
 
-
     def get(self, feature=None, Id=None, loader=None, *args, **kargs):
         """get data for a specific feature
 
@@ -200,9 +199,10 @@ class KoshDataset(object):
         :rtype: [type]
         """
         if feature is None:
+            out = []
             for feat in self.list_features():
-                yield self.get(feat, Id=Id, loader=loader, *args, **kargs)
-            return
+                out.append(self.get(feat, Id=Id, loader=loader, *args, **kargs))
+            return out
         possible_ids = []
         # we need to figure which associated data has the feature
         if Id is None:
@@ -217,10 +217,8 @@ class KoshDataset(object):
         for Id in possible_ids:
             try:
                 ld = self.__store__._find_loader(Id)
-                print("LOADER:", ld)
                 return ld.get(feature, *args, **kargs)
-            except Exception as err:
-                print("ERR:", err)
+            except Exception:
                 pass
         raise Exception("could not get feature '{}' from dataset '{}'".format(
             feature, self.__id__))

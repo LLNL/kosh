@@ -2,7 +2,6 @@ import os
 from koshbase import KoshTest
 import kosh
 import numpy
-import types
 
 
 class KoshTestLoaders(KoshTest):
@@ -24,7 +23,7 @@ class KoshTestLoaders(KoshTest):
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
         self.assertEqual(sorted(l.known_types()), ["file", "hdf5"])
         self.assertEqual(l.known_load_formats("file"), [])
-        self.assertIsInstance(ds.get(None), types.GeneratorType)
+        self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
 
 

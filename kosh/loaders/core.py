@@ -155,7 +155,7 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
-    def __init__(self, obj, types={"file": [], "hdf5": ["numpy",]}):
+    def __init__(self, obj, types={"file": [], "hdf5": ["numpy", ]}):
         super(KoshFileLoader, self).__init__(obj, types)
 
     def open(self, mode='r'):
