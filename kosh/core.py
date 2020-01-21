@@ -1,6 +1,6 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
-from .loaders import MashLoader, KoshLoader, KoshFileLoader, ImageLoader
+from .loaders import MashLoader, KoshLoader, KoshFileLoader, PILLoader, PGMLoader
 
 
 class KoshAgent(object):
@@ -12,7 +12,8 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         self.loaders = []
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
-        self.add_loader(ImageLoader)
+        self.add_loader(PILLoader)
+        self.add_loader(PGMLoader)
         self.add_loader(MashLoader)
         self.__sync__ = sync
         self.__sync__dict__ = {}
@@ -184,6 +185,7 @@ class KoshDataset(object):
             ld = self.__store__._find_loader(Id)
         return ld.describe_feature(feature)
 
+
     def get(self, feature=None, Id=None, loader=None, *args, **kargs):
         """get data for a specific feature
 
@@ -197,6 +199,10 @@ class KoshDataset(object):
         :return: [description]
         :rtype: [type]
         """
+        if feature is None:
+            for feat in self.list_features():
+                yield self.get(feat, Id=Id, loader=loader, *args, **kargs)
+            return
         possible_ids = []
         # we need to figure which associated data has the feature
         if Id is None:
@@ -210,9 +216,11 @@ class KoshDataset(object):
             possible_ids = [Id, ]
         for Id in possible_ids:
             try:
-                op = self.open(Id, loader=loader)
-                return op.get(feature, *args, **kargs)
-            except Exception:
+                ld = self.__store__._find_loader(Id)
+                print("LOADER:", ld)
+                return ld.get(feature, *args, **kargs)
+            except Exception as err:
+                print("ERR:", err)
                 pass
         raise Exception("could not get feature '{}' from dataset '{}'".format(
             feature, self.__id__))

@@ -2,6 +2,7 @@ import os
 from koshbase import KoshTest
 import kosh
 import numpy
+import types
 
 
 class KoshTestLoaders(KoshTest):
@@ -11,7 +12,7 @@ class KoshTestLoaders(KoshTest):
         ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         l = store._find_loader(ds._associated_data_[0])
-        self.assertEqual(l.known_types(), ["file"])
+        self.assertEqual(sorted(l.known_types()), ["file", "hdf5"])
         self.assertEqual(l.known_load_formats("file"), [])
         os.remove(kosh_db)
 
@@ -21,9 +22,9 @@ class KoshTestLoaders(KoshTest):
         ds.associate("setup.py", "ascii")
         l = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(l.known_types(), ["file"])
+        self.assertEqual(sorted(l.known_types()), ["file", "hdf5"])
         self.assertEqual(l.known_load_formats("file"), [])
-        self.assertIsInstance(ds.get(None), str)
+        self.assertIsInstance(ds.get(None), types.GeneratorType)
         os.remove(kosh_db)
 
 
@@ -34,12 +35,29 @@ class KoshTestLoaders(KoshTest):
             "tests/baselines/images/LLNLiconWHITE.png", "png")
         features = sorted(ds.list_features())
         self.assertEqual(features, ["image",])
+        ds.get("image")
         # Duplicate features names URI should be added
         ds.associate(
             "tests/baselines/images/wci_logo.gif", "gif")
         features = sorted(ds.list_features())
         self.assertEqual(features, ["image_tests/baselines/images/LLNLiconWHITE.png","image_tests/baselines/images/wci_logo.gif"])
 
+
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate("tests/baselines/images/buffalo.pgm", "pgm")
+        img = ds.get("image")
+        self.assertEqual(img.shape, (321, 481))
+
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate("tests/baselines/images/brain_398.ascii.pgm", "pgm")
+        img = ds.get("image")
+        self.assertEqual(img.shape, (486, 720))
+
+        info = ds.describe_feature("image")
+
+        self.assertEqual(sorted(info.keys()),["format", "max_value", "size"])
+        self.assertEqual(info["format"], "pgm (P2)")
+        self.assertEqual(info["max_value"], 255)
 
     def test_hdf5(self):
         store, kosh_db = self.connect()
@@ -114,6 +132,7 @@ class KoshTestLoaders(KoshTest):
         data2 = mash_file.get("zone/skew", cycles=[1, ], elements=[20, 21])
         self.assertEqual(data2.shape, (1, 2, 1))
         data = ds.get("zone/skew")
+        print("DATA:", data)
         self.assertEqual(data.shape, (2, 4, 1))
         self.assertEqual([a.id for a in mash_file.getAxisList("dimRlxData")], [
                          "cycles", "elements", "direction", "metrics"])

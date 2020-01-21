@@ -275,7 +275,7 @@ class MashLoader(KoshLoader):
         """
         super(MashLoader, self).__init__(obj, {"mash": ["numpy", ]})
 
-    def open(self):
+    def open(self, mode="r"):
         """open the mash reader
 
         :return: MashReader

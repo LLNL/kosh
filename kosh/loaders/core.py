@@ -72,7 +72,7 @@ class KoshLoader(object):
         """
         return self.types.get(format, [])
 
-    def open(self):
+    def open(self, mode="r"):
         return self
 
     def get(self, feature, format=None, *args, **kargs):
@@ -96,14 +96,14 @@ class KoshLoader(object):
         :return: extracted feature
         """
         if format is None:
-            format = self.types[0]
-        if len(self.types) != 0 and format not in self.types[self.obj.type]:
-            raise ValueError(f"Loader cannot output type {self.obj.type} to {format} format")
+            format = self.types[self.obj.mime_type][0]
+        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
+            raise ValueError(f"Loader cannot output type {self.obj.mime_type} to {format} format")
         self.format = format
         self.feature = feature
         self._user_passed_parameters = args, kargs
         self.preprocess()
-        data = self.extract()
+        data = self.extract(feature, format)
         return self.postprocess(data)
 
     def list_features(self):
@@ -155,7 +155,7 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
-    def __init__(self, obj, types={"file": []}):
+    def __init__(self, obj, types={"file": [], "hdf5": ["numpy",]}):
         super(KoshFileLoader, self).__init__(obj, types)
 
     def open(self, mode='r'):
@@ -178,8 +178,8 @@ class KoshFileLoader(KoshLoader):
         :return: data
         """
         if self.obj.mime_type == "hdf5" and has_hdf5:
-            with h5py.File(self.obj.uri) as f:
-                return f[feature]
+            f = h5py.File(self.obj.uri, "r")
+            return f[feature]
         else:
             with open(self.obj.uri) as f:
                 return f.read(*args, **kargs)
@@ -229,9 +229,12 @@ class KoshFileLoader(KoshLoader):
                     for d in feature.dims.keys():
                         specs = {}
                         specs["name"] = d.label
-                        specs["first"] = f[d.label][0]
-                        specs["last"] = f[d.label][-1]
-                        specs["length"] = len(f[d.label])
+                        try:
+                            specs["first"] = f[d.label][0]
+                            specs["last"] = f[d.label][-1]
+                            specs["length"] = len(f[d.label])
+                        except Exception:
+                            pass
                         dims.append(specs)
                     info["dimensions"] = dims
         else:

@@ -3,20 +3,20 @@ from PIL import Image
 import numpy
 
 
-class ImageLoader(KoshLoader):
+class PILLoader(KoshLoader):
     def __init__(self, obj):
-        """ImageLoader for Kosh to be able to read in image files
+        """ImageLoader for Kosh to be able to read in pillow readable image files
 
         :param KoshLoader: Kosh loaders base class
         :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(ImageLoader, self).__init__(obj, {"png": ["numpy", "bytes"],
+        super(PILLoader, self).__init__(obj, {"png": ["numpy", "bytes"],
                                                 "gif": ["numpy", "bytes"],
                                                 "image": ["numpy", "bytes"],
                                                 "tiff": ["numpy", "bytes"]})
 
-    def open(self):
+    def open(self, mode="r"):
         """open the mash reader
 
         :return: Image file from PIL
@@ -45,6 +45,13 @@ class ImageLoader(KoshLoader):
 
         return ["image", ]
 
-    def describe_feature(self):
+    def describe_feature(self, feature):
+        """describe_feature describe the feature as a dictionary
+
+        :param feature: feature to describe
+        :type feature: str
+        :return: dictionary with attributes describing the feature
+        :rtype: dict
+        """
         image = self.open()
         return {"size": image.size, "mode": image.mode, "format": image.format}
