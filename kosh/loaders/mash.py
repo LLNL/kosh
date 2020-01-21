@@ -307,3 +307,31 @@ class MashLoader(KoshLoader):
             for m in metrics_avail:
                 out.append("{}/{}".format(elt, m))
         return out
+
+    def describe_feature(self, feature):
+        """describe a feature
+
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :return: dictionary describing the feature
+        :rtype: dict
+        """
+        if feature not in self.list_features():
+            raise ValueError(f"feature {feature} is not available")
+        reader = self.open()
+        sp = feature.split("/")
+        axes = reader.getAxisList(sp[0])
+        sh = []
+        dims = []
+        info = {"format": "mash"}
+        for ax in axes[:-1]:  # last one is the feature
+            specs = {}
+            sh.append(len(ax))
+            specs["name"] = ax.id
+            specs["length"] = len(ax)
+            specs["first"] = ax[0]
+            specs["last"] = ax[-1]
+            dims.append(specs)
+        info["dimensions"] = dims
+        info["size"] = sh
+        return info

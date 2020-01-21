@@ -131,7 +131,7 @@ class KoshDataset(object):
     def list_features(self, Id=None, *args, **kargs):
         """list_features list features available
 
-        :param Id: id of object to get list of features from, defaults to None which means all
+        :param Id: id of associated object to get list of features from, defaults to None which means all
         :type Id: str, optional
         :raises RuntimeError: object id not associated with dataset
         :return: list of features available
@@ -148,6 +148,26 @@ class KoshDataset(object):
             ld = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
         return features
+
+    def describe_feature(self, feature, Id=None):
+        """describe a feature
+
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :param Id: id of associated object to get list of features from, defaults to None which means all
+        :type Id: str, optional
+        :raises RuntimeError: object id not associated with dataset
+        :return: dictionary describing the feature
+        :rtype: dict
+        """
+        if Id is None:
+            for a in self._associated_data_:
+                ld = self.__store__._find_loader(a)
+        elif Id not in self._associated_data_:
+            raise RuntimeError(f"object {Id} is not associated with this dataset")
+        else:
+            ld = self.__store__._find_loader(Id)
+        return ld.describe_feature(feature)
 
     def get(self, feature=None, Id=None, loader=None, *args, **kargs):
         """get data for a specific feature

@@ -79,19 +79,24 @@ common attributes are:
 
 Potentially one can implement storing the DataObject directly in the store, or decide to access them via files.
 
-### Array Object
-
-At the moment only array objects are implemented
-
-They have the following methods
-
-#### getAxisList()
-
-#### getAxis()
-
-#### __getslice__/__setslice__
-
 ## Loader Objects
 
 Loader object allow for querying/ingestion of custom data representation and/or custom implementation of such query/ingestion.
 
+A data loader must at a minimum implement the following functions
+
+list_features: return a list of available features
+
+describe_feature: return a dictionary with info about the feature, such as dimensions, etc...
+
+extract: function to extract a given feature (or list of) from the object.
+         necessary parameters will be available in loader under self._user_passed_parameters.
+         'extract' is called from the loader's get function, AFTER the preprocess function and BEFORE the psotprocess function.
+         We recommend extract to return a pointer to the data rather than the data itself.
+
+Optional functions that can be implemented are:
+
+preprocess: usually a setup func to stage extract
+postprocess: a final function to further clean data returned from extract
+
+get: can be re-impemented but it is not recommended
