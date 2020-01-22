@@ -185,11 +185,13 @@ class KoshDataset(object):
             ld = self.__store__._find_loader(Id)
         return ld.describe_feature(feature)
 
-    def get(self, feature=None, Id=None, loader=None, *args, **kargs):
+    def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
         """get data for a specific feature
 
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
+        :param format: desired format after extraction
+        :type format: str
         :param Id: object to read in, defaults to None
         :type Id: str, optional
         :param loader: loader to use to get data, defaults to None means pick for me
@@ -201,7 +203,7 @@ class KoshDataset(object):
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get(feat, Id=Id, loader=loader, *args, **kargs))
+                out.append(self.get(Id=None, feature=feat, format=format, loader=loader, *args, **kargs))
             return out
         possible_ids = []
         # we need to figure which associated data has the feature
@@ -214,14 +216,15 @@ class KoshDataset(object):
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             possible_ids = [Id, ]
+        possible_formats = []
         for Id in possible_ids:
             try:
                 ld = self.__store__._find_loader(Id)
-                return ld.get(feature, *args, **kargs)
+                possible_formats += ld.known_load_formats(ld.obj.mime_type)
+                return ld.get(feature, format, *args, **kargs)
             except Exception:
                 pass
-        raise Exception("could not get feature '{}' from dataset '{}'".format(
-            feature, self.__id__))
+        raise Exception(f"could not get feature '{feature}' from dataset '{self.__id__}' in format {format}, possible formats are: {possible_formats}")
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

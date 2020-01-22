@@ -70,7 +70,7 @@ class KoshLoader(object):
         :return: list of format this type can be exported to by the loader
         :rtype: list
         """
-        return self.types.get(format, [])
+        return self.types.get(atype, [])
 
     def open(self, mode="r"):
         return self
@@ -84,8 +84,10 @@ class KoshLoader(object):
         Finally 'postprocess' is called on the extracted data
 
         Reserved keyword:
-        batch: to return data as a generator
-        shuffle: to shuffle the data, we recommend True/False
+        preprocess: function use to preprocess (default to self.preprocess)
+        postprocess: function use to postprocess (default to self.postprocess)
+        batch: to return data as a generator (not necessarily implemented yet)
+        shuffle: to shuffle the data, we recommend True/False (not necessarily implemented yet)
 
         Hints: clustering and such maybe implemented in pre and postprocess
 
@@ -102,9 +104,9 @@ class KoshLoader(object):
         self.format = format
         self.feature = feature
         self._user_passed_parameters = args, kargs
-        self.preprocess()
+        kargs.get("preprocess", self.preprocess)()
         data = self.extract(feature, format)
-        return self.postprocess(data)
+        return kargs.get("postprocess", self.postprocess)(data)
 
     def list_features(self):
         """list_features Given the obj it's loading return a list of features (variables)
@@ -237,5 +239,4 @@ class KoshFileLoader(KoshLoader):
                             pass
                         dims.append(specs)
                     info["dimensions"] = dims
-        else:
-            return {}
+        return info

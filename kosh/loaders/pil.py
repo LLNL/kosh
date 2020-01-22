@@ -23,18 +23,22 @@ class PILLoader(KoshLoader):
         """
         return Image.open(self.obj.uri)
 
-    def extract(self, feature, *args, **kargs):
+    def extract(self, feature, format, *args, **kargs):
         """get a feature
 
         :param feature: in this case element/metric
         :type feature: str
+        :param format: desired output format (numpy only for now)
+        :type format: str
         :return: numpy array
         :rtype: numpy.ndarray
         """
-        if self.format == "numpy":
+        if format == "numpy":
             return numpy.array(self.open())
-        elif self.format == "binary":
-            return self.open().tobytes()
+        elif format == "bytes":
+            obj = self.open()
+            raw = obj.tobytes()
+            return raw
 
     def list_features(self):
         """list_features lists features available

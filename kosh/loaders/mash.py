@@ -283,11 +283,13 @@ class MashLoader(KoshLoader):
         """
         return MashReader(self.obj.uri)
 
-    def get(self, feature, *args, **kargs):
+    def get(self, feature, format, *args, **kargs):
         """get a feature
 
         :param feature: in this case element/metric
         :type feature: str
+        :param format: desired output format (numpy only for now)
+        :type format: str
         :return: numpy array
         :rtype: numpy.ndarray
         """
