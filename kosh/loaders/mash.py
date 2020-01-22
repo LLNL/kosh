@@ -1,13 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
-try:
-    import ExtractReader
-except ImportError:
-    import warnings
-    warnings.warn(
-        "Could not import ExtractReader, will not be able to read"
-        " MASHExtract files")
+import ExtractReader
 import numpy
 from kosh.arrays import KoshAxis
 from .core import KoshLoader

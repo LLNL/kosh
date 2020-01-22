@@ -1,6 +1,18 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
-from .loaders import MashLoader, KoshLoader, KoshFileLoader, PILLoader, PGMLoader
+from .loaders import KoshLoader, KoshFileLoader, PGMLoader
+try:
+    from .loaders import MashLoader
+except ImportError:
+    pass
+try:
+    from .loaders import KoshHDF5Loader
+except ImportError:
+    pass
+try:
+    from .loaders import PILLoader
+except ImportError:
+    pass
 
 
 class KoshAgent(object):
@@ -12,9 +24,19 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         self.loaders = []
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
-        self.add_loader(PILLoader)
+        try:
+            self.add_loader(KoshHDF5Loader)
+        except Exception:
+            pass  # no h5py module?
+        try:
+            self.add_loader(PILLoader)
+        except Exception:
+            pass  # no PIL?
         self.add_loader(PGMLoader)
-        self.add_loader(MashLoader)
+        try:
+            self.add_loader(MashLoader)
+        except Exception:
+            pass  # no MashExtract?
         self.__sync__ = sync
         self.__sync__dict__ = {}
 
@@ -176,14 +198,19 @@ class KoshDataset(object):
         :return: dictionary describing the feature
         :rtype: dict
         """
+        loader = None
         if Id is None:
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
+                if feature in ld.list_features() or \
+                        feature[:-len(ld.obj.uri)-1] in ld.list_features():
+                    loader = ld
+                    break
         elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
-            ld = self.__store__._find_loader(Id)
-        return ld.describe_feature(feature)
+            loader = self.__store__._find_loader(Id)
+        return loader.describe_feature(feature)
 
     def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
         """get data for a specific feature
@@ -210,21 +237,29 @@ class KoshDataset(object):
         if Id is None:
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
-                if feature in ld.list_features() or feature is None:
+                if feature in ld.list_features() or\
+                        feature is None or\
+                        feature[:-len(ld.obj.uri)-1] in ld.list_features():
                     possible_ids.append(a)
         elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
         else:
             possible_ids = [Id, ]
         possible_formats = []
+        err = None
         for Id in possible_ids:
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
                 return ld.get(feature, format, *args, **kargs)
-            except Exception:
+            except Exception as err:  # noqa
                 pass
-        raise Exception(f"could not get feature '{feature}' from dataset '{self.__id__}' in format {format}, possible formats are: {possible_formats}")
+        msg = f"could not get feature '{feature}'"
+        msg += f" from dataset '{self.__id__}' in format {format},"
+        msg += f" possible formats are: {possible_formats}"
+        if err is not None:
+            msg += f"\nError: {err}"
+        raise Exception(msg)
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

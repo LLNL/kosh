@@ -1,22 +1,3 @@
-try:
-    import h5py
-
-    class KoshHDF5Object(h5py.File):
-        def get(self, feature, *args, **kargs):
-            """KoshHDF5Object Kosh hdf5 file repr
-
-            :param feature: variable to access in hdf5 file
-            :type feature: str
-            :return: data
-            :rtype: numpy.ndarray
-            """
-            return self[feature]
-
-    has_hdf5 = True
-except ImportError:
-    has_hdf5 = False
-
-
 class KoshGenericObjectFromFile(object):
     def __init__(self, *args, **kwds):
         self.args = args
@@ -157,7 +138,7 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
-    def __init__(self, obj, types={"file": [], "hdf5": ["numpy", ]}):
+    def __init__(self, obj, types={"file": []}):
         super(KoshFileLoader, self).__init__(obj, types)
 
     def open(self, mode='r'):
@@ -167,47 +148,27 @@ class KoshFileLoader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        if self.obj.mime_type == "hdf5" and has_hdf5:
-            return KoshHDF5Object(self.obj.uri, mode)
-        else:
-            return KoshGenericObjectFromFile(self.obj.uri, mode)
+        return KoshGenericObjectFromFile(self.obj.uri, mode)
 
-    def extract(self, feature, *args, **kargs):
+    def extract(self, feature, format):
         """extract return a feature from the loaded object.
 
         :param feature: variable to read from file
         :type feature: str
+        :param format: desired output format
+        :type format: str
         :return: data
         """
-        if self.obj.mime_type == "hdf5" and has_hdf5:
-            f = h5py.File(self.obj.uri, "r")
-            return f[feature]
-        else:
-            with open(self.obj.uri) as f:
-                return f.read(*args, **kargs)
+        with open(self.obj.uri) as f:
+            return f.read()
 
     def list_features(self, *args):
         """list_features list features in file,
-        for hdf5 you can pass extra argument to navigate groups.
 
         :return: list of features available in file
         :rtype: list
         """
-        if self.obj.mime_type == "hdf5" and has_hdf5:
-            with h5py.File(self.obj.uri, "r") as f:
-                keys = []
-                if len(args) == 0:
-                    for k in f.keys():
-                        if hasattr(f[k], "keys"):
-                            for k2 in f[k].keys():
-                                keys.append(f"{k}/{k2}")
-                        else:
-                            keys.append(k)
-                    return keys
-                else:
-                    return list(f[args[0]].keys())
-        else:
-            return []
+        return []
 
     def describe_feature(self, feature):
         """describe a feature
@@ -219,24 +180,4 @@ class KoshFileLoader(KoshLoader):
         """
         if feature not in self.list_features():
             raise ValueError(f"feature {feature} is not available")
-        info = {}
-        if self.obj.mime_type == "hdf5" and has_hdf5:
-            with h5py.File(self.obj.uri, "r") as f:
-                feature = f[feature]
-                info["size"] = feature.shape
-                info["format"] = "hdf5"
-                info["type"] = feature.dtype
-                if hasattr(feature, "dims"):
-                    dims = []
-                    for d in feature.dims.keys():
-                        specs = {}
-                        specs["name"] = d.label
-                        try:
-                            specs["first"] = f[d.label][0]
-                            specs["last"] = f[d.label][-1]
-                            specs["length"] = len(f[d.label])
-                        except Exception:
-                            pass
-                        dims.append(specs)
-                    info["dimensions"] = dims
-        return info
+        return {}
