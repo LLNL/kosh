@@ -70,22 +70,22 @@ pip install cython cassandra-driver
 
 ### Niceties
 
-We recommend adding the following packages h5py, jupyter-lab and tqdm. Nosetests if you plan to run the test suite
+We recommend adding the following packages matplotlib, h5py, jupyter-lab and tqdm. Nosetests if you plan to run the test suite
 
 #### Conda
 
 ```
-conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm pytorch torchvision
+conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm pytorch torchvision matplotlib pillow
 ```
 
 ```
 conda install -n kosh -c conda-forge nose
 ```
 
-#### Virtual Envirnoment
+#### Virtual Environment
 
 ```
-pip install h5py jupyterlab tqdm
+pip install h5py jupyterlab tqdm matplotlib pillow
 ```
 
 ```

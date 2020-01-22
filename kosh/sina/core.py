@@ -86,9 +86,12 @@ class KoshSinaObject(object):
                 self.__dict__["__schema__"] = schema
             return self.__dict__["__schema__"]
         if name not in record["data"]:
-            raise AttributeError(
-                "Object {} does not have {} attribute".format(self.__id__,
-                                                              name))
+            if name == "mime_type":
+                return record["type"]
+            else:
+                raise AttributeError(
+                    "Object {} does not have {} attribute".format(self.__id__,
+                                                                  name))
         return record["data"][name]["value"]
 
     def __setattr__(self, name, value):
@@ -510,18 +513,29 @@ class KoshSinaStore(KoshStoreClass):
         """
         record = self.get_record(Id)
         obj = self._load(Id)
+        loader = None
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype
         if "mime_type" in record["data"]:
             for ld in self.loaders:
-                ld = ld(obj)
-                if record["data"]["mime_type"]["value"] in ld.known_types():
-                    return ld
+                try:
+                    loader = ld(obj)
+                    if obj.mime_type in loader.types:  # ok not a generic loader let's use it
+                        return loader
+                except Exception:
+                    pass
+        if loader is not None:
+            # a generic loader was found
+            return loader
         # Ok could not open the actual subtype, looking at generic type
         for ld in self.loaders:
-            ld = ld(obj)
-            if record["type"] in ld.known_types():
-                return ld
+            try:
+                loader = ld(obj)
+                if obj.mime_type in loader.types:  # ok not a generic loader let's use it
+                    return loader
+            except Exception:
+                pass
+        return loader
 
     def open(self, Id, loader=None):
         """open loads an object in store based on its Id
@@ -555,11 +569,13 @@ class KoshSinaStore(KoshStoreClass):
                                   record_handler=self.__record_handler__,
                                   store=self)
 
-    def get(self, Id, format=None, loader=None, *args, **kargs):
+    def get(self, Id, feature, format=None, loader=None, *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
         :type Id: str
+        :param feature: feature to retrieve
+        :type feature: str
         :param format: prefered format, defaults to None means pick for me
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
@@ -568,7 +584,7 @@ class KoshSinaStore(KoshStoreClass):
         if loader is None:
             loader = self._find_loader(Id)
 
-        return loader(self._load(Id)).get(format, *args, **kargs)
+        return loader(self._load(Id)).get(feature, format, *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata

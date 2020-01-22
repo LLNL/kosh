@@ -1,13 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
-try:
-    import ExtractReader
-except ImportError:
-    import warnings
-    warnings.warn(
-        "Could not import ExtractReader, will not be able to read"
-        " MASHExtract files")
+import ExtractReader
 import numpy
 from kosh.arrays import KoshAxis
 from .core import KoshLoader
@@ -275,7 +269,7 @@ class MashLoader(KoshLoader):
         """
         super(MashLoader, self).__init__(obj, {"mash": ["numpy", ]})
 
-    def open(self):
+    def open(self, mode="r"):
         """open the mash reader
 
         :return: MashReader
@@ -283,11 +277,13 @@ class MashLoader(KoshLoader):
         """
         return MashReader(self.obj.uri)
 
-    def get(self, feature, *args, **kargs):
+    def get(self, feature, format, *args, **kargs):
         """get a feature
 
         :param feature: in this case element/metric
         :type feature: str
+        :param format: desired output format (numpy only for now)
+        :type format: str
         :return: numpy array
         :rtype: numpy.ndarray
         """
@@ -307,3 +303,31 @@ class MashLoader(KoshLoader):
             for m in metrics_avail:
                 out.append("{}/{}".format(elt, m))
         return out
+
+    def describe_feature(self, feature):
+        """describe a feature
+
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :return: dictionary describing the feature
+        :rtype: dict
+        """
+        if feature not in self.list_features():
+            raise ValueError(f"feature {feature} is not available")
+        reader = self.open()
+        sp = feature.split("/")
+        axes = reader.getAxisList(sp[0])
+        sh = []
+        dims = []
+        info = {"format": "mash"}
+        for ax in axes[:-1]:  # last one is the feature
+            specs = {}
+            sh.append(len(ax))
+            specs["name"] = ax.id
+            specs["length"] = len(ax)
+            specs["first"] = ax[0]
+            specs["last"] = ax[-1]
+            dims.append(specs)
+        info["dimensions"] = dims
+        info["size"] = sh
+        return info

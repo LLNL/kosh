@@ -11,7 +11,7 @@ class KoshTestLoaders(KoshTest):
         ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         l = store._find_loader(ds._associated_data_[0])
-        self.assertEqual(l.known_types(), ["file"])
+        self.assertEqual(sorted(l.known_types()), ["hdf5"])
         self.assertEqual(l.known_load_formats("file"), [])
         os.remove(kosh_db)
 
@@ -21,11 +21,49 @@ class KoshTestLoaders(KoshTest):
         ds.associate("setup.py", "ascii")
         l = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(l.known_types(), ["file"])
+        self.assertEqual(sorted(l.known_types()), ["file"])
         self.assertEqual(l.known_load_formats("file"), [])
-        self.assertIsInstance(ds.get(None), str)
+        self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
 
+
+    def test_images(self):
+        store, kosh_db = self.connect()
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate(
+            "tests/baselines/images/LLNLiconWHITE.png", "png")
+        features = sorted(ds.list_features())
+        self.assertEqual(features, ["image",])
+        ds.get("image")
+        # Duplicate features names URI should be added
+        ds.associate(
+            "tests/baselines/images/wci_logo.gif", "gif")
+        features = sorted(ds.list_features())
+        self.assertEqual(features, ["image_tests/baselines/images/LLNLiconWHITE.png","image_tests/baselines/images/wci_logo.gif"])
+
+
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate("tests/baselines/images/buffalo.pgm", "pgm")
+        img = ds.get("image")
+        self.assertEqual(img.shape, (321, 481))
+
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate("tests/baselines/images/brain_398.ascii.pgm", "pgm")
+        img = ds.get("image")
+        self.assertEqual(img.shape, (486, 720))
+
+        info = ds.describe_feature("image")
+
+        self.assertEqual(sorted(info.keys()),["format", "max_value", "size"])
+        self.assertEqual(info["format"], "pgm (P2)")
+        self.assertEqual(info["max_value"], 255)
+        ds.associate("tests/baselines/images/wci_logo.gif", mime_type="gif")
+        self.assertEqual(ds.list_features(), ['image_tests/baselines/images/brain_398.ascii.pgm',
+                                              'image_tests/baselines/images/wci_logo.gif'])  # URI is now added to feature to deambiguous them
+        info = ds.describe_feature("image_tests/baselines/images/wci_logo.gif")
+        self.assertEqual(info["size"], (595, 517))
+        data = ds.get("image_tests/baselines/images/wci_logo.gif")
+        self.assertEqual(data.shape, info["size"][::-1])
 
     def test_hdf5(self):
         store, kosh_db = self.connect()
@@ -57,6 +95,12 @@ class KoshTestLoaders(KoshTest):
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         data = ds.get("node/metrics_1")
         self.assertEqual(data.shape, (2, 18))
+        data = ds.get("node/metrics_1", cycles=slice(1,2), elements=[15,21])
+        self.assertEqual(data.shape, (1,2))
+        ds.associate("tests/baselines/images/brain_398.ascii.pgm", "pgm")
+        info = ds.describe_feature("node/metrics_1")
+        self.assertEqual(info["size"], (2,18))
+        self.assertEqual(info["format"], "hdf5")
         os.remove(kosh_db)
 
 
