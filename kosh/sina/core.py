@@ -451,7 +451,7 @@ class KoshSinaStore(KoshStoreClass):
 
         rec = self.get_record(Id)
         if rec.type == "dataset":
-            kosh_obj = self._load(Id)
+            kosh_obj = self.open(Id)
             for uri in rec["files"]:
                 # Let's deassociate to remove unused kosh objects as well
                 kosh_obj.deassociate(uri)

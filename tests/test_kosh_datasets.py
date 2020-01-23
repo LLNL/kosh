@@ -128,3 +128,33 @@ KOSH DATASET
         self.assertEqual(len(s), 1)
         os.remove(kosh_db)
 
+    def test_delete_dataset(self):
+        store, kosh_db = self.connect()
+        # Create many datasets
+        ds = store.create(metadata={"key1": 1, "key2": "A", "project":"test"})
+        ds2 = store.create(metadata={"key2": "B", "key3": 2, "project":"test"})
+        ds3 = store.create(metadata={"key2": "c", "key3": 3, "project":"test"})
+        ds4 = store.create(metadata={"key2": "D", "key3": 4, "project":"test"})
+        ds.associate("setup.py", "ascii")
+        ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
+        ds3.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds4.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds_associated = ds._associated_data_[0]
+        _ = store.open(ds_associated)
+        ds.deassociate("setup.py")
+        with self.assertRaises(Exception):
+            _ = store.open(ds_associated)
+        self.assertEqual(len(store.search(project="test")), 4)
+        store.delete(ds.__id__)
+        self.assertEqual(len(store.search(project="test")), 3)
+        ds_associated = ds2._associated_data_[0]
+        _ = store.open(ds_associated)
+        store.delete(ds2.__id__)
+        self.assertEqual(len(store.search(project="test")), 2)
+        with self.assertRaises(Exception):
+            _ = store.open(ds_associated)
+
+
+
+        os.remove(kosh_db)
+

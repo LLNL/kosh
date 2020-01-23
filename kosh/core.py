@@ -88,7 +88,7 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         return self.__sync__
 
 
-def KoshStore(engine, sync=True, *args, **kargs):
+def KoshStore(engine="sina", sync=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param engine: The engine used by the store (currently sina only)
