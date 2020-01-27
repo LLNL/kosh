@@ -513,6 +513,8 @@ class KoshSinaStore(KoshStoreClass):
         """
         record = self.get_record(Id)
         obj = self._load(Id)
+        if record["type"] == "dataset":
+            return KoshSinaLoader(obj)
         loader = None
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype
