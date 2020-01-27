@@ -159,6 +159,10 @@ class MashReader(object):
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
+            elif elt_type == "scalarRlxData":
+                use_ext = "scalar rlx"
+            elif elt_type == "dimRlxData":
+                use_ext = "dim rlx"
             else:
                 use_ext = elt_type
             if cycles is not None and len(
