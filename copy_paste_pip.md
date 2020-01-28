@@ -1,0 +1,63 @@
+# Installing Kosh via pip
+
+## Minimalist version
+
+### Just kosh and hdf5 loaders
+
+```bash
+export KOSH_PATH=kosh
+pip install virtualenv  # just in case
+python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
+source ${KOSH_PATH}/bin/activate
+pip install h5py numpy sqlalchemy six pip
+git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+cd sina/python
+pip install -e .
+cd ../..
+git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+cd kosh
+python setup.py install
+```
+
+### If you want the image loader you will need
+
+*PIL*
+
+```bash
+pip install pillow
+```
+
+### If you want to build the documentation you will need
+
+*sphinx sphinx-autoapi nbsphinx recommonmark*
+
+```bash
+pip install sphinx sphinx-autoapi nbsphinx recommonmark
+```
+
+### if you want to run the tests you will need
+
+*nosetests*
+
+```bash
+pip install nose
+```
+
+## Buffed up version with more loaders and extra but useful packages
+
+This will let you build the documentation
+
+```bash
+export KOSH_PATH=kosh
+pip install virtualenv  # just in case
+python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
+source ${KOSH_PATH}/bin/activate
+pip install h5py numpy sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark
+git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+cd sina/python
+pip install -e .
+cd ../..
+git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+cd kosh
+python setup.py install
+```
