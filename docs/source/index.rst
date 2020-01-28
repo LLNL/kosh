@@ -21,6 +21,17 @@ Contents:
    autoapi/index
 
 
+Notebooks
+=========
+
+.. toctree::
+   :glob:
+   :titlesonly:
+
+   jupyter/*
+
+
+
 
 Indices and tables
 ==================

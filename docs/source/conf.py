@@ -35,8 +35,13 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.viewcode',
     'autoapi.extension',
-    "recommonmark"
+    "recommonmark",
+    "nbsphinx"
 ]
+
+
+# NBSPHIX OPTIONS
+nbsphinx_allow_errors = True
 
 # AUTOAPI confi
 autoapi_dirs = ['../../kosh']
