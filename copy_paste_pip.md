@@ -43,6 +43,14 @@ pip install sphinx sphinx-autoapi nbsphinx recommonmark
 pip install nose
 ```
 
+### if you want to run the notebooks you will need
+
+*jupyterlab tqdm ipywidgets*
+
+```bash
+pip install tqdm ipywidgets jupyterlab
+```
+
 ## Buffed up version with more loaders and extra but useful packages
 
 This will let you build the documentation
@@ -52,7 +60,7 @@ export KOSH_PATH=kosh
 pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
-pip install h5py numpy sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark
+pip install h5py numpy sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
 git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
 cd sina/python
 pip install -e .

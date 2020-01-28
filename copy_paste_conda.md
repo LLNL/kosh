@@ -20,7 +20,7 @@ python setup.py install
 *PIL*
 
 ```bash
-conda install -n kosh pillow
+conda install -n kosh -c conda-forge pillow
 ```
 
 ### If you want to build the documentation you will need
@@ -36,7 +36,15 @@ conda install -n kosh -c conda-forge sphinx sphinx-autoapi nbsphinx recommonmark
 *nosetests*
 
 ```bash
-conda install -n kosh nose
+conda install -n kosh -c conda-forge nose
+```
+
+### if you want to run the notebooks you will need
+
+*jupyterlab tqdm ipywidgets*
+
+```bash
+conda install -n kosh -c conda-forge tqdm ipywidgets jupyterlab
 ```
 
 ## Buffed up version with more loaders and extra but useful packages
@@ -44,7 +52,7 @@ conda install -n kosh nose
 This will let you build the documentation
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
 git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
 cd sina/python
 pip install -e .
