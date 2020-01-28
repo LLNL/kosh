@@ -10,7 +10,7 @@ pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
 pip install h5py numpy sqlalchemy six pip
-git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
 cd ../..
@@ -49,6 +49,7 @@ pip install nose
 
 ```bash
 pip install tqdm ipywidgets jupyterlab
+python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 ```
 
 ## Buffed up version with more loaders and extra but useful packages
@@ -61,7 +62,7 @@ pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
 pip install h5py numpy sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
-git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
 cd ../..

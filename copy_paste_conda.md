@@ -6,7 +6,7 @@
 
 ```bash
 conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip
-git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
 cd ../..
@@ -41,10 +41,11 @@ conda install -n kosh -c conda-forge nose
 
 ### if you want to run the notebooks you will need
 
-*jupyterlab tqdm ipywidgets*
+*jupyterlab tqdm ipywidgets nb_conda nb_conda_kernels*
 
 ```bash
-conda install -n kosh -c conda-forge tqdm ipywidgets jupyterlab
+conda install -n kosh -c conda-forge tqdm ipywidgets jupyterlab nb_conda nb_conda_kernels
+python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 ```
 
 ## Buffed up version with more loaders and extra but useful packages
@@ -52,8 +53,8 @@ conda install -n kosh -c conda-forge tqdm ipywidgets jupyterlab
 This will let you build the documentation
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
-git clone https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels
+git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
 cd ../..
