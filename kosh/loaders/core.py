@@ -16,23 +16,26 @@ class KoshGenericObjectFromFile(object):
 
 
 class KoshLoader(object):
-    def __init__(self, obj, types={"dataset": []}):
+    """
+    :param types: types is a dictionary on known type that can be loaded
+    as key and export format as value, defaults to {"dataset": []}
+    :type types: dict, optional
+    """
+    types = {"dataset": []}
+
+    def __init__(self, obj):
         """KoshLoader generic Kosh loader
         :param obj: object
-        :param types: types is a dictionary on known type that can be loaded
-        as key and export format as value, defaults to {"dataset": []}
-        :type types: dict, optional
         """
-        if obj.mime_type not in types:
+        if obj.mime_type not in self.types:
             open_anything = False
-            for t in types:
+            for t in self.types:
                 if t == "dataset":  # datasets are special skipping
                     continue
-                if len(types[t]) == 0:
+                if len(self.types[t]) == 0:
                     open_anything = True
             if not open_anything:
                 raise RuntimeError(f"will not be able to load object of type {obj.mime_type}")
-        self.types = types
         self.obj = obj
 
     def known_types(self):
@@ -138,8 +141,10 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
-    def __init__(self, obj, types={"file": []}):
-        super(KoshFileLoader, self).__init__(obj, types)
+    types = {"file": []}
+
+    def __init__(self, obj):
+        super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
         """open/load the matching Kosh SIna File

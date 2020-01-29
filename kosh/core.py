@@ -21,7 +21,7 @@ class KoshAgent(object):
 
 class KoshStoreClass(object, metaclass=ABCMeta):
     def __init__(self, sync):
-        self.loaders = []
+        self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         try:
@@ -67,7 +67,11 @@ class KoshStoreClass(object, metaclass=ABCMeta):
         raise NotImplementedError()
 
     def add_loader(self, loader):
-        self.loaders.append(loader)
+        for k in loader.types:
+            if k in self.loaders:
+                self.loaders[k].append(loader)
+            else:
+                self.loaders[k] = [loader, ]
 
     def synchronous(self, mode=None):
         """Change sync mode for the store
@@ -169,6 +173,7 @@ class KoshDataset(object):
                 features += ld.list_features(*args, **kargs)
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
+                # Adding uri to feature name
                 ided_features = []
                 for a in self._associated_data_:
                     obj = self.__store__._load(a)

@@ -13,6 +13,8 @@ def read_chunk(f, end='\n'):
 
 
 class PGMLoader(KoshLoader):
+    types = {"pgm": ["numpy", ]}
+
     def __init__(self, obj):
         """PGMLoader for Kosh to be able to read in pgm image files
 
@@ -20,7 +22,7 @@ class PGMLoader(KoshLoader):
         :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(PGMLoader, self).__init__(obj, {"pgm": ["numpy", ]})
+        super(PGMLoader, self).__init__(obj)
 
     def open(self, mode="rb"):
         """open the mash reader

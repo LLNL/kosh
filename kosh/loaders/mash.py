@@ -264,6 +264,8 @@ class MashReader(object):
 
 
 class MashLoader(KoshLoader):
+    types = {"mash": ["numpy", ]}
+
     def __init__(self, obj):
         """MashLoader for Kosh to be able to read in MASHExtract files
 
@@ -271,7 +273,7 @@ class MashLoader(KoshLoader):
         :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(MashLoader, self).__init__(obj, {"mash": ["numpy", ]})
+        super(MashLoader, self).__init__(obj)
 
     def open(self, mode="r"):
         """open the mash reader
