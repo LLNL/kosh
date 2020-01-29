@@ -6,6 +6,7 @@
 
 ```bash
 conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip
+conda activate kosh
 git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
@@ -54,6 +55,7 @@ This will let you build the documentation
 
 ```bash
 conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels
+conda activate kosh
 git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .
