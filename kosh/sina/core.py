@@ -359,13 +359,13 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
 
 class KoshSinaLoader(KoshLoader):
-    def __init__(self, obj, types={"dataset": []}):
-        """KoshSinaLoader generic sina-based loader
+    types = {"dataset": []}
 
-        :param types: types the loader can handle and the output format it can produce, defaults to {"dataset": []}
-        :type types: dict, optional
+    def __init__(self, obj):
+        """KoshSinaLoader generic sina-based loader
         """
-        super(KoshSinaLoader, self).__init__(obj, types)
+
+        super(KoshSinaLoader, self).__init__(obj)
 
     def open(self, *args, **kargs):
         """open the object
@@ -516,27 +516,13 @@ class KoshSinaStore(KoshStoreClass):
         if record["type"] == "dataset":
             return KoshSinaLoader(obj)
         loader = None
-        # sometime types have subtypes (e.g 'file') let's look if we
-        # understand a subtype
         if "mime_type" in record["data"]:
-            for ld in self.loaders:
-                try:
-                    loader = ld(obj)
-                    if obj.mime_type in loader.types:  # ok not a generic loader let's use it
-                        return loader
-                except Exception:
-                    pass
-        if loader is not None:
-            # a generic loader was found
-            return loader
-        # Ok could not open the actual subtype, looking at generic type
-        for ld in self.loaders:
-            try:
-                loader = ld(obj)
-                if obj.mime_type in loader.types:  # ok not a generic loader let's use it
-                    return loader
-            except Exception:
-                pass
+            if record["data"]["mime_type"]["value"] in self.loaders:
+                return self.loaders[record["data"]["mime_type"]["value"]][0](obj)
+        # sometime types have subtypes (e.g 'file') let's look if we
+        # understand a subtype since we can't figure it out from mime_type
+        if record["type"] in self.loaders:  # ok not a generic loader let's use it
+            return self.loaders[record["type"]][0](obj)
         return loader
 
     def open(self, Id, loader=None):
@@ -585,8 +571,10 @@ class KoshSinaStore(KoshStoreClass):
         """
         if loader is None:
             loader = self._find_loader(Id)
+        else:
+            loader = loader(self._load(Id))
 
-        return loader(self._load(Id)).get(feature, format, *args, **kargs)
+        return loader.get(feature, format, *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata
@@ -603,6 +591,13 @@ class KoshSinaStore(KoshStoreClass):
         :return: list of matching objects in store
         :rtype: list
         """
+        mode = self.__sync__
+        if mode:
+            # we will not update any rec in here, turnin off sync
+            # it makes things much d=faster
+            backup = self.__sync__dict__
+            self.__sync__dict__ = {}
+            self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
         # Until fix in sina
@@ -646,9 +641,14 @@ class KoshSinaStore(KoshStoreClass):
             inter_recs = set(inter_recs).intersection(file_match)
 
         if ids_only:
-            return list(inter_recs)
+            out = list(inter_recs)
         else:
-            return [self.open(rec) for rec in inter_recs]
+            out = [self.open(rec) for rec in inter_recs]
+        if mode:
+            # we need to restore sync mode
+            self.__sync__dict__ = backup
+            self.synchronous()
+        return out
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
@@ -790,7 +790,3 @@ class KoshSinaStore(KoshStoreClass):
         self.__record_handler__.insert(update_records)
         for key in list(keys):
             del(self.__sync__dict__[key])
-
-    def __del__(self):
-        """Delete a Kosh store, we make sure we sync before we go"""
-        self.sync()

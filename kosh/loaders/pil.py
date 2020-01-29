@@ -4,6 +4,11 @@ import numpy
 
 
 class PILLoader(KoshLoader):
+    types = {"png": ["numpy", "bytes"],
+             "gif": ["numpy", "bytes"],
+             "image": ["numpy", "bytes"],
+             "tiff": ["numpy", "bytes"]}
+
     def __init__(self, obj):
         """ImageLoader for Kosh to be able to read in pillow readable image files
 
@@ -11,10 +16,7 @@ class PILLoader(KoshLoader):
         :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(PILLoader, self).__init__(obj, {"png": ["numpy", "bytes"],
-                                              "gif": ["numpy", "bytes"],
-                                              "image": ["numpy", "bytes"],
-                                              "tiff": ["numpy", "bytes"]})
+        super(PILLoader, self).__init__(obj)
 
     def open(self, mode="r"):
         """open the mash reader

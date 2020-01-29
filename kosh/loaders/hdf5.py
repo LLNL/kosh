@@ -3,8 +3,10 @@ from .core import KoshLoader
 
 
 class KoshHDF5Loader(KoshLoader):
-    def __init__(self, obj, types={"hdf5": ["numpy", ]}):
-        super(KoshHDF5Loader, self).__init__(obj, types)
+    types = {"hdf5": ["numpy", ]}
+
+    def __init__(self, obj):
+        super(KoshHDF5Loader, self).__init__(obj)
 
     def open(self, mode='r'):
         """open/load the matching Kosh SIna File
