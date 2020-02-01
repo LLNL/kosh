@@ -287,8 +287,9 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         now = time.time()
         rec["user_defined"][f"{uri}___associated_last_modified"] = now
         if hasattr(kosh_file, "associated"):
-            kosh_file.associated = list(
-                set(kosh_file.associated).add(self.__id__))
+            st = set(kosh_file.associated)
+            st.add(self.__id__)
+            kosh_file.associated = list(st)
         else:
             kosh_file.associated = [self.__id__, ]
         if self.__store__.__sync__:
