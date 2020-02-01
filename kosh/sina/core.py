@@ -387,11 +387,11 @@ class KoshSinaLoader(KoshLoader):
 
 
 class KoshSinaStore(KoshStoreClass):
-    def __init__(self, username, db='sql', db_uri=None,
+    def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
                  keyspace=None, sync=True):
         """__init__ initialize a new Sina-based store
 
-        :param username: user name
+        :param username: user name defautl to user id
         :type username: str
         :param db: type of database, defaults to 'sql', can be 'cass'
         :type db: str, optional
