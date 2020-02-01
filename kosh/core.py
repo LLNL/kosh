@@ -39,6 +39,7 @@ class KoshStoreClass(object, metaclass=ABCMeta):
             pass  # no MashExtract?
         self.__sync__ = sync
         self.__sync__dict__ = {}
+        self.__sync__deleted__ = {}
 
     agent = KoshAgent()
 

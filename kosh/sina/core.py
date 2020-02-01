@@ -244,8 +244,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             self.__record_handler__.delete(rec.id)
             self.__record_handler__.insert(rec)
         # Get all object that have been associated with this uri
-        search = self.__store__.search(file=uri)
-        if len(search) == 0:  # ok no other object is associated
+        rec = self.__store__.get_record(kosh_id)
+        if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
 
     def associate(self, uri, mime_type, metadata={}):
@@ -286,6 +286,12 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         # Need to remember we touched associated files
         now = time.time()
         rec["user_defined"][f"{uri}___associated_last_modified"] = now
+        if hasattr(kosh_file, "associated"):
+            st = set(kosh_file.associated)
+            st.add(self.__id__)
+            kosh_file.associated = list(st)
+        else:
+            kosh_file.associated = [self.__id__, ]
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(rec)
@@ -381,11 +387,11 @@ class KoshSinaLoader(KoshLoader):
 
 
 class KoshSinaStore(KoshStoreClass):
-    def __init__(self, username, db='sql', db_uri=None,
+    def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
                  keyspace=None, sync=True):
         """__init__ initialize a new Sina-based store
 
-        :param username: user name
+        :param username: user name defautl to user id
         :type username: str
         :param db: type of database, defaults to 'sql', can be 'cass'
         :type db: str, optional
@@ -452,12 +458,14 @@ class KoshSinaStore(KoshStoreClass):
         rec = self.get_record(Id)
         if rec.type == "dataset":
             kosh_obj = self.open(Id)
-            for uri in rec["files"]:
+            for uri in list(rec["files"].keys()):
                 # Let's deassociate to remove unused kosh objects as well
                 kosh_obj.deassociate(uri)
         if not self.__sync__:
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
+                self.__sync__deleted__[Id] = rec
+                rec["user_defined"]["deleted_time"] = time.time()
         else:
             self.__record_handler__.delete(Id)
 
@@ -660,65 +668,97 @@ class KoshSinaStore(KoshStoreClass):
         # First pass to make sure we have no conflict
         conflicts = {}
         for key in keys:
-            local_record = self.__sync__dict__[key]
-            # Dataset created locally on unsynced store do not have this attribute
-            last_local = local_record["user_defined"].get("last_update_from_db", -1)
             try:
                 db_record = self.__record_handler__.get(key)
-                for att in db_record["user_defined"]:
-                    conflict = False
-                    if att[-14:] != "_last_modified":
-                        continue
-                    last_db = db_record["user_defined"][att]
-                    if last_db > last_local and att in local_record["user_defined"]:
-                        # Conflict
-                        if att[-27:-14] == "___associated":
-                            # ok dealing with associated data
-                            uri = att[:-27]
-                            if uri not in local_record["files"]:  # deleted locally
-                                if uri in db_record["files"]:
-                                    conflict = True
-                            else:
-                                if uri not in db_record["files"]:
-                                    conflict = True
-                                elif db_record["files"][uri]["mimetype"] != local_record["files"][uri]["mimetype"]:
-                                    conflict = True
-                            if conflict:
-                                conf = {uri: (db_record["files"].get(uri, {"mimetype": "deleted"})["mimetype"],
-                                              last_db,
-                                              local_record["files"].get(uri, {"mimetype": "deleted"})[
-                                    "mimetype"],
-                                    local_record["user_defined"][att])}
-                                if key not in conflicts:
-                                    conflicts[key] = conf
+                try:
+                    local_record = self.__sync__dict__[key]
+                    # Dataset created locally on unsynced store do not have this attribute
+                    last_local = local_record["user_defined"].get("last_update_from_db", -1)
+                    for att in db_record["user_defined"]:
+                        conflict = False
+                        if att[-14:] != "_last_modified":
+                            continue
+                        last_db = db_record["user_defined"][att]
+                        if last_db > last_local and att in local_record["user_defined"]:
+                            # Conflict
+                            if att[-27:-14] == "___associated":
+                                # ok dealing with associated data
+                                uri = att[:-27]
+                                if uri not in local_record["files"]:  # deleted locally
+                                    if uri in db_record["files"]:
+                                        conflict = True
                                 else:
-                                    conflicts[key].update(conf)
-                                conflicts[key]["last_check_from_db"] = last_local
-                                conflicts[key]["type"] = "associated"
-                        else:
-                            name = att[:-14]
-                            if name not in local_record["data"]:  # deleted locally
-                                if name in db_record["data"]:
-                                    conflict = True
+                                    if uri not in db_record["files"]:
+                                        conflict = True
+                                    elif db_record["files"][uri]["mimetype"] != local_record["files"][uri]["mimetype"]:
+                                        conflict = True
+                                if conflict:
+                                    conf = {uri: (db_record["files"].get(uri, {"mimetype": "deleted"})["mimetype"],
+                                                  last_db,
+                                                  local_record["files"].get(uri, {"mimetype": "deleted"})[
+                                        "mimetype"],
+                                        local_record["user_defined"][att])}
+                                    if key not in conflicts:
+                                        conflicts[key] = conf
+                                    else:
+                                        conflicts[key].update(conf)
+                                    conflicts[key]["last_check_from_db"] = last_local
+                                    conflicts[key]["type"] = "associated"
                             else:
-                                if name not in db_record["data"]:
-                                    conflict = True
-                                elif db_record["data"][name]["value"] != local_record["data"][name]["value"]:
-                                    conflict = True
-                            if conflict:
-                                conf = {name: (db_record["data"].get(name, {"value": "deleted"})["value"],
-                                               last_db,
-                                               local_record["data"].get(
-                                                   name, {"value": "deleted"})["value"],
-                                               local_record["user_defined"][att])}
-                                if key not in conflicts:
-                                    conflicts[key] = conf
+                                name = att[:-14]
+                                if name not in local_record["data"]:  # deleted locally
+                                    if name in db_record["data"]:
+                                        conflict = True
                                 else:
-                                    conflicts[key].update(conf)
-                                conflicts[key]["last_check_from_db"] = last_local
-                                conflicts[key]["type"] = "attribute"
+                                    if name not in db_record["data"]:
+                                        conflict = True
+                                    elif db_record["data"][name]["value"] != local_record["data"][name]["value"]:
+                                        conflict = True
+                                if conflict:
+                                    conf = {name: (db_record["data"].get(name, {"value": "deleted"})["value"],
+                                                   last_db,
+                                                   local_record["data"].get(
+                                        name, {"value": "deleted"})["value"],
+                                        local_record["user_defined"][att])}
+                                    if key not in conflicts:
+                                        conflicts[key] = conf
+                                    else:
+                                        conflicts[key].update(conf)
+                                    conflicts[key]["last_check_from_db"] = last_local
+                                    conflicts[key]["type"] = "attribute"
+                except Exception:  # ok let's see if it was a delete ones
+                    local_record = self.__sync__deleted[key]
+                    last_local = local_record["user_defined"].get("last_update_from_db", -1)
+                    for att in db_record["user_defined"]:
+                        conflict = False
+                        if att[-14:] != "_last_modified":
+                            continue
+                        last_db = db_record["user_defined"][att]
+                        if last_db > last_local:
+                            conf = {att[:14]: (
+                                "modified in db", "ds deleted here", "")}
+                            if key not in conflicts:
+                                conflicts[key] = conf
+                            else:
+                                conflicts[key].update(conf)
+                            conflicts[key]["last_check_from_db"] = last_local
+                            conflicts[key]["type"] = "delete"
             except BaseException:  # It's a new record no conflict
-                pass
+                # It could be it was deleted in store while we touched it here
+                try:
+                    local_record = self.__sync__dict__[key]
+                    # Dataset created locally on unsynced store do not have this attribute
+                    last_local = local_record["user_defined"].get("last_update_from_db", -1)
+                    if last_local != -1:  # yep we read it from store
+                        conf = {local_record["data"]["name"]["value"]: ("deleted in store", "", "")}
+                        conf["last_check_from_db"] = last_local
+                        conf["type"] = "delete"
+                        if key not in conflicts:
+                            conflicts[key] = conf
+                        else:
+                            conflicts[key].update(conf)
+                except Exception:  # deleted too so no issue
+                    pass
         return conflicts
 
     def sync(self, keys=None):
@@ -731,7 +771,8 @@ class KoshSinaStore(KoshStoreClass):
         if self.__sync__:
             return
         if keys is None:
-            keys = self.__sync__dict__.keys()
+            keys = list(self.__sync__dict__.keys()) + \
+                list(self.__sync__deleted__.keys())
         if len(keys) == 0:
             return
         conflicts = self.check_sync_conflicts(keys)
@@ -745,6 +786,8 @@ class KoshSinaStore(KoshStoreClass):
                         continue
                     if conflicts[key]["type"] == "attribute":
                         st = "\n\t"+k+" modified to value '{}' at {} in db, modified locally to '{}' at {}"
+                    elif conflicts[key]["type"] == "delete":
+                        st = "\n\t"+k+"{} {} {}"
                     else:
                         st = "\n\tfile '"+k+"' mimetype modified to'{}' at {} in db, modified locally to '{}' at {}"
                     st = st.format(*conflicts[key][k])
@@ -754,7 +797,12 @@ class KoshSinaStore(KoshStoreClass):
         update_records = []
         del_keys = []
         for key in keys:
-            local = self.__sync__dict__[key]
+            try:
+                local = self.__sync__dict__[key]
+            except Exception:
+                # Ok it comes from the deleted datasets
+                del_keys.append(key)
+                continue
             try:
                 db = self.__record_handler__.get(key)
                 for att in local["user_defined"]:
@@ -789,4 +837,8 @@ class KoshSinaStore(KoshStoreClass):
         self.__record_handler__.delete(del_keys)
         self.__record_handler__.insert(update_records)
         for key in list(keys):
-            del(self.__sync__dict__[key])
+            try:
+                del(self.__sync__dict__[key])
+            except Exception:
+                # probably coming from del then
+                del(self.__sync__deleted__[key])

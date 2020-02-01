@@ -43,7 +43,6 @@ class KoshTestSync(KoshTest):
         self.assertEqual(len(s), 1)
         s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 2)
-
         store2.sync()
         s = store.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
@@ -57,6 +56,24 @@ class KoshTestSync(KoshTest):
 
         store2.sync()
         os.remove(kosh_db)
+
+    def test_sync_delete_dataset(self):
+        store1, kosh_db = self.connect(sync=True)
+        store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
+        # Create dataset on syncing store
+        ds1 = store1.create()
+        dsid = ds1.__id__
+        # Check it exists on store2
+        self.assertEqual(len(store1.search()),1)
+        self.assertEqual(len(store2.search()),1)
+        ds2 = store2.delete(dsid)
+        #self.assertEqual(len(store2.search()),0)
+        store2.sync()
+        self.assertEqual(len(store1.search()),0)
+        store2, kosh_db = self.connect(db_uri=kosh_db)
+        with self.assertRaises(Exception):
+            ds = store2.open(dsid)
+        self.assertEqual(len(store2.search()),0)
 
 
     def test_sync_dataset_attributes(self):

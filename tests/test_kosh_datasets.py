@@ -145,8 +145,17 @@ KOSH DATASET
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
         self.assertEqual(len(store.search(project="test")), 4)
+        self.assertEqual(len(store.search()), 4)
+        store2, kosh_db = self.connect(db_uri=kosh_db)
+        self.assertEqual(len(store2.search()), 4)
         store.delete(ds.__id__)
         self.assertEqual(len(store.search(project="test")), 3)
+        self.assertEqual(len(store.search()), 3)
+        self.assertEqual(len(store2.search()), 3)
+        store2, kosh_db = self.connect(db_uri=kosh_db)
+        self.assertEqual(len(store2.search()), 3)
+        # 04b6d302f33d00a5701a42b333c845832a5e6d65
+        # sina 8c1b2cc21dc84ad32a6ff03a742ecef70ab89551
         ds_associated = ds2._associated_data_[0]
         _ = store.open(ds_associated)
         store.delete(ds2.__id__)
