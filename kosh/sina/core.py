@@ -244,8 +244,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             self.__record_handler__.delete(rec.id)
             self.__record_handler__.insert(rec)
         # Get all object that have been associated with this uri
-        search = self.__store__.search(file=uri)
-        if len(search) == 0:  # ok no other object is associated
+        rec = self.__store__.get_record(kosh_id)
+        if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
 
     def associate(self, uri, mime_type, metadata={}):
@@ -286,6 +286,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         # Need to remember we touched associated files
         now = time.time()
         rec["user_defined"][f"{uri}___associated_last_modified"] = now
+        if hasattr(kosh_file, "associated"):
+            kosh_file.associated = list(
+                set(kosh_file.associated).add(self.__id__))
+        else:
+            kosh_file.associated = [self.__id__, ]
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(rec)
