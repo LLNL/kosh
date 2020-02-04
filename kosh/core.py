@@ -74,6 +74,14 @@ class KoshStoreClass(object, metaclass=ABCMeta):
             else:
                 self.loaders[k] = [loader, ]
 
+    def is_synchronous(self):
+        """is_synchronous is store is synchronous mode
+
+        :return: synchronous or not
+        :rtype: bool
+        """
+        return self.__sync__
+
     def synchronous(self, mode=None):
         """Change sync mode for the store
 

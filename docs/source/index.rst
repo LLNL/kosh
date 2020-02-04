@@ -17,21 +17,10 @@ Contents:
    :maxdepth: 2
 
    users/index.md
+   faqs/index.md
+   notebooks.rst
    dev/index.md
    autoapi/index
-
-
-Notebooks
-=========
-
-.. toctree::
-   :glob:
-   :titlesonly:
-
-   jupyter/*
-
-
-
 
 Indices and tables
 ==================

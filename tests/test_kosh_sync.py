@@ -7,19 +7,25 @@ from sina.utils import DataRange
 class KoshTestSync(KoshTest):
     def test_sync_mode_switch(self):
         store, kosh_db = self.connect()
+        self.assertTrue(store.is_synchronous())
         self.assertTrue(store.__sync__)
         self.assertFalse(store.synchronous())
         self.assertFalse(store.__sync__)
+        self.assertFalse(store.is_synchronous())
         self.assertTrue(store.synchronous())
         self.assertTrue(store.__sync__)
+        self.assertTrue(store.is_synchronous())
         self.assertTrue(store.synchronous(True))
         self.assertTrue(store.__sync__)
+        self.assertTrue(store.is_synchronous())
         self.assertFalse(store.synchronous(False))
         self.assertFalse(store.__sync__)
+        self.assertFalse(store.is_synchronous())
         self.assertFalse(store.synchronous(False))
         self.assertFalse(store.__sync__)
         self.assertTrue(store.synchronous(True))
         self.assertTrue(store.__sync__)
+        self.assertTrue(store.is_synchronous())
         os.remove(kosh_db)
 
     def test_sync_search(self):
