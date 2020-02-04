@@ -16,7 +16,8 @@ class KoshSinaObject(object):
         return self.__store__.get_record(self.__id__)
 
     def __init__(self, Id, store, koshType,
-                 record_handler, protected=[], metadata={}, schema=None):
+                 record_handler, protected=[], metadata={}, schema=None,
+                 record=None):
         """__init__ sina object base class
 
         :param Id: id to use forunique identification, if None is passed set for you via uui4()
@@ -31,6 +32,8 @@ class KoshSinaObject(object):
         :type protected: list, optional
         :param metadata: dictionary of attributes/value to initialize object with, defaults to {}
         :type metadata: dict, optional
+        :param record: sina record to prevent looking it up again and again in sina
+        :type record: Record
         """
         self.__dict__["__store__"] = store
         self.__dict__["__schema__"] = schema
@@ -50,15 +53,16 @@ class KoshSinaObject(object):
             self.__dict__["__id__"] = Id
         else:
             self.__dict__["__id__"] = Id
-            try:
-                record = self.get_record()
-            except BaseException:  # record exists nowhere
-                record = Record(id=Id, type=koshType)
-                if store.__sync__:
-                    store.__record_handler__.insert(record)
-                else:
-                    self.__store__.__sync__dict__[Id] = record
-                    record["user_defined"]["last_update_from_db"] = time.time()
+            if record is None:
+                try:
+                    record = self.get_record()
+                except BaseException:  # record exists nowhere
+                    record = Record(id=Id, type=koshType)
+                    if store.__sync__:
+                        store.__record_handler__.insert(record)
+                    else:
+                        self.__store__.__sync__dict__[Id] = record
+                        record["user_defined"]["last_update_from_db"] = time.time()
 
         for att, value in metadata.items():
             setattr(self, att, value)
@@ -200,25 +204,31 @@ class KoshSinaFile(KoshSinaObject):
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
-    def __init__(self, datasetId, store, schema=None):
+    def __init__(self, datasetId, store, schema=None, record=None):
         """KoshSinaDataset Sina representation of Kosh Dataset
 
         :param datasetId: dataset's unique Id
         :type datasetId: str
         :param store: store containing the dataset
         :type store: KoshSinaStore
+        :param schema: Kosh schema validator
+        :type schema: KoshSchema
+        :param record: to avoid looking up in sina pass sina record
+        :type record: Record
         """
         super(KoshSinaDataset, self).__init__(datasetId, koshType="dataset",
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
                                                          "_associated_data_"],
                                               record_handler=store.__record_handler__,
-                                              store=store, schema=schema)
+                                              store=store, schema=schema, record=record)
         self.__dict__["__record_handler__"] = store.__record_handler__
-        record = self.get_record()
+        if record is None:
+            record = self.get_record()
         self.__dict__["__creator__"] = record["data"]["creator"]["value"]
         self.__dict__["__name__"] = record["data"]["name"]["value"]
-        self.validate()
+        if schema is not None or "schema" in record["data"]:
+            self.validate()
 
     def validate(self):
         if self.schema is not None:
@@ -279,7 +289,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                    koshType="file",
                                    store=self.__store__,
                                    metadata=metadata,
-                                   record_handler=self.__record_handler__)
+                                   record_handler=self.__record_handler__,
+                                   record=rec)
         kosh_file.uri = uri
         kosh_file.mime_type = mime_type
         rec["files"][uri]["kosh_id"] = kosh_file.__id__
@@ -378,12 +389,12 @@ class KoshSinaLoader(KoshLoader):
         """
         record = self.obj.__store__.get_record(self.obj.__id__)
         if record["type"] == "dataset":
-            return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__)
+            return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__, record=record)
         if record["type"] == "file":
-            return KoshSinaFile(self.obj.__id__, store=self.obj.__store__)
+            return KoshSinaFile(self.obj.__id__, store=self.obj.__store__, record=record)
         else:
             return KoshSinaObject(self.obj.__id__, record["type"], protected=[
-            ], record_handler=self.obj.__store__.__record_handler__)
+            ], record_handler=self.obj.__store__.__record_handler__, record=record)
 
 
 class KoshSinaStore(KoshStoreClass):
@@ -492,18 +503,19 @@ class KoshSinaStore(KoshStoreClass):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
-        rec = Record(id=Id, type="dataset")
-        rec.add_data("creator", self.__user_id__)
-        rec.add_data("name", name)
-        rec.add_data("_associated_data_", None)
+
+        metadata["creator"] = self.__user_id__
+        metadata["name"] = name
+        metadata["_associated_data_"] = None
         for k in metadata:
-            rec.add_data(k, metadata[k])
+            metadata[k] = {'value': metadata[k]}
+        rec = Record(id=Id, type="dataset", data=metadata)
         if self.__sync__:
             self.__record_handler__.insert(rec)
         else:
             self.__sync__dict__[Id] = rec
         try:
-            ds = KoshSinaDataset(Id, store=self, schema=schema)
+            ds = KoshSinaDataset(Id, store=self, schema=schema, record=rec)
         except Exception as err:  # probably schema validation error
             if self.__sync__:
                 self.__record_handler__.delete(Id)
@@ -533,7 +545,7 @@ class KoshSinaStore(KoshStoreClass):
             return self.loaders[record["type"]][0](obj)
         return loader
 
-    def open(self, Id, loader=None):
+    def open(self, Id, loader=None, *args, **kargs):
         """open loads an object in store based on its Id
         and run its open function
 
@@ -546,7 +558,7 @@ class KoshSinaStore(KoshStoreClass):
             loader = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
-        return loader.open()
+        return loader.open(*args, **kargs)
 
     def _load(self, Id):
         """_load returns an associated source based on id
@@ -559,11 +571,11 @@ class KoshSinaStore(KoshStoreClass):
         if record["type"] == "file":
             return KoshSinaFile(Id, koshType=record["type"],
                                 record_handler=self.__record_handler__,
-                                store=self)
+                                store=self, record=record)
         else:
             return KoshSinaObject(Id, koshType=record["type"],
                                   record_handler=self.__record_handler__,
-                                  store=self)
+                                  store=self, record=record)
 
     def get(self, Id, feature, format=None, loader=None, *args, **kargs):
         """get returns an associated source's data
