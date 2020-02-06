@@ -45,9 +45,9 @@ class MashReader(object):
         if elt_type in ["zone", "node"]:
             metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
         elif elt_type == "scalarRlxData":
-            metrics_avail = self.reader.ScalarRlx
+            metrics_avail = self.reader.scalar_rlx
         elif elt_type == "dimRlxData":
-            metrics_avail = self.reader.DimRlx
+            metrics_avail = self.reader.dim_rlx
         else:
             raise RuntimeError("unknow elt type:", elt_type)
 
