@@ -222,7 +222,8 @@ class MashReader(object):
                 "Invalid axis {}, available axes are: {}".format(
                     axis, good_axes))
         if axis == "cycles":
-            return KoshAxis(axis, list(range(int(self.reader.cycle_range[0]), int(self.reader.cycle_range[0]) + self.reader.num_cycles)))
+            return KoshAxis(axis, list(range(int(self.reader.cycle_range[0]),
+                                             int(self.reader.cycle_range[0]) + self.reader.num_cycles)))
         elif axis == "elements":
             return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":
