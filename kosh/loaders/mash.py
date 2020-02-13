@@ -161,15 +161,19 @@ class MashReader(object):
                 use_ext = "{} metric".format(elt_type)
             elif elt_type == "scalarRlxData":
                 use_ext = "scalar rlx"
+            elif elt_type == "srd":
+                use_ext = "srd"
             elif elt_type == "dimRlxData":
                 use_ext = "dim rlx"
+            elif elt_type == "drd":
+                use_ext = "drd"
             else:
                 use_ext = elt_type
             if cycles is not None and len(
                     cycles) == self.reader.num_cycles and "cycles" in kargs:
                 del(kargs["cycles"])
             elt = kargs.get("elements", [])
-            if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt:
+            if len(elt) == len(proc_ids[proc]) and sorted(elt) == elt and "elements" in kargs:
                 del(kargs["elements"])
             # if len(kargs.keys()) == 1 and "cycles" in kargs:
             #    # right now passing just cycles is not implemented yet
@@ -218,7 +222,8 @@ class MashReader(object):
                 "Invalid axis {}, available axes are: {}".format(
                     axis, good_axes))
         if axis == "cycles":
-            return KoshAxis(axis, list(range(self.reader.num_cycles)))
+            return KoshAxis(axis, list(range(int(self.reader.cycle_range[0]),
+                                             int(self.reader.cycle_range[0]) + self.reader.num_cycles)))
         elif axis == "elements":
             return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":
