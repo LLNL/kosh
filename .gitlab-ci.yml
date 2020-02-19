@@ -1,9 +1,26 @@
 stages:
   - test
+  - build
 
 hello-check:
-  script:
-    - echo "testing job tagging"
+  script: echo "testing job tagging"
   tags:
     - quartz
     - shell
+
+myjob:
+  script: echo “testing a second job”
+  stage: build
+  tags:
+    - quartz
+    - shell
+
+Collect Metrics:
+	script:
+    - touch manifest.txt  #this file will store file characteristics that the pipeline needs to check
+	stage: build
+  when: always
+  artifacts:
+    paths:
+      - manifest.txt
+    expire_in: 30 minutes
