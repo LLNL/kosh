@@ -1,0 +1,8 @@
+stages:
+    - nominal-echo
+
+hello-check:
+    stage: nominal-echo
+    script:
+        - echo “hello world”
+
