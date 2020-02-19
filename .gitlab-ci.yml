@@ -4,5 +4,5 @@ stages:
 hello-check:
     stage: nominal-echo
     script:
-        - echo “hello world”
+        - echo "hello world"
 
