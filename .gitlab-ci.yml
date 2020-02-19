@@ -33,3 +33,16 @@ Collect Metrics:
   tags:
     - quartz
     - shell
+
+
+Inspect:
+  script:
+    - echo "manifest.txt exists"
+    - echo -e "\n\n\my_new_variable:" $my_new_variable >> manifest.xt
+  artifacts:
+    paths:
+      - manifest.txt
+    expire_in: 30 minutes
+  tags:
+    - quartz
+    - shell
