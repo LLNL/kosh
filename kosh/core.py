@@ -145,7 +145,7 @@ class KoshDataset(object):
                 st += "\n\t".join(st2.split("\n"))
         return st
 
-    def open(self, Id=None, loader=None):
+    def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
 
         :param Id: id of object to open, defaults to None which means first one.
@@ -163,7 +163,7 @@ class KoshDataset(object):
                     return self.__store__.open(Id, loader)
         elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
-        return self.__store__.open(Id, loader)
+        return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name

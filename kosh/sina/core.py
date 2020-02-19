@@ -196,11 +196,11 @@ class KoshSinaObject(object):
 
 class KoshSinaFile(KoshSinaObject):
     """KoshSinaFile file representation in Kosh via Sina"""
-    def open(self):
+    def open(self, *args, **kargs):
         """open opens the file
         :return: handle to file in open mode
         """
-        return self.__store__.open(self.__id__)
+        return self.__store__.open(self.__id__, *args, **kargs)
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):

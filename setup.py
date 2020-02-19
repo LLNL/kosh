@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(name="kosh",
-      version=0.1,
+      version=1.0,
       description="Machine Learning Data Store",
       url="https://lc.llnl.gov/bitbucket/projects/ASCAML/repos/kosh/browse",
       author="Charles Doutriaux",

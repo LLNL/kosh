@@ -2,7 +2,7 @@ import os
 from koshbase import KoshTest
 import kosh
 import numpy
-
+import h5py
 
 class KoshTestLoaders(KoshTest):
     def test_loader(self):
@@ -101,6 +101,13 @@ class KoshTestLoaders(KoshTest):
         info = ds.describe_feature("node/metrics_1")
         self.assertEqual(info["size"], (2,18))
         self.assertEqual(info["format"], "hdf5")
+        h5 = ds.open(mode="r")
+        self.assertIsInstance(h5, h5py._hl.files.File)
+        self.assertEqual(h5.mode, "r")
+        h5.close()
+        h5 = ds.open(mode="r+")
+        self.assertEqual(h5.mode, "r+")
+        h5.close()
         os.remove(kosh_db)
 
 
