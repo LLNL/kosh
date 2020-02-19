@@ -13,9 +13,15 @@ Collect Metrics:
     paths:
       - manifest.txt
     expire_in: 30 minutes
+  tags:
+    - quartz
+    - shell
 
 
 Inspect:
   stage: test
   script:
   - test -f "manifest.txt"
+  tags:
+    - quartz
+    - shell
