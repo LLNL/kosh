@@ -1,48 +1,21 @@
 stages:
-  - test
-  - build
-
-hello-check:
-  script: echo "testing job tagging"
-  tags:
-    - quartz
-    - shell
-
-myjob:
-  script: echo “testing a second job”
-  stage: build
-  tags:
-    - quartz
-    - shell
+  - build   #collect metrics on files
+  - test   #inspect/analyze collected metrics
 
 Collect Metrics:
-  script:
-    - touch manifest.txt  #this file will store file characteristics that the pipeline needs to check
-    - echo "Adding metadata to manifest.txt"
-    - echo -e "Job initiated by:\t" $GITLAB_USER_LOGIN >> manifest.txt
-    - echo -e "Commit message:\t\t" $CI_COMMIT_MESSAGE >> manifest.txt
-    - echo -e "Commit SHA:\t\t" $CI_COMMIT_SHA >> manifest.txt
-    - echo -e "\nJob ID::\t\t\t" $CI_JOB_ID >> manifest.txt
-    - echo -e "CI Job URL::\t\t" $CI_JOB_URL >> manifest.txt
   stage: build
-  when: always
+  script:
+    - echo "$CI_JOB_STAGE" > manifest.txt
+
+#this file will store file characteristics that the 
+#pipeline needs to check
   artifacts:
     paths:
       - manifest.txt
     expire_in: 30 minutes
-  tags:
-    - quartz
-    - shell
 
 
 Inspect:
+  stage: test
   script:
-    - echo "manifest.txt exists"
-    - echo -e "\n\n\my_new_variable:" $my_new_variable >> manifest.xt
-  artifacts:
-    paths:
-      - manifest.txt
-    expire_in: 30 minutes
-  tags:
-    - quartz
-    - shell
+  - test -f "manifest.txt"
