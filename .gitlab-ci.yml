@@ -6,6 +6,13 @@ Collect Metrics:
   stage: build
   script:
     - echo "$CI_JOB_STAGE" > manifest.txt
+    - echo “Adding metadata to manifest.txt”
+    - echo -e “Job initiated by:\t” $GITLAB_USER_LOGIN >> manifest.txt
+    - echo -e “Commit message:\t\t” $CI_COMMIT_MESSAGE >> manifest.txt
+    - echo -e “Commit SHA:\t\t” $CI_COMMIT_SHA >> manifest.txt
+    - echo -e “\nJob ID::\t\t\t” $CI_JOB_ID >> manifest.txt
+    - echo -e “CI Job URL::\t\t” $CI_JOB_URL >> manifest.txt
+
 
 #this file will store file characteristics that the 
 #pipeline needs to check
@@ -21,7 +28,8 @@ Collect Metrics:
 Inspect:
   stage: test
   script:
-  - test -f "manifest.txt"
+    - test -f "manifest.txt"
+    - echo "manifest.txt exists"
   tags:
     - quartz
     - shell
