@@ -16,9 +16,9 @@ myjob:
     - shell
 
 Collect Metrics:
-	script:
+  script:
     - touch manifest.txt  #this file will store file characteristics that the pipeline needs to check
-	stage: build
+  stage: build
   when: always
   artifacts:
     paths:
