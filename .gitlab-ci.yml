@@ -5,5 +5,5 @@ hello-check:
   script:
     - echo "testing job tagging"
   tags:
-    - {quartz}  #enter a tag that’s fulfilled by one of your runners
+    - quartz  #enter a tag that’s fulfilled by one of your runners
     - myrandomchoice
