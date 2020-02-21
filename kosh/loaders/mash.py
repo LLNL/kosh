@@ -288,18 +288,16 @@ class MashLoader(KoshLoader):
         """
         return MashReader(self.obj.uri)
 
-    def get(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
-        :param feature: in this case element/metric
-        :type feature: str
-        :param format: desired output format (numpy only for now)
-        :type format: str
+        feature and format come from "self"
         :return: numpy array
         :rtype: numpy.ndarray
         """
+        args, kargs = self._user_passed_parameters
         reader = self.open()
-        return reader.get(feature, *args, **kargs)
+        return reader.get(self.feature, *args, **kargs)
 
     def list_features(self):
         """list_features lists features available

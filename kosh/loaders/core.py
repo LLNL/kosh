@@ -89,7 +89,7 @@ class KoshLoader(object):
         self.feature = feature
         self._user_passed_parameters = args, kargs
         kargs.get("preprocess", self.preprocess)()
-        data = self.extract(feature, format)
+        data = self.extract()
         return kargs.get("postprocess", self.postprocess)(data)
 
     def list_features(self):
