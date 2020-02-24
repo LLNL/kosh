@@ -265,16 +265,16 @@ class KoshDataset(object):
         else:
             possible_ids = [Id, ]
         error = None
-        print("PIDS:", possible_ids)
         for Id in possible_ids:
-            print("ID:", Id)
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                return ld.get(feature, format, *args, **kargs)
+                tmp  =ld.get(feature, format, *args, **kargs)
+                return tmp
             except Exception as err:  # noqa
-                print("IN ERROR DEFINTELY")
                 error = err
+                import traceback
+                traceback.print_exc()
                 pass
         msg = f"could not get feature '{feature}'"
         msg += f" from dataset '{self.__id__}' in format {format},"

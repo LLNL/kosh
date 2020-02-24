@@ -1,7 +1,7 @@
 import h5py
 import re
 from .core import KoshLoader
-
+import numpy
 
 def walk_hdf5(d, prefix=""):
     """Walk through hdf5 groups to find all datsets and return their paths
@@ -65,7 +65,7 @@ class KoshHDF5Loader(KoshLoader):
     def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
         if feature not in self.list_features() and feature in self.list_features(restarts=True):
             feature = " ".join(feature.split(" ")[:-2])
-        super(KoshHDF5Loader, self).get(feature, format, Id, loader, *args, **kargs)
+        return super(KoshHDF5Loader, self).get(feature, format, Id, loader, *args, **kargs)
 
     def extract(self):
         """extract return a feature from the loaded object.
@@ -84,6 +84,7 @@ class KoshHDF5Loader(KoshLoader):
         f = h5py.File(self.obj.uri, "r")
         print("WANT TO READ:", self.feature)
         feat = f[self.feature]
+        print("FEAT:", feat, kargs)
         if len(kargs) != 0:  # probably requested dims
             feat_dims = [x.label for x in feat.dims]
             user_dims = {}
@@ -105,7 +106,84 @@ class KoshHDF5Loader(KoshLoader):
                     selectors.append(select[i])
                 else:
                     selectors.append(slice(0, None))
-            feat = feat[tuple(selectors)]
+            if "cycles" in kargs:
+                # ok let's make sure it's not a restart!
+                restart = re.search("/\d\d\d/", self.feature)
+                if restart is not None:
+                    # Ok it's a restart we need to match cycles/restart file
+                    my_restart = restart.group()
+                    restarts = {}
+                    restart = int(my_restart[1:-1])
+                    cycles = f[f"{my_restart}/cycles"]
+                    restarts[restart] = {"first": cycles[0],
+                                         "cycles": cycles[:],
+                                         "feature": self.feature}
+                    last_valid_restart = restart
+                    restart -= 1
+                    while restart > 0:
+                        feature = self.feature.replace(my_restart, f"/{restart:03d}/")
+                        cycles = f[f"{my_restart}/cycles"]
+                        if cycles[0] < restarts[last_valid_restart]["first"]:
+                            restarts[restart] = {"first": cycles[0],
+                                                "cycles": cycles[:],
+                                                "feature": feature}
+                            last_valid_restart = restart
+                            print(f"{restart} -> {feature}")
+                        restart -=1
+                    # Original run
+                    cycles = f["cycles"]
+                    restarts[0] = {"first": cycles[0],
+                                   "cycles": cycles[:],
+                                   "feature": self.feature}
+                    keys = sorted(restarts.keys())
+                    cycles = numpy.array(())
+                    start_indx = 0
+                    for indx, key in enumerate(keys[:-1]):
+                        last = int(numpy.argwhere(restarts[key]["cycles"] == restarts[keys[indx+1]]["first"])[0])
+                        restarts[key]["indices"] = (start_indx, last)
+                        start_indx = last
+                        cycles = numpy.concatenate((cycles, restarts[key]["cycles"][:last]))
+                    cycles = numpy.concatenate((cycles,restarts[keys[-1]]["cycles"]))
+                    restarts[keys[-1]]["indices"] = (start_indx, len(cycles))
+                    user_cycles = kargs["cycles"]
+                    if not isinstance(user_cycles, slice):
+                        # User wants a value range but we want indices
+                        start = int(numpy.argwhere(cycles == user_cycles[0])[0])
+                        end = int(numpy.argwhere(cycles == user_cycles[-1])[0])
+                        # TODO check this +1
+                        user_cycles = slice(start,end+1)
+                    # Ok at this point we have a slice selection
+                    current_start = user_cycles.start
+                    print("USER:", user_cycles.stop)
+                    if user_cycles.stop is None:
+                        user_cycles = slice(user_cycles.start, len(cycles), user_cycles.step)
+                    for cycles_index, fd in enumerate(feat_dims):
+                        if fd[-6:] == "cycles":
+                            break
+                    feat = None
+                    for key in sorted(keys):
+                        print("KEY:", key, user_cycles)
+                        rs = restarts[key]
+                        range_key = rs["indices"]
+                        print("\trange:", range_key)
+                        if range_key[0] <= current_start < range_key[1]:
+                            # Ok we have data intersection
+                            start = current_start
+                            if user_cycles.stop >= range_key[1]:
+                                # goes past this restart
+                                stop = range_key[1]
+                            else:
+                                # We are done here
+                                stop = user_cycles.stop
+                            cycle_slice = slice(start, stop, user_cycles.step)
+                            print("CYCLE SLICE:", cycle_slice)
+                            selectors[cycles_index] = cycle_slice
+                            if feat is None:
+                                feat = f[rs["feature"]][tuple(selectors)]
+                            else:
+                                feat = numpy.concatenate((feat, f[rs]["feature"][tuple(selectors)]), axis=cycles_index)
+            else:
+                feat = feat[tuple(selectors)]
         return feat
 
     def list_features(self, restarts=False, **kargs):
