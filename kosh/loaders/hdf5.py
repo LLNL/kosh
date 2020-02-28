@@ -36,7 +36,11 @@ class KoshHDF5Loader(KoshLoader):
     types = {"hdf5": ["numpy", ]}
 
     def __init__(self, obj):
+        self._restart_features = None
+        self._no_restart_features = None
         super(KoshHDF5Loader, self).__init__(obj)
+        self._restart_features = self.list_features(restart=True)
+        self._no_restart_features = self.list_features(restart=False)
 
     def open(self, mode='r'):
         """open/load the matching Kosh SIna File
@@ -57,13 +61,17 @@ class KoshHDF5Loader(KoshLoader):
             feat = " ".join(feat.split(" ")[:-2])
         restart = kargs.pop("restart", None)
         if restart is not None:
-            if f"/{restart:03d}/" not in feat:
+            if f"{restart:03d}/" not in feat:
                 feat = feat.split("/")
-                feat = "/".join([feat[0], f"{restart:03d}"] + feat[1:])
+                if len(feat) > 1:
+                    feat = "/".join([feat[0], f"{restart:03d}"] + feat[1:])
+                else:
+                    feat = f"{restart:03d}/{feat[0]}"
+
         self.feature = feat
 
     def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
-        if feature not in self.list_features() and feature in self.list_features(restarts=True):
+        if feature not in self.list_features() and feature in self._restart_features:
             feature = " ".join(feature.split(" ")[:-2])
         return super(KoshHDF5Loader, self).get(feature, format, Id, loader, *args, **kargs)
 
@@ -82,11 +90,12 @@ class KoshHDF5Loader(KoshLoader):
         if "restart" in kargs:
             kargs.pop("restart")  # it's for preprocess
         f = h5py.File(self.obj.uri, "r")
-        print("WANT TO READ:", self.feature)
         feat = f[self.feature]
-        print("FEAT:", feat, kargs)
         if len(kargs) != 0:  # probably requested dims
             feat_dims = [x.label for x in feat.dims]
+            if feat_dims == [""]:
+                # Probably a dimension (cycle?)
+                feat_dims = [self.feature,]
             user_dims = {}
             for k in list(kargs.keys()):
                 if k in feat_dims:
@@ -109,9 +118,13 @@ class KoshHDF5Loader(KoshLoader):
             if "cycles" in kargs:
                 # ok let's make sure it's not a restart!
                 restart = re.search("/\d\d\d/", self.feature)
+                if restart is None:  # we need to search dims as well
+                    restart = re.search("\d\d\d/", self.feature)
                 if restart is not None:
                     # Ok it's a restart we need to match cycles/restart file
                     my_restart = restart.group()
+                    if my_restart[0] != "/":
+                        my_restart = f"/{my_restart}"
                     restarts = {}
                     restart = int(my_restart[1:-1])
                     cycles = f[f"{my_restart}/cycles"]
@@ -128,13 +141,13 @@ class KoshHDF5Loader(KoshLoader):
                                                 "cycles": cycles[:],
                                                 "feature": feature}
                             last_valid_restart = restart
-                            print(f"{restart} -> {feature}")
                         restart -=1
                     # Original run
                     cycles = f["cycles"]
+                    fnm = self.feature if not "cycles" in self.feature else "cycles"
                     restarts[0] = {"first": cycles[0],
                                    "cycles": cycles[:],
-                                   "feature": self.feature}
+                                   "feature": fnm}
                     keys = sorted(restarts.keys())
                     cycles = numpy.array(())
                     start_indx = 0
@@ -154,7 +167,6 @@ class KoshHDF5Loader(KoshLoader):
                         user_cycles = slice(start,end+1)
                     # Ok at this point we have a slice selection
                     current_start = user_cycles.start
-                    print("USER:", user_cycles.stop)
                     if user_cycles.stop is None:
                         user_cycles = slice(user_cycles.start, len(cycles), user_cycles.step)
                     for cycles_index, fd in enumerate(feat_dims):
@@ -162,26 +174,23 @@ class KoshHDF5Loader(KoshLoader):
                             break
                     feat = None
                     for key in sorted(keys):
-                        print("KEY:", key, user_cycles)
                         rs = restarts[key]
                         range_key = rs["indices"]
-                        print("\trange:", range_key)
                         if range_key[0] <= current_start < range_key[1]:
                             # Ok we have data intersection
-                            start = current_start
                             if user_cycles.stop >= range_key[1]:
                                 # goes past this restart
-                                stop = range_key[1]
+                                stop = range_key[1] - current_start
                             else:
                                 # We are done here
-                                stop = user_cycles.stop
-                            cycle_slice = slice(start, stop, user_cycles.step)
-                            print("CYCLE SLICE:", cycle_slice)
+                                stop = user_cycles.stop - current_start
+                            cycle_slice = slice(0, stop, user_cycles.step)
                             selectors[cycles_index] = cycle_slice
                             if feat is None:
                                 feat = f[rs["feature"]][tuple(selectors)]
                             else:
-                                feat = numpy.concatenate((feat, f[rs]["feature"][tuple(selectors)]), axis=cycles_index)
+                                feat = numpy.concatenate((feat, f[rs["feature"]][tuple(selectors)]), axis=cycles_index)
+                            current_start = stop
             else:
                 feat = feat[tuple(selectors)]
         return feat
@@ -193,6 +202,13 @@ class KoshHDF5Loader(KoshLoader):
         :return: list of features available in file
         :rtype: list
         """
+        if restarts and self._restart_features is not None:
+            # Saves time it's already done
+            return self._restart_features
+        if not restarts and self._no_restart_features is not None:
+            # Saves time again
+            return self._no_restart_features
+
         with h5py.File(self.obj.uri, "r") as f:
             features = list_hdf5(f)
         if restarts:
