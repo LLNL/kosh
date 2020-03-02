@@ -258,7 +258,7 @@ class KoshDataset(object):
                         feature is None or\
                         feature[:-len(ld.obj.uri)-1] in ld.list_features():
                     possible_ids.append(a)
-            if possible_ids == []:  # All failed but could be something about the feature 
+            if possible_ids == []:  # All failed but could be something about the feature
                 possible_ids = self._associated_data_[:1]
         elif Id not in self._associated_data_:
             raise RuntimeError(f"object {Id} is not associated with this dataset")
@@ -269,7 +269,7 @@ class KoshDataset(object):
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                tmp  =ld.get(feature, format, *args, **kargs)
+                tmp = ld.get(feature, format, *args, **kargs)
                 return tmp
             except Exception as err:  # noqa
                 error = err

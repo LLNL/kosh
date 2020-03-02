@@ -3,6 +3,7 @@ import re
 from .core import KoshLoader
 import numpy
 
+
 def walk_hdf5(d, prefix=""):
     """Walk through hdf5 groups to find all datsets and return their paths
     return generator
@@ -12,19 +13,20 @@ def walk_hdf5(d, prefix=""):
         if isinstance(v, h5py._hl.dataset.Dataset):
             yield prefix+"/"+k+"***"
         else:
-            if prefix=="":
+            if prefix == "":
                 yield "/".join(walk_hdf5(v, prefix=k))
             else:
                 yield "/".join(walk_hdf5(v, prefix=prefix+"/"+k))
+
 
 def list_hdf5(obj):
     """walk hdf5 and return list of path to all datasets
     """
     nest = list(walk_hdf5(obj))
-    out =[]
+    out = []
     for l in nest:
         for d in l.split("***"):
-            if len(d)>0:
+            if len(d) > 0:
                 if d[0] == "/":
                     out.append(d[1:])
                 else:
@@ -95,7 +97,7 @@ class KoshHDF5Loader(KoshLoader):
             feat_dims = [x.label for x in feat.dims]
             if feat_dims == [""]:
                 # Probably a dimension (cycle?)
-                feat_dims = [self.feature,]
+                feat_dims = [self.feature, ]
             user_dims = {}
             for k in list(kargs.keys()):
                 if k in feat_dims:
@@ -117,9 +119,9 @@ class KoshHDF5Loader(KoshLoader):
                     selectors.append(slice(0, None))
             if "cycles" in kargs:
                 # ok let's make sure it's not a restart!
-                restart = re.search("/\d\d\d/", self.feature)
+                restart = re.search("/\d\d\d/", self.feature)  # noqa
                 if restart is None:  # we need to search dims as well
-                    restart = re.search("\d\d\d/", self.feature)
+                    restart = re.search("\d\d\d/", self.feature)  # noqa
                 if restart is not None:
                     # Ok it's a restart we need to match cycles/restart file
                     my_restart = restart.group()
@@ -134,17 +136,18 @@ class KoshHDF5Loader(KoshLoader):
                     last_valid_restart = restart
                     restart -= 1
                     while restart > 0:
-                        feature = self.feature.replace(my_restart, f"/{restart:03d}/")
+                        feature = self.feature.replace(
+                            my_restart, f"/{restart:03d}/")
                         cycles = f[f"{restart:03d}/cycles"]
                         if cycles[0] < restarts[last_valid_restart]["first"]:
                             restarts[restart] = {"first": cycles[0],
-                                                "cycles": cycles[:],
-                                                "feature": feature}
+                                                 "cycles": cycles[:],
+                                                 "feature": feature}
                             last_valid_restart = restart
-                        restart -=1
+                        restart -= 1
                     # Original run
                     cycles = f["cycles"]
-                    fnm = self.feature if not "cycles" in self.feature else "cycles"
+                    fnm = self.feature if "cycles" not in self.feature else "cycles"
                     restarts[0] = {"first": cycles[0],
                                    "cycles": cycles[:],
                                    "feature": fnm}
@@ -156,13 +159,16 @@ class KoshHDF5Loader(KoshLoader):
                         restarts[key]["indices"] = (start_indx, last + start_indx)
                         start_indx += last
                         cycles = numpy.concatenate((cycles, restarts[key]["cycles"][:last]))
-                    cycles = numpy.concatenate((cycles,restarts[keys[-1]]["cycles"]))
+                    cycles = numpy.concatenate(
+                        (cycles, restarts[keys[-1]]["cycles"]))
                     restarts[keys[-1]]["indices"] = (start_indx, len(cycles))
                     user_cycles = kargs["cycles"]
                     if not isinstance(user_cycles, slice):
                         # User wants a value range but we want indices
-                        start = int(numpy.argwhere(cycles == user_cycles[0])[0])
-                        stop = int(numpy.argwhere(cycles == user_cycles[-1])[0]) + 1
+                        start = int(numpy.argwhere(
+                            cycles == user_cycles[0])[0])
+                        stop = int(numpy.argwhere(
+                            cycles == user_cycles[-1])[0]) + 1
                     else:
                         step = user_cycles.step
                         if step is None:
@@ -185,13 +191,13 @@ class KoshHDF5Loader(KoshLoader):
                     if stop is None or start > stop:
                         flip = True
                         tmp = cycles[start:stop:step]
-                        start = int(numpy.argwhere(cycles==tmp[-1])[0])
-                        stop = int(numpy.argwhere(cycles==tmp[0])[0]) + 1
+                        start = int(numpy.argwhere(cycles == tmp[-1])[0])
+                        stop = int(numpy.argwhere(cycles == tmp[0])[0]) + 1
                         step = -step
 
-                    user_cycles = slice(start,stop, step)
+                    user_cycles = slice(start, stop, step)
                     # Ok at this point we have a slice selection
-    
+
                     start = current_start = user_cycles.start
                     for cycles_index, fd in enumerate(feat_dims):
                         if fd[-6:] == "cycles":
@@ -214,7 +220,8 @@ class KoshHDF5Loader(KoshLoader):
                             if feat is None:
                                 feat = f[rs["feature"]][tuple(selectors)]
                             else:
-                                feat = numpy.concatenate((feat, f[rs["feature"]][tuple(selectors)]), axis=cycles_index)
+                                feat = numpy.concatenate(
+                                    (feat, f[rs["feature"]][tuple(selectors)]), axis=cycles_index)
                             j = 0
                             while current_start + j*step < range_key[1]:
                                 j += 1
@@ -224,7 +231,7 @@ class KoshHDF5Loader(KoshLoader):
                     selectors = []
                     for j in range(len(feat.shape)):
                         if j == cycles_index:
-                            selectors += [slice(None, None, -1),]
+                            selectors += [slice(None, None, -1), ]
                         else:
                             selectors += [slice(0, None)]
                     feat = feat[tuple(selectors)]
@@ -254,23 +261,23 @@ class KoshHDF5Loader(KoshLoader):
             feat = []  # Features to return (w/o restart)
             restart_features = set()  # Features that have a restart
             for f in features:
-                s = re.search("/\d\d\d/", f)
-                s2 = re.search("\d\d\d/", f)
+                s = re.search("/\d\d\d/", f)  # noqa
+                s2 = re.search("\d\d\d/", f)  # noqa
                 if s is not None:
                     # We found a restart
                     st = s.group()
                     n = max(n, int(st[1:-1]))
-                    restart_features.add(f.replace(st,"/"))
+                    restart_features.add(f.replace(st, "/"))
                 elif s2 is not None:
                     st = s2.group()
-                    restart_features.add(f.replace(st,""))
+                    restart_features.add(f.replace(st, ""))
                 else:
                     feat.append(f)
             for dup in restart_features:
                 try:
                     indx = feat.index(dup)
                     feat[indx] = feat[indx] + f" ({n} restarts)"
-                except:
+                except Exception:
                     # weird case when original run neg node relaxer
                     feat.append(dup+f" ({n} restarts but not used on original set)")
             features = feat
