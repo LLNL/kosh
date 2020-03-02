@@ -39,11 +39,11 @@ class KoshHDF5Loader(KoshLoader):
         self._restart_features = None
         self._no_restart_features = None
         super(KoshHDF5Loader, self).__init__(obj)
-        self._restart_features = self.list_features(restart=True)
-        self._no_restart_features = self.list_features(restart=False)
+        self._restart_features = self.list_features(restarts=True)
+        self._no_restart_features = self.list_features(restarts=False)
 
     def open(self, mode='r'):
-        """open/load the matching Kosh SIna File
+        """open/load  matching Kosh SIna File
 
         :param mode: mode to open the file in, defaults to 'r'
         :type mode: str, optional
@@ -135,7 +135,7 @@ class KoshHDF5Loader(KoshLoader):
                     restart -= 1
                     while restart > 0:
                         feature = self.feature.replace(my_restart, f"/{restart:03d}/")
-                        cycles = f[f"{my_restart}/cycles"]
+                        cycles = f[f"{restart:03d}/cycles"]
                         if cycles[0] < restarts[last_valid_restart]["first"]:
                             restarts[restart] = {"first": cycles[0],
                                                 "cycles": cycles[:],
@@ -153,8 +153,8 @@ class KoshHDF5Loader(KoshLoader):
                     start_indx = 0
                     for indx, key in enumerate(keys[:-1]):
                         last = int(numpy.argwhere(restarts[key]["cycles"] == restarts[keys[indx+1]]["first"])[0])
-                        restarts[key]["indices"] = (start_indx, last)
-                        start_indx = last
+                        restarts[key]["indices"] = (start_indx, last + start_indx)
+                        start_indx += last
                         cycles = numpy.concatenate((cycles, restarts[key]["cycles"][:last]))
                     cycles = numpy.concatenate((cycles,restarts[keys[-1]]["cycles"]))
                     restarts[keys[-1]]["indices"] = (start_indx, len(cycles))
@@ -162,13 +162,37 @@ class KoshHDF5Loader(KoshLoader):
                     if not isinstance(user_cycles, slice):
                         # User wants a value range but we want indices
                         start = int(numpy.argwhere(cycles == user_cycles[0])[0])
-                        end = int(numpy.argwhere(cycles == user_cycles[-1])[0])
-                        # TODO check this +1
-                        user_cycles = slice(start,end+1)
+                        stop = int(numpy.argwhere(cycles == user_cycles[-1])[0]) + 1
+                    else:
+                        step = user_cycles.step
+                        if step is None:
+                            step = 1
+                        start = user_cycles.start
+                        if start is None:
+                            start = 0
+                            if step < 0:
+                                start = len(cycles)
+                        elif start < 0:
+                            start = len(cycles) + start
+                        stop = user_cycles.stop
+                        if stop is None:
+                            stop = len(cycles)
+                            if step < 0:
+                                stop = None
+                        elif stop < 0:
+                            stop = len(cycles) + stop
+                    flip = False
+                    if stop is None or start > stop:
+                        flip = True
+                        tmp = cycles[start:stop:step]
+                        start = int(numpy.argwhere(cycles==tmp[-1])[0])
+                        stop = int(numpy.argwhere(cycles==tmp[0])[0]) + 1
+                        step = -step
+
+                    user_cycles = slice(start,stop, step)
                     # Ok at this point we have a slice selection
-                    current_start = user_cycles.start
-                    if user_cycles.stop is None:
-                        user_cycles = slice(user_cycles.start, len(cycles), user_cycles.step)
+    
+                    start = current_start = user_cycles.start
                     for cycles_index, fd in enumerate(feat_dims):
                         if fd[-6:] == "cycles":
                             break
@@ -180,17 +204,30 @@ class KoshHDF5Loader(KoshLoader):
                             # Ok we have data intersection
                             if user_cycles.stop >= range_key[1]:
                                 # goes past this restart
-                                stop = range_key[1] - current_start
+                                stop = range_key[1] - range_key[0]
                             else:
                                 # We are done here
-                                stop = user_cycles.stop - current_start
-                            cycle_slice = slice(0, stop, user_cycles.step)
+                                stop = user_cycles.stop - range_key[0]
+                            start = current_start - range_key[0]
+                            cycle_slice = slice(start, stop, user_cycles.step)
                             selectors[cycles_index] = cycle_slice
                             if feat is None:
                                 feat = f[rs["feature"]][tuple(selectors)]
                             else:
                                 feat = numpy.concatenate((feat, f[rs["feature"]][tuple(selectors)]), axis=cycles_index)
-                            current_start = stop
+                            j = 0
+                            while current_start + j*step < range_key[1]:
+                                j += 1
+                            current_start += j*step
+                # Reversed order
+                if flip:
+                    selectors = []
+                    for j in range(len(feat.shape)):
+                        if j == cycles_index:
+                            selectors += [slice(None, None, -1),]
+                        else:
+                            selectors += [slice(0, None)]
+                    feat = feat[tuple(selectors)]
             else:
                 feat = feat[tuple(selectors)]
         return feat
