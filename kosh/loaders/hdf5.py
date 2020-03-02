@@ -73,6 +73,25 @@ class KoshHDF5Loader(KoshLoader):
         self.feature = feat
 
     def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
+        """get extracts a feature from an hdf5 file
+
+        This loader can handle df5 files with custom restart in them.
+        pass `restart=N` to extract the Nth cycle
+
+        w/o arguments only the restarted cycles will be extracted,
+        if a slice is passed to the `cycles` keyword then the loader will extract
+        all the necessary cycles backward from the desired restart up to the original restart (000)
+        
+        :param feature: feature to extract, defaults to None which means all features
+        :type feature: str, optional
+        :param format: output format
+        :type format: str, optional
+        :param Id: dataset Id, defaults to None
+        :type Id: str, optional
+        :param loader: loader to use, defaults to None
+        :return: extracted feature
+        :rtype: numpy.ndarray
+        """
         if feature not in self.list_features() and feature in self._restart_features:
             feature = " ".join(feature.split(" ")[:-2])
         return super(KoshHDF5Loader, self).get(feature, format, Id, loader, *args, **kargs)
