@@ -75,13 +75,13 @@ class KoshHDF5Loader(KoshLoader):
     def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
         """get extracts a feature from an hdf5 file
 
-        This loader can handle df5 files with custom restart in them.
+        This loader can handle hdf5 files with custom restart in them.
         pass `restart=N` to extract the Nth cycle
 
         w/o arguments only the restarted cycles will be extracted,
         if a slice is passed to the `cycles` keyword then the loader will extract
         all the necessary cycles backward from the desired restart up to the original restart (000)
-        
+
         :param feature: feature to extract, defaults to None which means all features
         :type feature: str, optional
         :param format: output format
@@ -258,17 +258,17 @@ class KoshHDF5Loader(KoshLoader):
                 feat = feat[tuple(selectors)]
         return feat
 
-    def list_features(self, restarts=False, **kargs):
+    def list_features(self, group=None, restarts=False, **kargs):
         """list_features list features in file,
         for hdf5 you can pass extra argument to navigate groups.
 
         :return: list of features available in file
         :rtype: list
         """
-        if restarts and self._restart_features is not None:
+        if restarts and self._restart_features is not None and group is None:
             # Saves time it's already done
             return self._restart_features
-        if not restarts and self._no_restart_features is not None:
+        if not restarts and self._no_restart_features is not None and group is None:
             # Saves time again
             return self._no_restart_features
 
@@ -300,6 +300,12 @@ class KoshHDF5Loader(KoshLoader):
                     # weird case when original run neg node relaxer
                     feat.append(dup+f" ({n} restarts but not used on original set)")
             features = feat
+        if group is not None:
+            feats = []
+            for f in features:
+                if f[:len(group)] == group:
+                    feats.append(f[len(group)+1:])
+            features = feats
         return features
 
     def describe_feature(self, feature):

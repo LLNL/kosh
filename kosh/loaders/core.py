@@ -167,7 +167,7 @@ class KoshFileLoader(KoshLoader):
         with open(self.obj.uri) as f:
             return f.read()
 
-    def list_features(self, *args):
+    def list_features(self, *args, **kargs):
         """list_features list features in file,
 
         :return: list of features available in file

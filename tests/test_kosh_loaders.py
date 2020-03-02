@@ -79,8 +79,7 @@ class KoshTestLoaders(KoshTest):
                              'node/metrics_7', 'node/metrics_8', 'node/metrics_9',
                              'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
                           'zone/metrics_3', 'zone/metrics_4'])
-
-        features = sorted(ds.list_features(None,"node"))
+        features = sorted(ds.list_features(None, group="node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
