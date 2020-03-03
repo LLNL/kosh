@@ -23,7 +23,7 @@ class MashReader(object):
         self.metrics_avail = {}
         self.proc_ids = {}
         self.ids = {}
-        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "srd", "drd"]:
             metrics_avail, proc_ids = self.__query(elt)
             self.proc_ids[elt] = proc_ids
             self.metrics_avail[elt] = metrics_avail
@@ -47,11 +47,11 @@ class MashReader(object):
         elif elt_type == "scalarRlxData":
             metrics_avail = self.reader.scalar_rlx
         elif elt_type == "srd":  # old name
-            metrics_avail = self.reader.ScalarRlx
+            metrics_avail = self.reader.scalar_rlx
         elif elt_type == "dimRlxData":
             metrics_avail = self.reader.dim_rlx
         elif elt_type == "drd":  # old name
-            metrics_avail = self.reader.DimRlx
+            metrics_avail = self.reader.dim_rlx
         else:
             raise RuntimeError("unknow elt type:", elt_type)
 
@@ -60,7 +60,7 @@ class MashReader(object):
         proc_ids = []
         n_elements = 0
         for proc in processors:
-            if elt_type in ["scalarRlxData", "dimRlxData", "node"]:
+            if elt_type in ["scalarRlxData", "dimRlxData", "node", "srd", "drd"]:
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
@@ -157,9 +157,9 @@ class MashReader(object):
             if "metrics" in kargs:
                 n_metrics_avail == len(metrics)
             # Final shape for one processor
-            if elt_type in ["zone", "node", "scalarRlxData"]:
+            if elt_type in ["zone", "node", "scalarRlxData", "srd"]:
                 sh = [n_cycles, n_elements, n_metrics_avail]
-            elif elt_type == "dimRlxData":
+            elif elt_type in ["dimRlxData", "drd"]:
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
