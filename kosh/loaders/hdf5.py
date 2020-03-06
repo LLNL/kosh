@@ -167,6 +167,10 @@ class KoshHDF5Loader(KoshLoader):
                     # Original run
                     cycles = f["cycles"]
                     fnm = self.feature if "cycles" not in self.feature else "cycles"
+                    s = re.search("/\d\d\d/", fnm)  # noqa
+                    if s is not None:
+                        sp = fnm.split(s.group())
+                        fnm = "/".join(sp)
                     restarts[0] = {"first": cycles[0],
                                    "cycles": cycles[:],
                                    "feature": fnm}
