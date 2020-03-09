@@ -504,6 +504,7 @@ class KoshSinaStore(KoshStoreClass):
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
 
+        metadata = metadata.copy()
         metadata["creator"] = self.__user_id__
         metadata["name"] = name
         metadata["_associated_data_"] = None
