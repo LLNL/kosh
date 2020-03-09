@@ -306,6 +306,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if self.__store__.__sync__:
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(rec)
+        else:
+            self.__store__._added_unsync_handler.delete(self.__id__)
+            self.__store__._added_unsync_handler.insert(rec)
+
         return kosh_file
 
     def search(self, *atts, **keys):
@@ -341,14 +345,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 match = list(self.__record_handler__.data_query(**sina_kargs))
             # instantly restrict to associated data
             if not self.__store__.__sync__:
-                mem = sina_sql.DAOFactory(db_path=":memory:")
-                handler = mem.create_record_dao()
-                for rec in self.__store__.__sync__dict__.values():
-                    handler.insert(rec)
                 if len(sina_kargs) == 0:
                     match_mem = inter_recs
                 else:
-                    match_mem = list(handler.data_query(**sina_kargs))
+                    match_mem = list(self.__store__._added_unsync_handler.data_query(**sina_kargs))
                 # if file_uri is not None:
                 #     match_mem = set(match_mem).intersection(file_match)
                 # check that tweaks didn't remove a possible dataset
@@ -441,6 +441,8 @@ class KoshSinaStore(KoshStoreClass):
         self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
+        mem = sina_sql.DAOFactory(db_path=":memory:")
+        self._added_unsync_handler = mem.create_record_dao()
 
     def get_record(self, Id):
         if (not self.__sync__) and Id in self.__sync__dict__:
@@ -504,6 +506,7 @@ class KoshSinaStore(KoshStoreClass):
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
 
+        metadata = metadata.copy()
         metadata["creator"] = self.__user_id__
         metadata["name"] = name
         metadata["_associated_data_"] = None
@@ -514,6 +517,7 @@ class KoshSinaStore(KoshStoreClass):
             self.__record_handler__.insert(rec)
         else:
             self.__sync__dict__[Id] = rec
+            self._added_unsync_handler.insert(rec)
         try:
             ds = KoshSinaDataset(Id, store=self, schema=schema, record=rec)
         except Exception as err:  # probably schema validation error
@@ -521,6 +525,7 @@ class KoshSinaStore(KoshStoreClass):
                 self.__record_handler__.delete(Id)
             else:
                 del(self.__sync__dict__[Id])
+                self._added_unsync_handler.delete(rec)
             raise err
         return ds
 
@@ -630,34 +635,38 @@ class KoshSinaStore(KoshStoreClass):
         ds_filter = list(self.__record_handler__.get_all_of_type(
             "dataset", ids_only=True))
         if not self.__sync__:
-            mem = sina_sql.DAOFactory(db_path=":memory:")
-            handler = mem.create_record_dao()
-            for rec in self.__sync__dict__.values():
-                handler.insert(rec)
-            ds_filter += list(handler.get_all_of_type("dataset", ids_only=True))
+            ds_filter += list(self._added_unsync_handler.get_all_of_type("dataset", ids_only=True))
 
         file_uri = sina_kargs.pop("file", None)
         if len(sina_kargs) != 0:  # no restriction, all datasets
-            match = list(self.__record_handler__.data_query(**sina_kargs))
+            match = set(self.__record_handler__.data_query(**sina_kargs))
             if not self.__sync__:
-                match_mem = list(handler.data_query(**sina_kargs))
+                match_mem = set(self._added_unsync_handler.data_query(**sina_kargs))
                 # check that tweaks didn't remove a possible dataset
-                yank = []
-                for m in match:
-                    if m in self.__sync__dict__ and m not in match_mem:
-                        # Ok we chaned something and it's no longer a match
-                        yank.append(m)
-                for y in yank:
-                    match.remove(y)
-                match += match_mem
-            inter_recs = set(match).intersection(set(ds_filter))
+                # print(f"sync: {set(self.__sync__dict__.keys())}")
+                # print(f"mem: {match_mem}")
+                # yank = set(self.__sync__dict__.keys()).difference(match_mem).intersection(match)
+                # print(f"ynk: {yank}")
+                # for m in match:
+                #    if m in self.__sync__dict__ and m not in match_mem:
+                #        # Ok we chaned something and it's no longer a match
+                #        yank.append(m)
+                # print(f"Match: {match}")
+                # for y in yank:
+                #    match.remove(y)
+                match = match.union(match_mem)
+            inter_recs = match.intersection(set(ds_filter))
+            # inter_recs = set(ds_filter)
         else:
             inter_recs = set(ds_filter)
 
         if file_uri is not None:
+            # print("INTRERE SRESC:", inter_recs)
             file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
+            # print("FILE MATCH:", file_match)
             if not self.__sync__:
-                file_match += list(handler.get_given_document_uri(file_uri, inter_recs, True))
+                file_match += list(self._added_unsync_handler.get_given_document_uri(file_uri, inter_recs, True))
+                # print("FILE MATCH 2:", file_match)
             inter_recs = set(inter_recs).intersection(file_match)
 
         if ids_only:
@@ -849,6 +858,10 @@ class KoshSinaStore(KoshStoreClass):
         self.__record_handler__.delete(del_keys)
         self.__record_handler__.insert(update_records)
         for key in list(keys):
+            try:
+                self._added_unsync_handler.delete(key)
+            except Exception:
+                pass
             try:
                 del(self.__sync__dict__[key])
             except Exception:
