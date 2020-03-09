@@ -14,13 +14,15 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
             meta[f"D_{chr(i)}"] = str(i)
 
         search_times = []
-        for i in range(90):
+        for i in range(50):
             start = time.time()
-            search = store.search(ds_only=True,**meta)
+            search = store.search(ids_only=True,**meta)
             search_times.append(time.time() - start)
             ds = store.create(metadata=meta)
             ds.associate("/some_path", mime_type="some type")
         store.sync()
-        a, b = numpy.polyfit(numpy.arange(len(search_times)), numpy.array(search_times), 1)
+        # Skip first 5s to ensure disk/startup issues are removed
+        a, b = numpy.polyfit(numpy.arange(len(search_times)-5), numpy.array(search_times[5:]), 1)
         print("A, B:", a, b)
+        self.assertLessEqual(b, .11)
 
