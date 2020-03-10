@@ -24,13 +24,16 @@ class MashReader(object):
         self.proc_ids = {}
         self.ids = {}
         for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "srd", "drd"]:
-            metrics_avail, proc_ids = self.__query(elt)
-            self.proc_ids[elt] = proc_ids
-            self.metrics_avail[elt] = metrics_avail
-            ids = []
-            for lst in proc_ids:
-                ids += lst
-            self.ids[elt] = ids
+            try:
+                metrics_avail, proc_ids = self.__query(elt)
+                self.proc_ids[elt] = proc_ids
+                self.metrics_avail[elt] = metrics_avail
+                ids = []
+                for lst in proc_ids:
+                    ids += lst
+                self.ids[elt] = ids
+            except Exception:
+                pass
 
     def __query(self, elt_type):
         """__query Retrieve certain cycle/metrics
