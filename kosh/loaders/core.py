@@ -27,7 +27,10 @@ class KoshLoader(object):
         """KoshLoader generic Kosh loader
         :param obj: object
         """
-        if obj.mime_type not in self.types:
+        mime_type = obj.mime_type
+        if mime_type == obj.__store__._dataset_record_type:
+            mime_type = "dataset"
+        if mime_type not in self.types:
             open_anything = False
             for t in self.types:
                 if t == "dataset":  # datasets are special skipping
@@ -35,7 +38,7 @@ class KoshLoader(object):
                 if len(self.types[t]) == 0:
                     open_anything = True
             if not open_anything:
-                raise RuntimeError(f"will not be able to load object of type {obj.mime_type}")
+                raise RuntimeError(f"will not be able to load object of type {mime_type}")
         self.obj = obj
 
     def known_types(self):

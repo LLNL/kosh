@@ -216,7 +216,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :param record: to avoid looking up in sina pass sina record
         :type record: Record
         """
-        super(KoshSinaDataset, self).__init__(datasetId, koshType="dataset",
+        super(KoshSinaDataset, self).__init__(datasetId, koshType=store._dataset_record_type,
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
                                                          "_associated_data_"],
@@ -388,7 +388,7 @@ class KoshSinaLoader(KoshLoader):
         """open the object
         """
         record = self.obj.__store__.get_record(self.obj.__id__)
-        if record["type"] == "dataset":
+        if record["type"] == self.obj.__store__._dataset_record_type:
             return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__, record=record)
         if record["type"] == "file":
             return KoshSinaFile(self.obj.__id__, store=self.obj.__store__, record=record)
@@ -399,7 +399,7 @@ class KoshSinaLoader(KoshLoader):
 
 class KoshSinaStore(KoshStoreClass):
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
-                 keyspace=None, sync=True):
+                 keyspace=None, sync=True, dataset_record_type="dataset"):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -412,10 +412,14 @@ class KoshSinaStore(KoshStoreClass):
         :type keyspace: str, optional
         :param sync: Does Kosh sync automatically to the db (True) or on demand (False)
         :type sync: bool
+        :param dataset_record_type: Kosh element type is "dataset" this can change the default
+                                    This is usefull if reading in other sina db
+        :type dataset_record_type: str
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
         KoshStoreClass.__init__(self, sync)
+        self._dataset_record_type = dataset_record_type
         if db == "sql":
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
         elif db == 'cass':
@@ -469,7 +473,7 @@ class KoshSinaStore(KoshStoreClass):
             Id = Id.__id__
 
         rec = self.get_record(Id)
-        if rec.type == "dataset":
+        if rec.type == self._dataset_record_type:
             kosh_obj = self.open(Id)
             for uri in list(rec["files"].keys()):
                 # Let's deassociate to remove unused kosh objects as well
@@ -512,7 +516,7 @@ class KoshSinaStore(KoshStoreClass):
         metadata["_associated_data_"] = None
         for k in metadata:
             metadata[k] = {'value': metadata[k]}
-        rec = Record(id=Id, type="dataset", data=metadata)
+        rec = Record(id=Id, type=self._dataset_record_type, data=metadata)
         if self.__sync__:
             self.__record_handler__.insert(rec)
         else:
@@ -538,7 +542,7 @@ class KoshSinaStore(KoshStoreClass):
         """
         record = self.get_record(Id)
         obj = self._load(Id)
-        if record["type"] == "dataset":
+        if record["type"] == self._dataset_record_type:
             return KoshSinaLoader(obj)
         loader = None
         if "mime_type" in record["data"]:
@@ -633,9 +637,9 @@ class KoshSinaStore(KoshStoreClass):
         sina_kargs.update(keys)
 
         ds_filter = list(self.__record_handler__.get_all_of_type(
-            "dataset", ids_only=True))
+            self._dataset_record_type, ids_only=True))
         if not self.__sync__:
-            ds_filter += list(self._added_unsync_handler.get_all_of_type("dataset", ids_only=True))
+            ds_filter += list(self._added_unsync_handler.get_all_of_type(self._dataset_record_type, ids_only=True))
 
         file_uri = sina_kargs.pop("file", None)
         if len(sina_kargs) != 0:  # no restriction, all datasets
