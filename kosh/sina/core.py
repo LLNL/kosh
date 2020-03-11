@@ -225,8 +225,14 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         self.__dict__["__record_handler__"] = store.__record_handler__
         if record is None:
             record = self.get_record()
-        self.__dict__["__creator__"] = record["data"]["creator"]["value"]
-        self.__dict__["__name__"] = record["data"]["name"]["value"]
+        try:
+            self.__dict__["__creator__"] = record["data"]["creator"]["value"]
+        except Exception:
+            pass
+        try:
+            self.__dict__["__name__"] = record["data"]["name"]["value"]
+        except Exception:
+            pass
         if schema is not None or "schema" in record["data"]:
             self.validate()
 
@@ -439,10 +445,11 @@ class KoshSinaStore(KoshStoreClass):
             # For now just letting anyone log in as anonymous
             warnings.warn("Unknown user, you will be logged as anonymous user")
             names_filter = self.__record_handler__.data_query(username="anonymous")
-            inter_recs = set(users_filter).intersection(set(names_filter))
+            self.__user_id__ = "anonymous"
         elif len(inter_recs) > 1:
             raise SystemError("Internal error, more than one user match!")
-        self.__user_id__ = list(inter_recs)[0]
+        else:
+            self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
         mem = sina_sql.DAOFactory(db_path=":memory:")
