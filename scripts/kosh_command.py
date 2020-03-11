@@ -77,7 +77,7 @@ Available commands are:
         parser.add_argument("--print", "-p", help="print each dataset info", action="store_true")
         args, search_terms = parser.parse_known_args(sys.argv[2:])
         metadata = parse_metadata(search_terms)
-        store = kosh.KoshStore(db_uri=args.store)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ids = store.search(**metadata, ids_only=True)
         if args.print:
             for Id in ids:
@@ -90,11 +90,12 @@ Available commands are:
     def add(self):
         parser = core_parser(
             description='Adds a dataset to store')
-        parser.add_argument("--id", "-i", help="Desired Id for dataset")
+        parser.add_argument("--id", "-i", help="Desired Id for dataset", default=None)
         args, metadata = parser.parse_known_args(sys.argv[2:])
         metadata = parse_metadata(metadata)
-        store = kosh.KoshStore(db_uri=args.store)
-        store.create(datasetId=args.id, **metadata)
+        print("METADATA:", metadata)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
+        store.create(datasetId=args.id, metadata=metadata)
 
     def remove(self):
         parser = core_parser(
@@ -106,17 +107,17 @@ Available commands are:
         for i in args.ids:
             datasets += i
 
-        store = kosh.KoshStore(db_uri=args.store)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         for Id in datasets:
             if args.force:
-                store.remove(Id)
+                store.delete(Id)
             else:
                 ds = store.open(Id)
                 print(ds)
                 answer = input(f"You are about the remove this dataset ({Id}). Do you want to continue? (y/N)")
                 print("Answer:", answer)
                 if answer.lower() in ["y", "yes"]:
-                    store.remove(Id)
+                    store.delete(Id)
                 else:
                     print(f"Skipping, will not remove {Id}")
 
@@ -129,7 +130,7 @@ Available commands are:
         for i in args.ids:
             datasets += i
 
-        store = kosh.KoshStore(db_uri=args.store)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         for Id in datasets:
                 ds = store.open(Id)
                 print(ds)
@@ -139,14 +140,15 @@ Available commands are:
         parser = core_parser(description="Associate a (set of) files with a dataset")
         parser.add_argument("--id", "-i", help="id of datasets to which file(s) will be associated", required=True)
         parser.add_argument("--uri", "-u", help="uri(s) to associate with dataset", nargs="*", required=True, action="append")
+        parser.add_argument("--mime_type", "-m", help="mime type of the uri(s) same for all", required=True)
         args = parser.parse_args(sys.argv[2:])
         uris = []
         for u in args.uri:
             uris += u
-        store = kosh.KoshStore(db_uri=args.store)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.open(args.id)
         for u in uris:
-            ds.associate(u)
+            ds.associate(u, mime_type=args.mime_type)
 
     def deassociate(self):
         parser = core_parser(description="Dessociate a (set of) file(s) from a dataset")
@@ -156,7 +158,7 @@ Available commands are:
         uris = []
         for u in args.uri:
             uris += u
-        store = kosh.KoshStore(db_uri=args.store)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.open(args.id)
         for u in uris:
             ds.deassociate(u)
