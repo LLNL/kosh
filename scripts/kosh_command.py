@@ -90,7 +90,7 @@ Available commands are:
     def print(self):
         parser = core_parser(
             description='Print information about a dataset')
-        parser.add_argument("--ids", "-i", help="ids of datsets to print", nargs="*", required=True, action="append")
+        parser.add_argument("--ids", "-i", help="ids of datasets to print", nargs="*", required=True, action="append")
         args = parser.parse_args(sys.argv[2:])
         datasets = []
         for i in args.ids:
@@ -103,13 +103,30 @@ Available commands are:
                 print("=======================================================================")
 
     def associate(self):
-        parser = core_parser(description="Associate a file with a dataset")
-        parser.add_argument("--ids", "-i", help="ids of datsets to print", nargs="*", required=True, action="append")
+        parser = core_parser(description="Associate a (set of) files with a dataset")
+        parser.add_argument("--id", "-i", help="id of datasets to which file(s) will be associated", required=True)
+        parser.add_argument("--uri", "-u", help="uri(s) to associate with dataset", nargs="*", required=True, action="append")
         args = parser.parse_args(sys.argv[2:])
-        datasets = []
-        for i in args.ids:
-            datasets += i
-        print("Associate")
+        uris = []
+        for u in args.uri:
+            uris += u
+        store = kosh.KoshStore(db_uri=args.store)
+        ds = store.open(args.id)
+        for u in uris:
+            ds.associate(u)
+
+    def deassociate(self):
+        parser = core_parser(description="Dessociate a (set of) file(s) from a dataset")
+        parser.add_argument("--id", "-i", help="id of datasets from which file(s) will be deassociated", required=True)
+        parser.add_argument("--uri", "-u", help="uri(s) to deassociate from dataset", nargs="*", required=True, action="append")
+        args = parser.parse_args(sys.argv[2:])
+        uris = []
+        for u in args.uri:
+            uris += u
+        store = kosh.KoshStore(db_uri=args.store)
+        ds = store.open(args.id)
+        for u in uris:
+            ds.deassociate(u)
 
 
 if __name__ == '__main__':
