@@ -121,6 +121,55 @@ Available commands are:
                 else:
                     print(f"Skipping, will not remove {Id}")
 
+    def features(self):
+        parser = core_parser(
+            description='List features for (some) dataset(s)')
+        parser.add_argument("--ids", "-i", help="ids of datasets to list features from", nargs="*", required=True, action="append")
+        args = parser.parse_args(sys.argv[2:])
+        datasets = []
+        for i in args.ids:
+            datasets += i
+
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
+        for Id in datasets:
+            ds = store.open(Id)
+            print(f"\nDataset: {Id}/{ds.name}:\n\t {ds.list_features()}")
+
+
+    def extract(self):
+        parser = core_parser(
+            description='Extract features from a dataset')
+        parser.add_argument("--id", "-i", help="id of datasets to extract features from", required=True)
+        parser.add_argument("--features", "-f", help="features to extract", nargs="*", action="append")
+        parser.add_argument("--format", "-F", help="format to extract to", default="numpy")
+        parser.add_argument("--dump", help="Dump to file")
+        args, extract_terms = parser.parse_known_args(sys.argv[2:])
+        extract_terms = parse_metadata(extract_terms)
+        store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
+        ds = store.open(args.id)
+        features = []
+        if args.features is not None:
+            for f in args.features:
+                features += f
+        else:
+            features = ds.list_features()
+        
+
+        if args.dump is not None:
+            out = open(args.dump, "wb")
+        for feat in features:
+            data = ds.get(feat, format=args.format, **extract_terms)
+            if args.dump is not None:
+                try:
+                    import numpy
+                    numpy.save(out, data)
+                except Exception:
+                    print(f"Could not save feature {feat} to file: {args.dump}")
+            else:
+                print(data)
+
+
+
     def print(self):
         parser = core_parser(
             description='Print information about a dataset')
@@ -132,9 +181,9 @@ Available commands are:
 
         store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
         for Id in datasets:
-                ds = store.open(Id)
-                print(ds)
-                print("=======================================================================")
+            ds = store.open(Id)
+            print(ds)
+            print("=======================================================================")
 
     def associate(self):
         parser = core_parser(description="Associate a (set of) files with a dataset")
