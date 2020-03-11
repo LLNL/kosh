@@ -87,6 +87,39 @@ Available commands are:
         else:
             print("\n".join(ids))
  
+    def add(self):
+        parser = core_parser(
+            description='Adds a dataset to store')
+        parser.add_argument("--id", "-i", help="Desired Id for dataset")
+        args, metadata = parser.parse_known_args(sys.argv[2:])
+        metadata = parse_metadata(metadata)
+        store = kosh.KoshStore(db_uri=args.store)
+        store.create(datasetId=args.id, **metadata)
+
+    def remove(self):
+        parser = core_parser(
+            description='Removes a dataset from store')
+        parser.add_argument("--ids", "-i", help="ids of datasets to print", nargs="*", required=True, action="append")
+        parser.add_argument("--force", "-f", action="store_true", help="remove without asking for confirmation")
+        args = parser.parse_args(sys.argv[2:])
+        datasets = []
+        for i in args.ids:
+            datasets += i
+
+        store = kosh.KoshStore(db_uri=args.store)
+        for Id in datasets:
+            if args.force:
+                store.remove(Id)
+            else:
+                ds = store.open(Id)
+                print(ds)
+                answer = input(f"You are about the remove this dataset ({Id}). Do you want to continue? (y/N)")
+                print("Answer:", answer)
+                if answer.lower() in ["y", "yes"]:
+                    store.remove(Id)
+                else:
+                    print(f"Skipping, will not remove {Id}")
+
     def print(self):
         parser = core_parser(
             description='Print information about a dataset')
