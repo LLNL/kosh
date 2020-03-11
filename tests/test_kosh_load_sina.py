@@ -5,7 +5,7 @@ from sina.utils import DataRange
 
 class KoshTestDataset(KoshTest):
     def test_load_pure_sina(self):
-        store = kosh.KoshStore(db_uri="../sina/examples/fukushima/data.sqlite", dataset_record_type="obs")
+        store = kosh.KoshStore(db_uri="tests/baselines/sina/data.sqlite", dataset_record_type="obs")
         all_recs = store.search(ids_only=True)
         self.assertEqual(len(all_recs), 10)
         A = store.open("2014-04-05-06-21-43")
