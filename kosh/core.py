@@ -128,8 +128,14 @@ class KoshDataset(object):
         st = ""
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.__id__)
-        st += "\tname:{}\n".format(self.__name__)
-        st += "\tcreator: {}\n".format(self.__creator__)
+        try:
+            st += "\tname:{}\n".format(self.__name__)
+        except Exception:
+            st += "\tname:???\n"
+        try:
+            st += "\tcreator: {}\n".format(self.__creator__)
+        except Exception:
+            st += "\tcreator: ???\n"
         atts = self.__attributes__
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
