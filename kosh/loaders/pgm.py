@@ -31,13 +31,9 @@ class PGMLoader(KoshLoader):
         """
         return open(self.obj.uri, mode)
 
-    def extract(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
-        :param feature: in this case element/metric
-        :type feature: str
-        :param format: desired output format
-        :type format: str
         :return: numpy array
         :rtype: numpy.ndarray
         """
