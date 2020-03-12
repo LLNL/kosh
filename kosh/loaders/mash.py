@@ -23,14 +23,17 @@ class MashReader(object):
         self.metrics_avail = {}
         self.proc_ids = {}
         self.ids = {}
-        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
-            metrics_avail, proc_ids = self.__query(elt)
-            self.proc_ids[elt] = proc_ids
-            self.metrics_avail[elt] = metrics_avail
-            ids = []
-            for lst in proc_ids:
-                ids += lst
-            self.ids[elt] = ids
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "srd", "drd"]:
+            try:
+                metrics_avail, proc_ids = self.__query(elt)
+                self.proc_ids[elt] = proc_ids
+                self.metrics_avail[elt] = metrics_avail
+                ids = []
+                for lst in proc_ids:
+                    ids += lst
+                self.ids[elt] = ids
+            except Exception:
+                pass
 
     def __query(self, elt_type):
         """__query Retrieve certain cycle/metrics
@@ -46,7 +49,11 @@ class MashReader(object):
             metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
         elif elt_type == "scalarRlxData":
             metrics_avail = self.reader.scalar_rlx
+        elif elt_type == "srd":  # old name
+            metrics_avail = self.reader.scalar_rlx
         elif elt_type == "dimRlxData":
+            metrics_avail = self.reader.dim_rlx
+        elif elt_type == "drd":  # old name
             metrics_avail = self.reader.dim_rlx
         else:
             raise RuntimeError("unknow elt type:", elt_type)
@@ -56,7 +63,7 @@ class MashReader(object):
         proc_ids = []
         n_elements = 0
         for proc in processors:
-            if elt_type in ["scalarRlxData", "dimRlxData", "node"]:
+            if elt_type in ["scalarRlxData", "dimRlxData", "node", "srd", "drd"]:
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
@@ -153,9 +160,9 @@ class MashReader(object):
             if "metrics" in kargs:
                 n_metrics_avail == len(metrics)
             # Final shape for one processor
-            if elt_type in ["zone", "node", "scalarRlxData"]:
+            if elt_type in ["zone", "node", "scalarRlxData", "srd"]:
                 sh = [n_cycles, n_elements, n_metrics_avail]
-            elif elt_type == "dimRlxData":
+            elif elt_type in ["dimRlxData", "drd"]:
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
@@ -288,18 +295,16 @@ class MashLoader(KoshLoader):
         """
         return MashReader(self.obj.uri)
 
-    def get(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
-        :param feature: in this case element/metric
-        :type feature: str
-        :param format: desired output format (numpy only for now)
-        :type format: str
+        feature and format come from "self"
         :return: numpy array
         :rtype: numpy.ndarray
         """
+        args, kargs = self._user_passed_parameters
         reader = self.open()
-        return reader.get(feature, *args, **kargs)
+        return reader.get(self.feature, *args, **kargs)
 
     def list_features(self):
         """list_features lists features available

@@ -92,7 +92,7 @@ class KoshLoader(object):
         self.feature = feature
         self._user_passed_parameters = args, kargs
         kargs.get("preprocess", self.preprocess)()
-        data = self.extract(feature, format)
+        data = self.extract()
         return kargs.get("postprocess", self.postprocess)(data)
 
     def list_features(self):
@@ -170,7 +170,7 @@ class KoshFileLoader(KoshLoader):
         with open(self.obj.uri) as f:
             return f.read()
 
-    def list_features(self, *args):
+    def list_features(self, *args, **kargs):
         """list_features list features in file,
 
         :return: list of features available in file
