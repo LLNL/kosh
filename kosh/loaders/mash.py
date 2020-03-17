@@ -153,7 +153,7 @@ class MashReader(object):
                 retrieved_elements += elt
                 kargs["elements"] = elt
                 if cycles is None:  # need to create cycles
-                    cycles = list(range(self.reader.num_cycles))
+                    cycles = self.getStateVariables()["cycle"]
                     kargs["cycles"] = cycles
             else:
                 n_elements = len(proc_ids[proc])
@@ -211,6 +211,21 @@ class MashReader(object):
 
     get = get_elements
 
+    def getStateVariables(self):
+        """getStateVariables return a dictionary of all state variables
+        usually cycles and time
+
+        return: dictionary containing var:array
+        rtype: dict
+        """
+        state = os.path.join(self.reader.ext_path, "state.bin")
+        data = numpy.fromfile(state, dtype=self.reader.state_dtype)
+        state_vars = {}
+        nvars = len(self.reader.state_vars)
+        for i, v in enumerate(self.reader.state_vars):
+            state_vars[v] = data[i::nvars]
+        return state_vars
+        
     def getAxis(self, axis, elt):
         """getAxis get an axis (dimension info) for an element
 
@@ -229,8 +244,7 @@ class MashReader(object):
                 "Invalid axis {}, available axes are: {}".format(
                     axis, good_axes))
         if axis == "cycles":
-            return KoshAxis(axis, list(range(int(self.reader.cycle_range[0]),
-                                             int(self.reader.cycle_range[0]) + self.reader.num_cycles)))
+            return KoshAxis(axis, self.getStateVariables()["cycle"])
         elif axis == "elements":
             return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":

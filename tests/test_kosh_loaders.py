@@ -155,3 +155,9 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual([a.id for a in axes], [
                          "cycles", "elements", "metrics"])
         os.remove(kosh_db)
+
+    def test_mash_reader_state(self):
+        reader = kosh.loaders.mash.MashReader("tests/baselines/mash/node_extracts2")
+        state = reader.getStateVariables()
+        self.assertTrue("cycle" in state)
+        self.assertTrue(numpy.allclose(state["cycle"], [0, 1.]))
