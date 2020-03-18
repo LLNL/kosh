@@ -225,7 +225,7 @@ class MashReader(object):
         for i, v in enumerate(self.reader.state_vars):
             state_vars[v] = data[i::nvars]
         return state_vars
-        
+
     def getAxis(self, axis, elt):
         """getAxis get an axis (dimension info) for an element
 
