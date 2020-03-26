@@ -100,7 +100,7 @@ Available commands are:
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.create(datasetId=args.id, metadata=metadata)
-        print(ds.id)
+        print(ds.__id__)
 
     def remove(self):
         parser = core_parser(
