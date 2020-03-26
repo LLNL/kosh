@@ -99,7 +99,8 @@ Available commands are:
         metadata = parse_metadata(metadata)
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
-        store.create(datasetId=args.id, metadata=metadata)
+        ds = store.create(datasetId=args.id, metadata=metadata)
+        print(ds.__id__)
 
     def remove(self):
         parser = core_parser(
