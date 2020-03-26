@@ -146,10 +146,24 @@ class KoshDataset(object):
         if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
                 len(self._associated_data_))
+            # Let's organize per mime_type
+            associated = {}
             for a in self._associated_data_:
-                st2 = str(self.open(a))
-                st += "\n\t".join(st2.split("\n"))
+                a_obj = self.__store__._load(a)
+                st2 = f"{a_obj.uri} ( {a} )"
+                if a_obj.mime_type not in associated:
+                    associated[a_obj.mime_type] = [st2, ]
+                else:
+                    associated[a_obj.mime_type].append(st2)
+            for mime in sorted(associated):
+                st += f"\tMime_type: {mime}"
+                for uri in sorted(associated[mime]):
+                    st += f"\n\t\t{uri}"
+                st += "\n"
         return st
+
+    def _repr_pretty_(self, p, cycle):
+        p.text(self.__str__())
 
     def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
