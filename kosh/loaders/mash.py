@@ -231,6 +231,14 @@ class MashReader(object):
                 data = tmp
             else:
                 data = numpy.concatenate((data, tmp), axis=1)
+        return data
+
+    get = get_elements
+
+    def gather_mpi_processors(self, data):
+        """After a get was issued accross multiple processor, this function gathers them all on rk 0"""
+        size = comm.Get_size()
+        rank = comm.Get_rank()
         if rank != 0:
             # we need to send the sahpe so we can prepare the receive on rk 0
             if data is not None:
@@ -268,10 +276,6 @@ class MashReader(object):
                 out[:, start:start+sh[1]] = empty
         if rank == 0:
             return out
-        else:
-            return
-
-    get = get_elements
 
     def getStateVariables(self):
         """getStateVariables return a dictionary of all state variables
