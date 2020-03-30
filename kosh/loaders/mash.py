@@ -5,6 +5,20 @@ import ExtractReader
 import numpy
 from kosh.arrays import KoshAxis
 from .core import KoshLoader
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    hasMpi = True
+except ImportError:
+    # no mpi
+    # we'll fake it
+    class Comm():
+        def Get_size(self):
+            return 1
+        def Get_rank(self):
+            return 0
+    comm = Comm()
+    hasMPI = False
 
 
 class MashReader(object):
@@ -138,7 +152,16 @@ class MashReader(object):
 
         data = None
         retrieved_elements = []
-        for proc in processors:
+        # ok let's split along available processor
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        slices = len(processors) // size
+        if len(processors) % size != 0 :
+            slices += 1
+        print(f"Rk: {rank} Sz: {size} Slices {slices}" )
+        for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
+            print(f"Rank {rank} reading {proc} space: ({rank*slices} ->  {min((rank+1)*slices, len(processors))}")
+            sys.stdout.flush()
             if "elements" in kargs:
                 del(kargs["elements"])
             if elements is not None:
@@ -207,7 +230,51 @@ class MashReader(object):
                 data = tmp
             else:
                 data = numpy.concatenate((data, tmp), axis=1)
-        return data
+        if rank !=0:
+            # we need to send the sahpe so we can prepare the receive on rk 0
+            if data is not None:
+                print("sending array of shape", data.shape, "and type:", data.dtype, "from rank:", rank)
+                sys.stdout.flush()
+                comm.send(data.shape, dest=0, tag=10)
+                comm.Send(data, dest=0, tag=11)
+            else:
+                print("Rk:", rank, "Sending back None")
+                sys.stdout.flush()
+                comm.send(data, dest=0, tag=10)
+        else:
+            sh = list(data.shape)
+            shapes = [sh,]
+            total = sh[1]
+            for rk in range(1, size):
+                shp = comm.recv(source=rk, tag=10)
+                print("Received", shp, "from rank", rk)
+                sys.stdout.flush()
+                shapes.append(shp)
+                if shp is not None:
+                    total += shp[1]
+            # We are on first proc let's concatenenate all
+            sh[1] = total
+            out = numpy.empty(sh, data.dtype)
+            print("Allocated out array of size:", sh)
+            out[:, :data.shape[1]] = data[:]
+            print(total, "SHPES:", shapes)
+            sys.stdout.flush()
+            print("rk0 shape:", sh, data.dtype)
+            start = data.shape[1]
+            for rk in range(1, size):
+                sh = shapes[rk]
+                if sh is None:
+                    continue
+                empty = numpy.empty(sh, dtype=data.dtype)
+                comm.Recv(empty, source=rk, tag=11)
+                out[:, start:start+sh[1]] = empty
+                print(rk, "Shape:" ,empty.shape, start, start+sh[1])
+        print("BARRIER:", rank)
+        comm.Barrier()
+        if rank == 0:
+            return out
+        else:
+            return
 
     get = get_elements
 
