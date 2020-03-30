@@ -15,6 +15,7 @@ except ImportError:
     class Comm():
         def Get_size(self):
             return 1
+
         def Get_rank(self):
             return 0
     comm = Comm()
@@ -156,7 +157,7 @@ class MashReader(object):
         size = comm.Get_size()
         rank = comm.Get_rank()
         slices = len(processors) // size
-        if len(processors) % size != 0 :
+        if len(processors) % size != 0:
             slices += 1
         for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
             if proc == slices:
@@ -230,7 +231,7 @@ class MashReader(object):
                 data = tmp
             else:
                 data = numpy.concatenate((data, tmp), axis=1)
-        if rank !=0:
+        if rank != 0:
             # we need to send the sahpe so we can prepare the receive on rk 0
             if data is not None:
                 print("sending array of shape", data.shape, "and type:", data.dtype, "from rank:", rank)
@@ -243,7 +244,7 @@ class MashReader(object):
                 comm.send(data, dest=0, tag=10)
         else:
             sh = list(data.shape)
-            shapes = [sh,]
+            shapes = [sh, ]
             total = sh[1]
             for rk in range(1, size):
                 shp = comm.recv(source=rk, tag=10)
