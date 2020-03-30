@@ -158,10 +158,10 @@ class MashReader(object):
         slices = len(processors) // size
         if len(processors) % size != 0 :
             slices += 1
-        print(f"Rk: {rank} Sz: {size} Slices {slices}" )
         for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
-            print(f"Rank {rank} reading {proc} space: ({rank*slices} ->  {min((rank+1)*slices, len(processors))}")
-            sys.stdout.flush()
+            if proc == slices:
+                print(f"Rank {rank} reading {proc} space: ({rank*slices} ->  {min((rank+1)*slices, len(processors))}")
+                sys.stdout.flush()
             if "elements" in kargs:
                 del(kargs["elements"])
             if elements is not None:
@@ -255,11 +255,8 @@ class MashReader(object):
             # We are on first proc let's concatenenate all
             sh[1] = total
             out = numpy.empty(sh, data.dtype)
-            print("Allocated out array of size:", sh)
             out[:, :data.shape[1]] = data[:]
-            print(total, "SHPES:", shapes)
             sys.stdout.flush()
-            print("rk0 shape:", sh, data.dtype)
             start = data.shape[1]
             for rk in range(1, size):
                 sh = shapes[rk]
@@ -268,9 +265,6 @@ class MashReader(object):
                 empty = numpy.empty(sh, dtype=data.dtype)
                 comm.Recv(empty, source=rk, tag=11)
                 out[:, start:start+sh[1]] = empty
-                print(rk, "Shape:" ,empty.shape, start, start+sh[1])
-        print("BARRIER:", rank)
-        comm.Barrier()
         if rank == 0:
             return out
         else:
