@@ -13,11 +13,14 @@ def core_parser(description,
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=description,
-        usage=usage)
+        usage=usage,
+        epilog=f"Kosh version {kosh.__version__}")
     parser.add_argument("--store", "-s", required=True,
                         help="Kosh store to use")
     parser.add_argument("--dataset_record_type", "-d", default="dataset",
                         help="type used by sina db that Kosh will recognize as dataset")
+    parser.add_argument("--version", "-v", action="store_true",
+                        help="print version and exit")
     return parser
 
 
@@ -63,6 +66,12 @@ Available commands are:
     {commands}
 ''')
         parser.add_argument('command', help='Subcommand to run')
+        # first we parse all of it to catch --version
+        args, _ = parser.parse_known_args(sys.argv + ["-s", "blah"])
+        if args.version:
+            print("Kosh version:", kosh.__version__)
+            sys.exit(0)
+        # Ok now we parse only the rest to catch the command
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
         args = parser.parse_args(sys.argv[1:2] + ["-s", "blah"])
