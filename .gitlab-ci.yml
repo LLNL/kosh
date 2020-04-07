@@ -1,5 +1,5 @@
 stages:
-  - build   #collect metrics on files
+  - build   #collect metrics on files.
   - test   #inspect/analyze collected metrics
 
 Collect Metrics:
