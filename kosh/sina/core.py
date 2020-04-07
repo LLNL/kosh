@@ -115,7 +115,7 @@ class KoshSinaObject(object):
             self.schema.validate_attribute(name, value)
 
         # Did it change on db since we last read it?
-        last_modif_att = f"{name}_last_modified"
+        last_modif_att = "{name}_last_modified".format(name=name)
         try:
             # Time we last read its value
             last = self.__dict__[last_modif_att]
@@ -135,7 +135,7 @@ class KoshSinaObject(object):
                                      last_db, record["data"][name],
                                      last, getattr(self, name)))
         now = time.time()
-        if f"{name}_last_modified" not in self.__protected__:
+        if "{name}_last_modified".format(name=name) not in self.__protected__:
             self.__dict__["__protected__"] += [last_modif_att, ]
         self.__dict__[last_modif_att] = now
         record["user_defined"][last_modif_att] = now
@@ -156,7 +156,7 @@ class KoshSinaObject(object):
         if name in self.__protected__:
             return
         record = self.get_record()
-        last_modif_att = f"{name}_last_modified"
+        last_modif_att = "{name}_last_modified".format(name=name)
         now = time.time()
         record["user_defined"][last_modif_att] = now
         del(record["data"][name])
@@ -252,10 +252,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if uri not in rec["files"]:
             # Not associated with this uri anyway
             return
-        kosh_id = rec["files"][uri]["kosh_id"]
+        kosh_id = str(rec["files"][uri]["kosh_id"])
         del(rec["files"][uri])
         now = time.time()
-        rec["user_defined"][f"{uri}___associated_last_modified"] = now
+        rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
         if self.__store__.__sync__:
             self.__record_handler__.delete(rec.id)
             self.__record_handler__.insert(rec)
@@ -302,7 +302,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         rec["files"][uri]["kosh_id"] = kosh_file.__id__
         # Need to remember we touched associated files
         now = time.time()
-        rec["user_defined"][f"{uri}___associated_last_modified"] = now
+        rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
         if hasattr(kosh_file, "associated"):
             st = set(kosh_file.associated)
             st.add(self.__id__)
@@ -378,7 +378,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if ids_only:
             return list(inter_recs)
         else:
-            return [self.__store__._load(rec) for rec in inter_recs]
+            return [self.__store__._load(record) for record in inter_recs]
 
 
 class KoshSinaLoader(KoshLoader):

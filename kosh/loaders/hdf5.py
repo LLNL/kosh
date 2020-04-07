@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import h5py
 import re
 from .core import KoshLoader
@@ -63,12 +64,12 @@ class KoshHDF5Loader(KoshLoader):
             feat = " ".join(feat.split(" ")[:-2])
         restart = kargs.pop("restart", None)
         if restart is not None:
-            if f"{restart:03d}/" not in feat:
+            if "{restart:03d}/".format(restart=restart) not in feat:
                 feat = feat.split("/")
                 if len(feat) > 1:
-                    feat = "/".join([feat[0], f"{restart:03d}"] + feat[1:])
+                    feat = "/".join([feat[0], "{restart:03d}".format(restart=restart)] + feat[1:])
                 else:
-                    feat = f"{restart:03d}/{feat[0]}"
+                    feat = "{restart:03d}/{feat[0]}".format(restart=restart, feat=feat)
 
         self.feature = feat
 
@@ -145,10 +146,10 @@ class KoshHDF5Loader(KoshLoader):
                     # Ok it's a restart we need to match cycles/restart file
                     my_restart = restart.group()
                     if my_restart[0] != "/":
-                        my_restart = f"/{my_restart}"
+                        my_restart = "/{my_restart}".format(my_restart=my_restart)
                     restarts = {}
                     restart = int(my_restart[1:-1])
-                    cycles = f[f"{my_restart}/cycles"]
+                    cycles = f["{my_restart}/cycles".format(my_restart=my_restart)]
                     restarts[restart] = {"first": cycles[0],
                                          "cycles": cycles[:],
                                          "feature": self.feature}
@@ -156,8 +157,8 @@ class KoshHDF5Loader(KoshLoader):
                     restart -= 1
                     while restart > 0:
                         feature = self.feature.replace(
-                            my_restart, f"/{restart:03d}/")
-                        cycles = f[f"{restart:03d}/cycles"]
+                            my_restart, "/{restart:03d}/".format(restart=restart))
+                        cycles = f["{restart:03d}/cycles".format(restart=restart)]
                         if cycles[0] < restarts[last_valid_restart]["first"]:
                             restarts[restart] = {"first": cycles[0],
                                                  "cycles": cycles[:],
@@ -299,10 +300,10 @@ class KoshHDF5Loader(KoshLoader):
             for dup in restart_features:
                 try:
                     indx = feat.index(dup)
-                    feat[indx] = feat[indx] + f" ({n} restarts)"
+                    feat[indx] = feat[indx] + " ({n} restarts)".format(n=n)
                 except Exception:
                     # weird case when original run neg node relaxer
-                    feat.append(dup+f" ({n} restarts but not used on original set)")
+                    feat.append(dup+" ({n} restarts but not used on original set)".format(n=n))
             features = feat
         if group is not None:
             feats = []
@@ -322,7 +323,7 @@ class KoshHDF5Loader(KoshLoader):
         """
         features = self.list_features()
         if feature not in features and feature not in self.list_features(restarts=True):
-            raise ValueError(f"feature {feature} is not available")
+            raise ValueError("feature {feature} is not available".format(feature=feature))
 
         info = {}
         with h5py.File(self.obj.uri, "r") as f:

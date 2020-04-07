@@ -56,7 +56,7 @@ class PGMLoader(KoshLoader):
                 data = numpy.frombuffer(
                     f.read(), dtype='u1' if max_value < 256 else 'u2', count=n).reshape(h, w)
             else:
-                raise ValueError(f"Cannot read pgm magic number {magic}")
+                raise ValueError("Cannot read pgm magic number {magic}".format(magic=magic))
 
         return data
 
@@ -91,6 +91,6 @@ class PGMLoader(KoshLoader):
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
             else:
-                raise ValueError(f"Cannot read pgm magic number {magic}")
+                raise ValueError("Cannot read pgm magic number {magic}".format(magic=magic))
 
-        return {"size": (h, w), "format": f"pgm ({magic})", "max_value": max_value}
+        return {"size": (h, w), "format": "pgm ({magic})".format(magic=magic), "max_value": max_value}
