@@ -1,6 +1,5 @@
 import os
 from koshbase import KoshTest
-import kosh
 import time
 from sina.utils import DataRange
 

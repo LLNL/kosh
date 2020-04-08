@@ -93,10 +93,13 @@ extract: function to extract a given feature (or list of) from the object.
          necessary parameters will be available in loader under self._user_passed_parameters.
          'extract' is called from the loader's get function, AFTER the preprocess function and BEFORE the psotprocess function.
          We recommend extract to return a pointer to the data rather than the data itself.
+         feature, format and user arguments (args/kargs) are stored on the object and accessible via:
+         self.format, self.feature, self._user_passed_parameters
+         no arguments are expected
 
 Optional functions that can be implemented are:
 
-preprocess: usually a setup func to stage extract
-postprocess: a final function to further clean data returned from extract
+preprocess: usually a setup func to stage extract, no arguments are expected, instead access: self._user_passed_parameters
+postprocess: a final function to further clean data returned from extract, no arguments are expected, instead access: self._user_passed_parameters
 
 get: can be re-impemented but it is not recommended

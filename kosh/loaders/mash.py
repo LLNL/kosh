@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import os
 import sys
 sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
@@ -5,6 +6,21 @@ import ExtractReader
 import numpy
 from kosh.arrays import KoshAxis
 from .core import KoshLoader
+try:
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    hasMpi = True
+except ImportError:
+    # no mpi
+    # we'll fake it
+    class Comm():
+        def Get_size(self):
+            return 1
+
+        def Get_rank(self):
+            return 0
+    comm = Comm()
+    hasMPI = False
 
 
 class MashReader(object):
@@ -23,14 +39,17 @@ class MashReader(object):
         self.metrics_avail = {}
         self.proc_ids = {}
         self.ids = {}
-        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
-            metrics_avail, proc_ids = self.__query(elt)
-            self.proc_ids[elt] = proc_ids
-            self.metrics_avail[elt] = metrics_avail
-            ids = []
-            for lst in proc_ids:
-                ids += lst
-            self.ids[elt] = ids
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "srd", "drd"]:
+            try:
+                metrics_avail, proc_ids = self.__query(elt)
+                self.proc_ids[elt] = proc_ids
+                self.metrics_avail[elt] = metrics_avail
+                ids = []
+                for lst in proc_ids:
+                    ids += lst
+                self.ids[elt] = ids
+            except Exception:
+                pass
 
     def __query(self, elt_type):
         """__query Retrieve certain cycle/metrics
@@ -46,7 +65,11 @@ class MashReader(object):
             metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
         elif elt_type == "scalarRlxData":
             metrics_avail = self.reader.scalar_rlx
+        elif elt_type == "srd":  # old name
+            metrics_avail = self.reader.scalar_rlx
         elif elt_type == "dimRlxData":
+            metrics_avail = self.reader.dim_rlx
+        elif elt_type == "drd":  # old name
             metrics_avail = self.reader.dim_rlx
         else:
             raise RuntimeError("unknow elt type:", elt_type)
@@ -56,7 +79,7 @@ class MashReader(object):
         proc_ids = []
         n_elements = 0
         for proc in processors:
-            if elt_type in ["scalarRlxData", "dimRlxData", "node"]:
+            if elt_type in ["scalarRlxData", "dimRlxData", "node", "srd", "drd"]:
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
@@ -131,7 +154,18 @@ class MashReader(object):
 
         data = None
         retrieved_elements = []
-        for proc in processors:
+        # ok let's split along available processor
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        slices = len(processors) // size
+        if len(processors) % size != 0:
+            slices += 1
+        for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
+            if proc == slices:
+                print("Rank {} reading {} space: ({} ->  {})".format(rank,
+                                                                     proc, rank * slices,
+                                                                     min((rank+1)*slices, len(processors))))
+                sys.stdout.flush()
             if "elements" in kargs:
                 del(kargs["elements"])
             if elements is not None:
@@ -146,16 +180,16 @@ class MashReader(object):
                 retrieved_elements += elt
                 kargs["elements"] = elt
                 if cycles is None:  # need to create cycles
-                    cycles = list(range(self.reader.num_cycles))
+                    cycles = self.getStateVariables()["cycle"]
                     kargs["cycles"] = cycles
             else:
                 n_elements = len(proc_ids[proc])
             if "metrics" in kargs:
                 n_metrics_avail == len(metrics)
             # Final shape for one processor
-            if elt_type in ["zone", "node", "scalarRlxData"]:
+            if elt_type in ["zone", "node", "scalarRlxData", "srd"]:
                 sh = [n_cycles, n_elements, n_metrics_avail]
-            elif elt_type == "dimRlxData":
+            elif elt_type in ["dimRlxData", "drd"]:
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
             if elt_type in ["zone", "node"]:
                 use_ext = "{} metric".format(elt_type)
@@ -204,6 +238,63 @@ class MashReader(object):
 
     get = get_elements
 
+    def gather_mpi_processors(self, data):
+        """After a get was issued accross multiple processor, this function gathers them all on rk 0"""
+        size = comm.Get_size()
+        rank = comm.Get_rank()
+        if rank != 0:
+            # we need to send the sahpe so we can prepare the receive on rk 0
+            if data is not None:
+                print("sending array of shape", data.shape, "and type:", data.dtype, "from rank:", rank)
+                sys.stdout.flush()
+                comm.send(data.shape, dest=0, tag=10)
+                comm.Send(data, dest=0, tag=11)
+            else:
+                print("Rk:", rank, "Sending back None")
+                sys.stdout.flush()
+                comm.send(data, dest=0, tag=10)
+        else:
+            sh = list(data.shape)
+            shapes = [sh, ]
+            total = sh[1]
+            for rk in range(1, size):
+                shp = comm.recv(source=rk, tag=10)
+                print("Received", shp, "from rank", rk)
+                sys.stdout.flush()
+                shapes.append(shp)
+                if shp is not None:
+                    total += shp[1]
+            # We are on first proc let's concatenenate all
+            sh[1] = total
+            out = numpy.empty(sh, data.dtype)
+            out[:, :data.shape[1]] = data[:]
+            sys.stdout.flush()
+            start = data.shape[1]
+            for rk in range(1, size):
+                sh = shapes[rk]
+                if sh is None:
+                    continue
+                empty = numpy.empty(sh, dtype=data.dtype)
+                comm.Recv(empty, source=rk, tag=11)
+                out[:, start:start+sh[1]] = empty
+        if rank == 0:
+            return out
+
+    def getStateVariables(self):
+        """getStateVariables return a dictionary of all state variables
+        usually cycles and time
+
+        return: dictionary containing var:array
+        rtype: dict
+        """
+        state = os.path.join(self.reader.ext_path, "state.bin")
+        data = numpy.fromfile(state, dtype=self.reader.state_dtype)
+        state_vars = {}
+        nvars = len(self.reader.state_vars)
+        for i, v in enumerate(self.reader.state_vars):
+            state_vars[v] = data[i::nvars]
+        return state_vars
+
     def getAxis(self, axis, elt):
         """getAxis get an axis (dimension info) for an element
 
@@ -222,8 +313,7 @@ class MashReader(object):
                 "Invalid axis {}, available axes are: {}".format(
                     axis, good_axes))
         if axis == "cycles":
-            return KoshAxis(axis, list(range(int(self.reader.cycle_range[0]),
-                                             int(self.reader.cycle_range[0]) + self.reader.num_cycles)))
+            return KoshAxis(axis, self.getStateVariables()["cycle"])
         elif axis == "elements":
             return KoshAxis(axis, self.ids[elt])
         elif axis == "metrics":
@@ -286,20 +376,18 @@ class MashLoader(KoshLoader):
         :return: MashReader
         :rtype: MashReader
         """
-        return MashReader(self.obj.uri)
+        return MashReader(str(self.obj.uri))
 
-    def get(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
-        :param feature: in this case element/metric
-        :type feature: str
-        :param format: desired output format (numpy only for now)
-        :type format: str
+        feature and format come from "self"
         :return: numpy array
         :rtype: numpy.ndarray
         """
+        args, kargs = self._user_passed_parameters
         reader = self.open()
-        return reader.get(feature, *args, **kargs)
+        return reader.get(self.feature, *args, **kargs)
 
     def list_features(self):
         """list_features lists features available
@@ -324,7 +412,7 @@ class MashLoader(KoshLoader):
         :rtype: dict
         """
         if feature not in self.list_features():
-            raise ValueError(f"feature {feature} is not available")
+            raise ValueError("feature {feature} is not available".format(feature=feature))
         reader = self.open()
         sp = feature.split("/")
         axes = reader.getAxisList(sp[0])
