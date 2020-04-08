@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 from koshbase import KoshTest
 import kosh
@@ -31,13 +32,13 @@ class KoshTestDataset(KoshTest):
         with self.assertRaises(AttributeError) as err:
             print(ds.person)
         # Protected Attributes
-        self.assertEqual(ds.__type__, "dataset")
+        self.assertEqual(ds.__type__, store._dataset_record_type)
         # Make sure you can't change it
         ds.__type__ = "another_type"
-        self.assertEqual(ds.__type__, "dataset")
+        self.assertEqual(ds.__type__, store._dataset_record_type)
         # Make sure you cannot delete it
         del(ds.__type__)
-        self.assertEqual(ds.__type__, "dataset")
+        self.assertEqual(ds.__type__, store._dataset_record_type)
         printTestResults = """\
 KOSH DATASET
         id: {id}
@@ -162,8 +163,5 @@ KOSH DATASET
         self.assertEqual(len(store.search(project="test")), 2)
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
-
-
-
         os.remove(kosh_db)
 

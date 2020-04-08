@@ -31,13 +31,9 @@ class PGMLoader(KoshLoader):
         """
         return open(self.obj.uri, mode)
 
-    def extract(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
-        :param feature: in this case element/metric
-        :type feature: str
-        :param format: desired output format
-        :type format: str
         :return: numpy array
         :rtype: numpy.ndarray
         """
@@ -60,7 +56,7 @@ class PGMLoader(KoshLoader):
                 data = numpy.frombuffer(
                     f.read(), dtype='u1' if max_value < 256 else 'u2', count=n).reshape(h, w)
             else:
-                raise ValueError(f"Cannot read pgm magic number {magic}")
+                raise ValueError("Cannot read pgm magic number {magic}".format(magic=magic))
 
         return data
 
@@ -95,6 +91,6 @@ class PGMLoader(KoshLoader):
                 w, h = [int(x) for x in dims.split()]
                 max_value = int(read_chunk(f))
             else:
-                raise ValueError(f"Cannot read pgm magic number {magic}")
+                raise ValueError("Cannot read pgm magic number {magic}".format(magic=magic))
 
-        return {"size": (h, w), "format": f"pgm ({magic})", "max_value": max_value}
+        return {"size": (h, w), "format": "pgm ({magic})".format(magic=magic), "max_value": max_value}

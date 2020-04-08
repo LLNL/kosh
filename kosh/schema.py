@@ -31,7 +31,7 @@ def validate_value(value, validation):
     if callable(validation):
         res = validation(value)
         if not res:
-            raise ValueError(f"value {value} failed validation")
+            raise ValueError("value {value} failed validation".format(value=value))
     elif isinstance(validation, list):
         success = False
         for item in validation:  # Loop thru elements to get a possible success
@@ -49,7 +49,7 @@ def validate_value(value, validation):
                 break  # no need to check further
 
         if not success:  # All options failed
-            raise ValueError(f"Could not validate value '{value}'")
+            raise ValueError("Could not validate value '{value}'".format(value=value))
     return True
 
 

@@ -25,7 +25,7 @@ class PILLoader(KoshLoader):
         """
         return Image.open(self.obj.uri)
 
-    def extract(self, feature, format, *args, **kargs):
+    def extract(self):
         """get a feature
 
         :param feature: in this case element/metric
@@ -35,9 +35,9 @@ class PILLoader(KoshLoader):
         :return: numpy array
         :rtype: numpy.ndarray
         """
-        if format == "numpy":
+        if self.format == "numpy":
             return numpy.array(self.open())
-        elif format == "bytes":
+        elif self.format == "bytes":
             obj = self.open()
             raw = obj.tobytes()
             return raw

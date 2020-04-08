@@ -19,7 +19,9 @@ class KoshAgent(object):
     """Class to manage permissions etc..."""
 
 
-class KoshStoreClass(object, metaclass=ABCMeta):
+class KoshStoreClass(object):
+    __metaclass__ = ABCMeta
+
     def __init__(self, sync):
         self.loaders = {}
         self.storeLoader = KoshLoader
@@ -128,8 +130,14 @@ class KoshDataset(object):
         st = ""
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.__id__)
-        st += "\tname:{}\n".format(self.__name__)
-        st += "\tcreator: {}\n".format(self.__creator__)
+        try:
+            st += "\tname:{}\n".format(self.__name__)
+        except Exception:
+            st += "\tname:???\n"
+        try:
+            st += "\tcreator: {}\n".format(self.__creator__)
+        except Exception:
+            st += "\tcreator: ???\n"
         atts = self.__attributes__
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
@@ -140,12 +148,26 @@ class KoshDataset(object):
         if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
                 len(self._associated_data_))
+            # Let's organize per mime_type
+            associated = {}
             for a in self._associated_data_:
-                st2 = str(self.open(a))
-                st += "\n\t".join(st2.split("\n"))
+                a_obj = self.__store__._load(a)
+                st2 = "{a_obj.uri} ( {a} )".format(a_obj=a_obj, a=a)
+                if a_obj.mime_type not in associated:
+                    associated[a_obj.mime_type] = [st2, ]
+                else:
+                    associated[a_obj.mime_type].append(st2)
+            for mime in sorted(associated):
+                st += "\tMime_type: {mime}".format(mime=mime)
+                for uri in sorted(associated[mime]):
+                    st += "\n\t\t{uri}".format(uri=uri)
+                st += "\n"
         return st
 
-    def open(self, Id=None, loader=None):
+    def _repr_pretty_(self, p, cycle):
+        p.text(self.__str__())
+
+    def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
 
         :param Id: id of object to open, defaults to None which means first one.
@@ -162,8 +184,8 @@ class KoshDataset(object):
                 for Id in self._associated_data_:
                     return self.__store__.open(Id, loader)
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
-        return self.__store__.open(Id, loader)
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
+        return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
@@ -190,24 +212,26 @@ class KoshDataset(object):
                     these_features = ld.list_features(*args, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
-                            ided_features.append(f"{feature}_{obj.uri}")
+                            ided_features.append("{feature}_{obj.uri}".format(feature=feature, obj=obj))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             ld = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
         return features
 
-    def describe_feature(self, feature, Id=None):
+    def describe_feature(self, feature, Id=None, **kargs):
         """describe a feature
 
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
         :param Id: id of associated object to get list of features from, defaults to None which means all
         :type Id: str, optional
+        :param kargs: keywords to pass to list_features (optional)
+        :type kargs: keyword=value
         :raises RuntimeError: object id not associated with dataset
         :return: dictionary describing the feature
         :rtype: dict
@@ -216,12 +240,12 @@ class KoshDataset(object):
         if Id is None:
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
-                if feature in ld.list_features() or \
-                        feature[:-len(ld.obj.uri)-1] in ld.list_features():
+                if feature in ld.list_features(**kargs) or \
+                        feature[:-len(ld.obj.uri)-1] in ld.list_features(**kargs):
                     loader = ld
                     break
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             loader = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
@@ -247,6 +271,7 @@ class KoshDataset(object):
                 out.append(self.get(Id=None, feature=feat, format=format, loader=loader, *args, **kargs))
             return out
         possible_ids = []
+        possible_formats = []
         # we need to figure which associated data has the feature
         if Id is None:
             for a in self._associated_data_:
@@ -255,24 +280,29 @@ class KoshDataset(object):
                         feature is None or\
                         feature[:-len(ld.obj.uri)-1] in ld.list_features():
                     possible_ids.append(a)
+            if possible_ids == []:  # All failed but could be something about the feature
+                possible_ids = self._associated_data_[:1]
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             possible_ids = [Id, ]
-        possible_formats = []
-        err = None
+        error = None
         for Id in possible_ids:
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                return ld.get(feature, format, *args, **kargs)
+                tmp = ld.get(feature, format, *args, **kargs)
+                return tmp
             except Exception as err:  # noqa
+                error = err
+                import traceback
+                traceback.print_exc()
                 pass
-        msg = f"could not get feature '{feature}'"
-        msg += f" from dataset '{self.__id__}' in format {format},"
-        msg += f" possible formats are: {possible_formats}"
-        if err is not None:
-            msg += f"\nError: {err}"
+        msg = "could not get feature '{feature}'".format(feature=feature)
+        msg += " from dataset '{self.__id__}' in format {format},".format(self=self)
+        msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
+        if error is not None:
+            msg += "\nError: {error}".format(error=error)
         raise Exception(msg)
 
     def __dir__(self):

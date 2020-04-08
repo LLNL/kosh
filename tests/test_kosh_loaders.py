@@ -2,7 +2,7 @@ import os
 from koshbase import KoshTest
 import kosh
 import numpy
-
+import h5py
 
 class KoshTestLoaders(KoshTest):
     def test_loader(self):
@@ -58,7 +58,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["format"], "pgm (P2)")
         self.assertEqual(info["max_value"], 255)
         ds.associate("tests/baselines/images/wci_logo.gif", mime_type="gif")
-        self.assertEqual(ds.list_features(), ['image_tests/baselines/images/brain_398.ascii.pgm',
+        self.assertEqual(sorted(ds.list_features()), ['image_tests/baselines/images/brain_398.ascii.pgm',
                                               'image_tests/baselines/images/wci_logo.gif'])  # URI is now added to feature to deambiguous them
         info = ds.describe_feature("image_tests/baselines/images/wci_logo.gif")
         self.assertEqual(info["size"], (595, 517))
@@ -79,8 +79,7 @@ class KoshTestLoaders(KoshTest):
                              'node/metrics_7', 'node/metrics_8', 'node/metrics_9',
                              'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
                           'zone/metrics_3', 'zone/metrics_4'])
-
-        features = sorted(ds.list_features(None,"node"))
+        features = sorted(ds.list_features(None, group="node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
@@ -101,6 +100,13 @@ class KoshTestLoaders(KoshTest):
         info = ds.describe_feature("node/metrics_1")
         self.assertEqual(info["size"], (2,18))
         self.assertEqual(info["format"], "hdf5")
+        h5 = ds.open(mode="r")
+        self.assertIsInstance(h5, h5py._hl.files.File)
+        self.assertEqual(h5.mode, "r")
+        h5.close()
+        h5 = ds.open(mode="r+")
+        self.assertEqual(h5.mode, "r+")
+        h5.close()
         os.remove(kosh_db)
 
 
@@ -124,11 +130,9 @@ class KoshTestLoaders(KoshTest):
                                                             'node pressure', 'node temperature',
                                                             'node velocity', 'skew', 'stretch', 'taper',
                                                             'average energy', 'zone pressure'],
-                                                   'scalarRlxData': [], 'dimRlxData': []})
-        self.assertEqual(mash_file.proc_ids, {'zone': [[20, 21, 22, 23]], 'node': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'scalarRlxData': [
-                         [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'dimRlxData': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]]})
-        self.assertEqual(mash_file.ids, {'zone': [20, 21, 22, 23], 'node': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'scalarRlxData': [
-                         10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'dimRlxData': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]})
+                                                   'scalarRlxData': [], 'dimRlxData': [], 'srd': [], 'drd': []})
+        self.assertEqual(mash_file.proc_ids, {'zone': [[20, 21, 22, 23]], 'node': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'scalarRlxData': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'dimRlxData': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'srd': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]], 'drd': [[10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]]})
+        self.assertEqual(mash_file.ids, {'zone': [20, 21, 22, 23], 'node': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'scalarRlxData': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'dimRlxData': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'srd': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27], 'drd': [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27]})
         data = mash_file.get("zone/skew")
         self.assertEqual(data.shape, (2, 4, 1))
         data = mash_file.get("zone/skew", cycles=[1, ])
@@ -151,3 +155,9 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual([a.id for a in axes], [
                          "cycles", "elements", "metrics"])
         os.remove(kosh_db)
+
+    def test_mash_reader_state(self):
+        reader = kosh.loaders.mash.MashReader("tests/baselines/mash/node_extracts2")
+        state = reader.getStateVariables()
+        self.assertTrue("cycle" in state)
+        self.assertTrue(numpy.allclose(state["cycle"], [0, 1.]))
