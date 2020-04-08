@@ -1,9 +1,8 @@
 
-import os
+from __future__ import print_function
 from koshbase import KoshTest
-import kosh
 import numpy
-import h5py
+
 
 class KoshTestLoaders(KoshTest):
     def test_restart_loader(self):

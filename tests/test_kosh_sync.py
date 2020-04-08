@@ -1,6 +1,5 @@
 import os
 from koshbase import KoshTest
-import kosh
 import time
 from sina.utils import DataRange
 
@@ -47,7 +46,6 @@ class KoshTestSync(KoshTest):
 
         s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 1)
-        print("STROE SERCH:", s[0].__id__)
         s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
         self.assertEqual(len(s), 2)
         store2.sync()

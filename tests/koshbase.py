@@ -1,8 +1,5 @@
 import unittest
 import os
-import sys
-import shlex
-from subprocess import PIPE, Popen
 from kosh import KoshStore
 import kosh
 import uuid

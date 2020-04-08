@@ -58,7 +58,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["format"], "pgm (P2)")
         self.assertEqual(info["max_value"], 255)
         ds.associate("tests/baselines/images/wci_logo.gif", mime_type="gif")
-        self.assertEqual(ds.list_features(), ['image_tests/baselines/images/brain_398.ascii.pgm',
+        self.assertEqual(sorted(ds.list_features()), ['image_tests/baselines/images/brain_398.ascii.pgm',
                                               'image_tests/baselines/images/wci_logo.gif'])  # URI is now added to feature to deambiguous them
         info = ds.describe_feature("image_tests/baselines/images/wci_logo.gif")
         self.assertEqual(info["size"], (595, 517))

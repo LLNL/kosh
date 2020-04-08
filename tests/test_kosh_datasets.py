@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 from koshbase import KoshTest
 import kosh

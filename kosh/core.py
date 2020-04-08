@@ -19,7 +19,9 @@ class KoshAgent(object):
     """Class to manage permissions etc..."""
 
 
-class KoshStoreClass(object, metaclass=ABCMeta):
+class KoshStoreClass(object):
+    __metaclass__ = ABCMeta
+
     def __init__(self, sync):
         self.loaders = {}
         self.storeLoader = KoshLoader
@@ -150,15 +152,15 @@ class KoshDataset(object):
             associated = {}
             for a in self._associated_data_:
                 a_obj = self.__store__._load(a)
-                st2 = f"{a_obj.uri} ( {a} )"
+                st2 = "{a_obj.uri} ( {a} )".format(a_obj=a_obj, a=a)
                 if a_obj.mime_type not in associated:
                     associated[a_obj.mime_type] = [st2, ]
                 else:
                     associated[a_obj.mime_type].append(st2)
             for mime in sorted(associated):
-                st += f"\tMime_type: {mime}"
+                st += "\tMime_type: {mime}".format(mime=mime)
                 for uri in sorted(associated[mime]):
-                    st += f"\n\t\t{uri}"
+                    st += "\n\t\t{uri}".format(uri=uri)
                 st += "\n"
         return st
 
@@ -182,7 +184,7 @@ class KoshDataset(object):
                 for Id in self._associated_data_:
                     return self.__store__.open(Id, loader)
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, *args, **kargs):
@@ -210,12 +212,12 @@ class KoshDataset(object):
                     these_features = ld.list_features(*args, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
-                            ided_features.append(f"{feature}_{obj.uri}")
+                            ided_features.append("{feature}_{obj.uri}".format(feature=feature, obj=obj))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             ld = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
@@ -243,7 +245,7 @@ class KoshDataset(object):
                     loader = ld
                     break
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             loader = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
@@ -281,7 +283,7 @@ class KoshDataset(object):
             if possible_ids == []:  # All failed but could be something about the feature
                 possible_ids = self._associated_data_[:1]
         elif Id not in self._associated_data_:
-            raise RuntimeError(f"object {Id} is not associated with this dataset")
+            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             possible_ids = [Id, ]
         error = None
@@ -296,11 +298,11 @@ class KoshDataset(object):
                 import traceback
                 traceback.print_exc()
                 pass
-        msg = f"could not get feature '{feature}'"
-        msg += f" from dataset '{self.__id__}' in format {format},"
-        msg += f" possible formats are: {possible_formats}"
+        msg = "could not get feature '{feature}'".format(feature=feature)
+        msg += " from dataset '{self.__id__}' in format {format},".format(self=self)
+        msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
         if error is not None:
-            msg += f"\nError: {error}"
+            msg += "\nError: {error}".format(error=error)
         raise Exception(msg)
 
     def __dir__(self):

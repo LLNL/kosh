@@ -1,3 +1,4 @@
+from __future__ import print_function
 import koshbase
 import time
 import numpy
@@ -8,10 +9,10 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
         meta = {}
         for i in range(65, 122):
             meta[chr(i)] = str(i)
-            meta[f"A_{chr(i)}"] = str(i)
-            meta[f"B_{chr(i)}"] = str(i)
-            meta[f"C_{chr(i)}"] = str(i)
-            meta[f"D_{chr(i)}"] = str(i)
+            meta["A_{}".format(chr(i))] = str(i)
+            meta["B_{}".format(chr(i))] = str(i)
+            meta["C_{}".format(chr(i))] = str(i)
+            meta["D_{}".format(chr(i))] = str(i)
 
         search_times = []
         for i in range(50):

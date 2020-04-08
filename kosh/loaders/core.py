@@ -38,7 +38,7 @@ class KoshLoader(object):
                 if len(self.types[t]) == 0:
                     open_anything = True
             if not open_anything:
-                raise RuntimeError(f"will not be able to load object of type {mime_type}")
+                raise RuntimeError("will not be able to load object of type {mime_type}".format(mime_type=mime_type))
         self.obj = obj
 
     def known_types(self):
@@ -87,7 +87,8 @@ class KoshLoader(object):
         if format is None:
             format = self.types[self.obj.mime_type][0]
         if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
-            raise ValueError(f"Loader cannot output type {self.obj.mime_type} to {format} format")
+            raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
+                self=self, format=format))
         self.format = format
         self.feature = feature
         self._user_passed_parameters = args, kargs
@@ -187,5 +188,5 @@ class KoshFileLoader(KoshLoader):
         :rtype: dict
         """
         if feature not in self.list_features():
-            raise ValueError(f"feature {feature} is not available")
+            raise ValueError("feature {feature} is not available".format(feature=feature))
         return {}

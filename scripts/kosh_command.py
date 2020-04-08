@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function
 import argparse
 import kosh
 import sys
@@ -14,7 +15,7 @@ def core_parser(description,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=description,
         usage=usage,
-        epilog=f"Kosh version {kosh.__version__}")
+        epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
     parser.add_argument("--store", "-s", required=True,
                         help="Kosh store to use")
     parser.add_argument("--dataset_record_type", "-d", default="dataset",
@@ -60,11 +61,11 @@ class KoshCmd(object):
             ["" if k[0] == "_" else "\n\t"+k for k in sorted(dir(self))])
         parser = core_parser(
             description='Execute kosh operations',
-            usage=f'''kosh <command> [<args>]
+            usage='''kosh <command> [<args>]
 
 Available commands are:
     {commands}
-''')
+'''.format(commands=commands))
         parser.add_argument('command', help='Subcommand to run')
         # first we parse all of it to catch --version
         args, _ = parser.parse_known_args(sys.argv + ["-s", "blah"])
@@ -76,8 +77,8 @@ Available commands are:
         # exclude the rest of the args too, or validation will fail
         args = parser.parse_args(sys.argv[1:2] + ["-s", "blah"])
         if not hasattr(self, args.command) or args.command[0] == "_":
-            print(f'Unrecognized command: {args.command}')
-            print(f'Known commands: {" ".join(["" if k[0]=="_" else k for k in dir(self)])}')
+            print('Unrecognized command: {args.command}'.format(args=args))
+            print('Known commands: {}'.format(" ".join(["" if k[0]=="_" else k for k in dir(self)])))
             parser.print_help()
             exit(1)
         # use dispatch pattern to invoke method with same name
@@ -90,7 +91,8 @@ Available commands are:
         args, search_terms = parser.parse_known_args(sys.argv[2:])
         metadata = parse_metadata(search_terms)
         store = kosh.KoshStore(db_uri=args.store, dataset_record_type=args.dataset_record_type)
-        ids = store.search(**metadata, ids_only=True)
+        metadata["ids_only"] = True
+        ids = store.search(**metadata)
         if args.print:
             for Id in ids:
                 ds = store.open(Id)
@@ -131,11 +133,11 @@ Available commands are:
             else:
                 ds = store.open(Id)
                 print(ds)
-                answer = input(f"You are about the remove this dataset ({Id}). Do you want to continue? (y/N)")
+                answer = input("You are about the remove this dataset ({Id}). Do you want to continue? (y/N)".format(Id=Id))
                 if answer.lower() in ["y", "yes"]:
                     store.delete(Id)
                 else:
-                    print(f"Skipping, will not remove {Id}")
+                    print("Skipping, will not remove {Id}".format(Id=Id))
 
     def features(self):
         parser = core_parser(
@@ -151,7 +153,7 @@ Available commands are:
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
         for Id in datasets:
             ds = store.open(Id)
-            print(f"\nDataset: {Id}:\n\t {ds.list_features()}")
+            print("\nDataset: {}:\n\t {}".format(Id, ds.list_features()))
 
     def extract(self):
         parser = core_parser(
@@ -185,7 +187,7 @@ Available commands are:
                     numpy.save(out, data)
                 except Exception:
                     print(
-                        f"Could not save feature {feat} to file: {args.dump}")
+                        "Could not save feature {feat} to file: {args.dump}".format(feat=feat, args=args))
             else:
                 print(data)
 

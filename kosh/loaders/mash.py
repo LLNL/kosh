@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 import os
 import sys
 sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
@@ -161,7 +162,9 @@ class MashReader(object):
             slices += 1
         for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
             if proc == slices:
-                print(f"Rank {rank} reading {proc} space: ({rank*slices} ->  {min((rank+1)*slices, len(processors))}")
+                print("Rank {} reading {} space: ({} ->  {})".format(rank,
+                                                                     proc, rank * slices,
+                                                                     min((rank+1)*slices, len(processors))))
                 sys.stdout.flush()
             if "elements" in kargs:
                 del(kargs["elements"])
@@ -373,7 +376,7 @@ class MashLoader(KoshLoader):
         :return: MashReader
         :rtype: MashReader
         """
-        return MashReader(self.obj.uri)
+        return MashReader(str(self.obj.uri))
 
     def extract(self):
         """get a feature
@@ -409,7 +412,7 @@ class MashLoader(KoshLoader):
         :rtype: dict
         """
         if feature not in self.list_features():
-            raise ValueError(f"feature {feature} is not available")
+            raise ValueError("feature {feature} is not available".format(feature=feature))
         reader = self.open()
         sp = feature.split("/")
         axes = reader.getAxisList(sp[0])

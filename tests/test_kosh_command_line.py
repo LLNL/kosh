@@ -51,7 +51,7 @@ class KoshTestDataset(KoshTest):
         npyfile = "test_kosh_cmd.npy"
         if os.path.exists(npyfile):
             os.remove(npyfile)
-        o, e = run_cmd(f"kosh extract -s 'cmd_line.sql' -d obs -i '2019-04-05-02-11-29' -f node/metrics_4 zone/metrics_4 --dump {npyfile}")
+        o, e = run_cmd("kosh extract -s 'cmd_line.sql' -d obs -i '2019-04-05-02-11-29' -f node/metrics_4 zone/metrics_4 --dump {npyfile}".format(npyfile=npyfile))
         self.assertTrue(os.path.exists(npyfile))
         n4, z4 = numpy.load(npyfile)
         self.assertEqual(n4.shape, (18,))
