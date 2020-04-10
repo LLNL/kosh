@@ -14,7 +14,7 @@ before_script:
   - conda update -y --all
   - echo "Cloning sina"
   - echo `id`
-  - git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
+  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
   - echo "building sina"
   - cd sina/python
   - pip install .
@@ -25,7 +25,7 @@ before_script:
   - pip install .
   - echo "Cloning Mash extract"
   - cd ../..
-  - git clone https://lc.llnl.gov/bitbucket/ascaml/mashextract.git
+  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
   - conda deactivate
 
 Install Kosh:
