@@ -32,6 +32,8 @@ Install Kosh:
   script:
     - cd ${CI_BUILDS_DIR}
     - echo "Activating conda"
+    - echo `pwd`
+    - echo `ls -l`
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
