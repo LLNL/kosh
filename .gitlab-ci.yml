@@ -12,25 +12,25 @@ before_script:
   - echo "Activating env py3"
   - conda activate gitlab_kosh_py3
   - conda update -y --all
-  - echo "Cloning sina"
-  - echo `id`
-  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
+  - # echo "Cloning sina"
+  - # git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
   - echo "building sina"
-  - cd sina/python
+  - cd ${HOME}/git/sina/python
   - pip install .
   - echo "Activating env py2"
   - conda deactivate
   - conda activate gitlab_kosh_py2
   - conda update -y --all
   - pip install .
-  - echo "Cloning Mash extract"
-  - cd ../..
-  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
+  - # echo "Cloning Mash extract"
+  - # cd ../..
+  - # git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
   - conda deactivate
 
 Install Kosh:
   stage: build
   script:
+    - cd ${CI_BUILDS_DIR}
     - echo “Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Activating env py3"
@@ -49,7 +49,7 @@ Run Tests:
   script:
     - echo “Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
-    - export PYTHONPATH=${CI_BUILDS_DIR}/mashextract/tools:${PYTHONPATH}
+    - export PYTHONPATH=${HOME}/git/mashextract/tools:${PYTHONPATH}
     - echo "testing Py3"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
