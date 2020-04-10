@@ -9,11 +9,9 @@ before_script:
   - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
   - echo "Updating conda"
   - conda update -y --all
-  - echo "Creating conda env"
-  - conda create -n gitlab_kosh_py3 -c conda-forge -y  h5py numpy "python>3" sqlalchemy six pip pillow nose mock coverage flake8
-  - conda create -n gitlab_kosh_py2 -c conda-forge -y  h5py numpy "python<3" sqlalchemy six pip pillow nose mock flake8
   - echo "Activating env py3"
-  - conda activate gitlab_py3
+  - conda activate gitlab_kosh_py3
+  - conda update -y --all
   - echo "Cloning sina"
   - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
   - echo "building sina"
@@ -21,11 +19,13 @@ before_script:
   - pip install .
   - echo "Activating env py2"
   - conda deactivate
-  - conda activate gitlab_py2
+  - conda activate gitlab_kosh_py2
+  - conda update -y --all
   - pip install .
   - echo "Cloning Mash extract"
   - cd ../..
   - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
+  - conda deactivate
 
 Install Kosh:
   stage: build
@@ -33,10 +33,10 @@ Install Kosh:
     - echo “Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Activating env py3"
-    - conda activate gitlab_py3
+    - conda activate gitlab_kosh_py3
     - python setup.py install
     - echo "Activating env py2"
-    - conda activate gitlab_py2
+    - conda activate gitlab_kosh_py2
     - python setup.py install
   tags:
     - quartz
@@ -51,9 +51,9 @@ Run Tests:
     - export PYTHONPATH=${CI_BUILDS_DIR}/mashextract/tools:${PYTHONPATH}
     - echo "testing Py3"
     - echo "Activating env py3"
-    - conda activate gitlab_py3
+    - conda activate gitlab_kosh_py3
     - nosetests --with-coverage --cover-package=kosh tests
-    - conda activate gitlab_py2
+    - conda activate gitlab_kosh_py2
     - nosetests tests
 #this file will store file characteristics that the 
 #pipeline needs to check
@@ -72,7 +72,7 @@ Produce coverage:
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - export PYTHONPATH=${CI_BUILDS_DIR}/mashextract/tools:${PYTHONPATH}
     - echo "Activating env py3"
-    - conda activate gitlab_py3
+    - conda activate gitlab_kosh_py3
     - echo "Producing coverage files"
     - coverage html --omit doutriaux1
   artifacts:
