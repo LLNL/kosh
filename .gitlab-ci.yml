@@ -1,35 +1,35 @@
 stages:
   - build   # build everythin
   - test    # run tests
+  - coverage # deploy coverage
   - deploy  # deploy locally
 
 
-before_script:
-  - echo "Activating miniconda"
-  - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
-  - echo "Updating conda"
-  - conda update -y --all
-  - echo "Activating env py3"
-  - conda activate gitlab_kosh_py3
-  - conda update -c conda-forge -y --all
-#  - echo "Cloning sina"
-#  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
-  - echo "building sina"
-  - cd ${HOME}/git/sina/python
-  - pip install .
-  - echo "Activating env py2"
-  - conda deactivate
-  - conda activate gitlab_kosh_py2
-  - conda update -c conda-forge -y --all
-  - pip install .
-#  - echo "Cloning Mash extract"
-#  - cd ../..
-#  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
-  - conda deactivate
 
 Install Kosh:
   stage: build
   script:
+    - echo "Activating miniconda"
+    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
+    - echo "Updating conda"
+    - conda update -y --all
+    - echo "Activating env py3"
+    - conda activate gitlab_kosh_py3
+    - conda update -c conda-forge -y --all
+  #  - echo "Cloning sina"
+  #  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
+    - echo "building sina"
+    - cd ${HOME}/git/sina/python
+    - pip install .
+    - echo "Activating env py2"
+    - conda deactivate
+    - conda activate gitlab_kosh_py2
+    - conda update -c conda-forge -y --all
+    - pip install .
+  #  - echo "Cloning Mash extract"
+  #  - cd ../..
+  #  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
+    - conda deactivate
     - cd ${CI_PROJECT_DIR}
     - echo "Activating conda"
     - echo `pwd`
@@ -69,7 +69,7 @@ Run Tests:
     - shell
 
 Produce coverage:
-  stage: test
+  stage: coverage
   script:
     - echo "Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
