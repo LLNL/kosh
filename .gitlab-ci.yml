@@ -13,6 +13,7 @@ before_script:
   - conda activate gitlab_kosh_py3
   - conda update -y --all
   - echo "Cloning sina"
+  - echo `id`
   - git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
   - echo "building sina"
   - cd sina/python
