@@ -30,7 +30,7 @@ before_script:
 Install Kosh:
   stage: build
   script:
-    - cd ${CI_BUILDS_DIR}
+    - cd ${CI_PROJECT_DIR}
     - echo "Activating conda"
     - echo `pwd`
     - echo `ls -l`
