@@ -12,8 +12,8 @@ before_script:
   - echo "Activating env py3"
   - conda activate gitlab_kosh_py3
   - conda update -y --all
-  - # echo "Cloning sina"
-  - # git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
+#  - echo "Cloning sina"
+#  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
   - echo "building sina"
   - cd ${HOME}/git/sina/python
   - pip install .
@@ -22,9 +22,9 @@ before_script:
   - conda activate gitlab_kosh_py2
   - conda update -y --all
   - pip install .
-  - # echo "Cloning Mash extract"
-  - # cd ../..
-  - # git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
+#  - echo "Cloning Mash extract"
+#  - cd ../..
+#  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
   - conda deactivate
 
 Install Kosh:
