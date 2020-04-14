@@ -67,6 +67,7 @@ Run Tests:
   tags:
     - quartz
     - shell
+    - rzalastor
 
 Produce coverage:
   stage: coverage
