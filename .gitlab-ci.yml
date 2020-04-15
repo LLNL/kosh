@@ -42,7 +42,6 @@ Install Kosh:
     - conda activate gitlab_kosh_py2
     - python setup.py install
   tags:
-    - quartz
     - shell
 
 
@@ -65,9 +64,7 @@ Run Tests:
       - .coverage
     expire_in: 3 hours
   tags:
-    - quartz
     - shell
-    - rzalastor
 
 Produce coverage:
   stage: coverage
@@ -85,7 +82,6 @@ Produce coverage:
       - htmlcov
     expire_in: 3 hours
   tags:
-    - quartz
     - shell
 
 Deploy to aml_cs:
