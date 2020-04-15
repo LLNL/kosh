@@ -9,8 +9,16 @@ default_job:
   stage: build
   script:
     - echo "Testing Kosh from ${SOURCE_ZONE}"
+    - if [ ${SOURCE_ZONE} == "CZ" ] ; then echo "YES" ; fi
   tags:
     - shell
+
+.on_cz:
+  tags:
+    - shell
+    - quartz
+  rules:
+    - if '${SOURCE_ZONE} == "CZ"'
 
 .install_kosh:
   script:
@@ -47,14 +55,11 @@ default_job:
     - conda activate gitlab_kosh_py2
     - python setup.py install
 
-.install_on_cz:
+install_on_cz:
   stage: build
-  rules:
-    - if '${SOURCE_ZONE} == "CZ"'
-  extends: .install_kosh
-  tags:
-    - shell
-    - quartz
+  extends:
+    - .on_cz
+    - .install_kosh
 
 .run_tests:
   script:
@@ -74,14 +79,11 @@ default_job:
       - .coverage
     expire_in: 3 hours
 
-.test_on_cz:
+test_on_cz:
   stage: test
-  rules:
-    - if '${SOURCE_ZONE} == "CZ"'
-  extends: .run_tests
-  tags:
-    - shell
-    - quartz
+  extends:
+    - .on_cz
+    - .run_tests
 
 .gen_coverage:
   script:
@@ -98,15 +100,11 @@ default_job:
       - htmlcov
     expire_in: 3 hours
 
-.gen_coverage_on_cz:
-  stage: test
-  rules:
-    - if '${SOURCE_ZONE} == "CZ"'
-  extends: .gen_coverage
+gen_coverage_on_cz:
   stage: coverage
-  tags:
-    - shell
-    - quartz
+  extends:
+    - .on_cz 
+    - .gen_coverage
 
 .deploy_to_aml_cs:
   script:
@@ -129,11 +127,9 @@ default_job:
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type f -exec chmod g+r  {} +
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type d -exec chmod g+rx  {} +
 
-.deploy_to_aml_cs_on_cz:
-  rules:
-    - if '${SOURCE_ZONE} == "CZ"'
-  extends: .deploy_to_aml_cs
+deploy_to_aml_cs_on_cz:
   stage: deploy
-  tags:
-    - shell
-    - quartz
+  extends:
+    - .on_cz
+    - .deploy_to_aml_cs
+  
