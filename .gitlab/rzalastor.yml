@@ -1,0 +1,24 @@
+# CI on RZ
+.on_rz:
+  tags:
+    - shell
+    - rzalastor
+  only:
+    variables:
+      - $SOURCE_ZONE == "RZ"
+
+install_on_rz:
+  stage: build
+  extends: [ .on_rz , .install_kosh ]
+
+test_on_rz:
+  stage: test
+  extends: [ .on_rz , .run_tests ]
+
+gen_coverage_on_rz:
+  stage: coverage
+  extends: [ .on_rz ,  .gen_coverage ]
+
+deploy_to_aml_cs_on_rz:
+  stage: deploy
+  extends: [ .on_rz ,  .deploy_to_aml_cs ]
