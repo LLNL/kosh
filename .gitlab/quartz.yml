@@ -1,0 +1,24 @@
+# Build instruction on CZ
+.on_cz:
+  tags:
+    - shell
+    - quartz
+  only:
+    - variables:
+      - $SOURCE_ZONE == "CZ"
+
+install_on_cz:
+  stage: build
+  extends: [ .on_cz , .install_kosh ]
+
+test_on_cz:
+  stage: test
+  extends: [ .on_cz , .run_tests ]
+
+gen_coverage_on_cz:
+  stage: coverage
+  extends: [ .on_cz ,  .gen_coverage ]
+
+deploy_to_aml_cs_on_cz:
+  stage: deploy
+  extends: [ .on_cz ,  .deploy_to_aml_cs ]

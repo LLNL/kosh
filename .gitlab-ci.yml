@@ -4,17 +4,8 @@ stages:
   - coverage # deploy coverage
   - deploy  # deploy locally
 
-
-
-.on_cz:
-  tags:
-    - shell
-    - quartz
-  rules:
-    - if: '$SOURCE_ZONE == "CZ"'
-      when: always
-    - if: '$SOURCE_ZONE != "CZ"'
-      when: never
+# Raw scripts
+# runner specific rules (cz/not cz) are set in niclude files
 
 .install_kosh:
   script:
@@ -51,10 +42,6 @@ stages:
     - conda activate gitlab_kosh_py2
     - python setup.py install
 
-install_on_cz:
-  stage: build
-  extends: [ .on_cz , .install_kosh ]
-
 .run_tests:
   script:
     - echo "Activating conda"
@@ -73,10 +60,6 @@ install_on_cz:
       - .coverage
     expire_in: 3 hours
 
-test_on_cz:
-  stage: test
-  extends: [ .on_cz , .run_tests ]
-
 .gen_coverage:
   script:
     - echo "Activating conda"
@@ -91,10 +74,6 @@ test_on_cz:
       - .coverage
       - htmlcov
     expire_in: 3 hours
-
-gen_coverage_on_cz:
-  stage: coverage
-  extends: [ .on_cz ,  .gen_coverage ]
 
 .deploy_to_aml_cs:
   script:
@@ -117,7 +96,5 @@ gen_coverage_on_cz:
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type f -exec chmod g+r  {} +
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type d -exec chmod g+rx  {} +
 
-deploy_to_aml_cs_on_cz:
-  stage: deploy
-  extends: [ .on_cz ,  .deploy_to_aml_cs ]
-  
+include:
+  - local: .gitlab/quartz.yml
