@@ -5,13 +5,6 @@ stages:
   - deploy  # deploy locally
 
 
-default_job:
-  stage: build
-  script:
-    - echo "Testing Kosh from ${SOURCE_ZONE}"
-    - if [ ${SOURCE_ZONE} == "CZ" ] ; then echo "YES" ; fi
-  tags:
-    - shell
 
 .on_cz:
   tags:
