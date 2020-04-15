@@ -57,9 +57,7 @@ default_job:
 
 install_on_cz:
   stage: build
-  extends:
-    - .on_cz
-    - .install_kosh
+  extends: [ .on_cz , .install_kosh ]
 
 .run_tests:
   script:
@@ -81,9 +79,7 @@ install_on_cz:
 
 test_on_cz:
   stage: test
-  extends:
-    - .on_cz
-    - .run_tests
+  extends: [ .on_cz , .run_tests ]
 
 .gen_coverage:
   script:
@@ -102,9 +98,7 @@ test_on_cz:
 
 gen_coverage_on_cz:
   stage: coverage
-  extends:
-    - .on_cz 
-    - .gen_coverage
+  extends: [ .on_cz ,  .gen_coverage ]
 
 .deploy_to_aml_cs:
   script:
@@ -129,7 +123,5 @@ gen_coverage_on_cz:
 
 deploy_to_aml_cs_on_cz:
   stage: deploy
-  extends:
-    - .on_cz
-    - .deploy_to_aml_cs
+  extends: [ .on_cz ,  .deploy_to_aml_cs ]
   
