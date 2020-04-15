@@ -4,7 +4,7 @@
     - shell
     - quartz
   only:
-    - variables:
+    variables:
       - $SOURCE_ZONE == "CZ"
 
 install_on_cz:
