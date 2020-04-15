@@ -5,6 +5,12 @@ stages:
   - deploy  # deploy locally
 
 
+default_job:
+  stage: build
+  script:
+    - echo "Testing Kosh from ${SOURCE_ZONE}"
+  tags:
+    - shell
 
 .install_kosh:
   script:
