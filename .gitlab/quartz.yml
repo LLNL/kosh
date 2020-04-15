@@ -1,4 +1,4 @@
-# Build instruction on CZ
+# CI on CZ
 .on_cz:
   tags:
     - shell

@@ -98,3 +98,4 @@ stages:
 
 include:
   - local: .gitlab/quartz.yml
+  - local: .gitlab/rzalastor.yml
