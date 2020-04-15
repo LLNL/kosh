@@ -6,8 +6,7 @@ stages:
 
 
 
-Install Kosh:
-  stage: build
+.install_kosh:
   script:
     - echo "Activating miniconda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
@@ -41,12 +40,17 @@ Install Kosh:
     - echo "Activating env py2"
     - conda activate gitlab_kosh_py2
     - python setup.py install
+
+.install_on_cz:
+  stage: build
+  rules:
+    - if '${SOURCE_ZONE} == "CZ"'
+  extends: .install_kosh
   tags:
     - shell
+    - quartz
 
-
-Run Tests:
-  stage: test
+.run_tests:
   script:
     - echo "Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
@@ -63,11 +67,17 @@ Run Tests:
     paths:
       - .coverage
     expire_in: 3 hours
+
+.test_on_cz:
+  stage: test
+  rules:
+    - if '${SOURCE_ZONE} == "CZ"'
+  extends: .run_tests
   tags:
     - shell
+    - quartz
 
-Produce coverage:
-  stage: coverage
+.gen_coverage:
   script:
     - echo "Activating conda"
     - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
@@ -81,11 +91,18 @@ Produce coverage:
       - .coverage
       - htmlcov
     expire_in: 3 hours
+
+.gen_coverage_on_cz:
+  stage: test
+  rules:
+    - if '${SOURCE_ZONE} == "CZ"'
+  extends: .gen_coverage
+  stage: coverage
   tags:
     - shell
+    - quartz
 
-Deploy to aml_cs:
-  stage: deploy
+.deploy_to_aml_cs:
   script:
     - if [ "${CI_COMMIT_BRANCH}" != "master" ] ; then exit 0; fi
     - echo "Activating conda"
@@ -105,3 +122,12 @@ Deploy to aml_cs:
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2/bin -type f -exec chmod g+rx  {} +
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type f -exec chmod g+r  {} +
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev.py2 -type d -exec chmod g+rx  {} +
+
+.deploy_to_aml_cs_on_cz:
+  rules:
+    - if '${SOURCE_ZONE} == "CZ"'
+  extends: .deploy_to_aml_cs
+  stage: deploy
+  tags:
+    - shell
+    - quartz
