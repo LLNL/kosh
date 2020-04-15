@@ -19,6 +19,9 @@ default_job:
     - quartz
   rules:
     - if: '${SOURCE_ZONE} == "CZ"'
+      when: always
+    - if: '${SOURCE_ZONE} != "CZ"'
+      when: never
 
 .install_kosh:
   script:
