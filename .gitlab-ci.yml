@@ -10,31 +10,31 @@ stages:
 .install_kosh:
   script:
     - echo "Activating miniconda"
-    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
+    - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Updating conda"
     - conda update -y --all
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
     - conda update -c conda-forge -y --all
-  #  - echo "Cloning sina"
-  #  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
+    - echo "Cloning sina"
+    - GIT_SSH_COMMAND="/usr/bin/ssh -i ~/.ssh/gitlab" git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
+    - cd sina/python
     - echo "building sina"
-    - cd ${HOME}/git/sina/python
     - pip install .
     - echo "Activating env py2"
     - conda deactivate
     - conda activate gitlab_kosh_py2
     - conda update -c conda-forge -y --all
     - pip install .
-  #  - echo "Cloning Mash extract"
-  #  - cd ../..
-  #  - git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
+    - echo "Cloning Mash extract"
+    - cd ../..
+    - GIT_SSH_COMMAND="/usr/bin/ssh -i ~/.ssh/gitlab" git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
     - conda deactivate
     - cd ${CI_PROJECT_DIR}
     - echo "Activating conda"
     - echo `pwd`
     - echo `ls -l`
-    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
+    - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
     - python setup.py install
@@ -45,8 +45,8 @@ stages:
 .run_tests:
   script:
     - echo "Activating conda"
-    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
-    - export PYTHONPATH=${HOME}/git/mashextract/tools:${PYTHONPATH}
+    - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
+    - export PYTHONPATH=${CI_PROJECT_DIR}/mashextract/tools:${PYTHONPATH}
     - echo "testing Py3"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
@@ -63,8 +63,7 @@ stages:
 .gen_coverage:
   script:
     - echo "Activating conda"
-    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
-    - export PYTHONPATH=${CI_BUILDS_DIR}/mashextract/tools:${PYTHONPATH}
+    - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
     - echo "Producing coverage files"
@@ -79,7 +78,7 @@ stages:
   script:
     - if [ "${CI_COMMIT_BRANCH}" != "master" ] ; then exit 0; fi
     - echo "Activating conda"
-    - eval "$(/p/lscratchh/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
+    - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - conda activate /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev
     - python setup.py install
     - cd sina/python
