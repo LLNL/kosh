@@ -20,5 +20,9 @@ gen_coverage_on_rz:
   extends: [ .on_rz ,  .gen_coverage ]
 
 deploy_to_aml_cs_on_rz:
+  only:
+    variables:
+      - $CI_COMMIT_BRANCH == "master"
+      - $SOURCE_ZONE == "RZ"
   stage: deploy
   extends: [ .on_rz ,  .deploy_to_aml_cs ]
