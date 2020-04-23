@@ -1,7 +1,7 @@
 stages:
   - build   # build everythin
-  - test    # run tests
-  - coverage # deploy coverage
+#  - test    # run tests
+#  - coverage # deploy coverage
   - deploy  # deploy locally
 
 # Raw scripts
@@ -76,11 +76,12 @@ stages:
 
 .deploy_to_aml_cs:
   script:
-    - if [ "${CI_COMMIT_BRANCH}" != "master" ] ; then exit 0; fi
+    - if [ "${CI_COMMIT_BRANCH}" == "master" ] ; then exit 0; fi
     - echo "Activating conda"
     - eval "$(/p/lustre1/cdoutrix/gitlab/miniconda3/bin/conda shell.bash hook)"
     - conda activate /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev
     - python setup.py install
+    - GIT_SSH_COMMAND="/usr/bin/ssh -i ~/.ssh/gitlab" git clone ssh://git@cz-bitbucket.llnl.gov:7999/ascaml/mashextract.git
     - cd sina/python
     - python setup.py install
     - find /usr/workspace/aml_cs/kosh/toss_3_x86_64_ib/dev/bin -type f -exec chmod g+rx  {} +
