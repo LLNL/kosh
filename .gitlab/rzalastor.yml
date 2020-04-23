@@ -7,9 +7,9 @@
     variables:
       - $SOURCE_ZONE == "RZ"
 
-install_on_rz:
-  stage: build
-  extends: [ .on_rz , .install_kosh ]
+#install_on_rz:
+#  stage: build
+#  extends: [ .on_rz , .install_kosh ]
 
 #test_on_rz:
 #  stage: test
