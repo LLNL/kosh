@@ -452,8 +452,27 @@ class KoshSinaStore(KoshStoreClass):
             self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
+
+        # Now let's add the loaders in the store
+        for rec_loader in self.__record_handler__.get_all_of_type("koshloader"):
+            pickled_code = rec_loader.data["code"]["value"].encode("latin1")
+            loader = pickle.loads(pickled_code)
+            self.add_loader(loader)
         mem = sina_sql.DAOFactory(db_path=":memory:")
         self._added_unsync_handler = mem.create_record_dao()
+
+    def save_loader(self, loader):
+        """Save a loader to the store
+        Executed immediately even in async mode
+
+        :param loader: Loader to save
+        :type loader: KoshLoader
+        """
+
+        pickled = pickle.dumps(loader).decode("latin1")
+        rec = Record(id=uuid.uuid4().hex, type="koshloader")
+        rec.add_data("code", pickled)
+        self.__record_handler__.insert(rec)
 
     def get_record(self, Id):
         if (not self.__sync__) and Id in self.__sync__dict__:
@@ -512,7 +531,7 @@ class KoshSinaStore(KoshStoreClass):
             Id = uuid.uuid4().hex
         else:
             if datasetId in self.__record_handler__.get_all_of_type(
-                    "dataset", ids_only=True):
+                    self._dataset_record_type, ids_only=True):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId

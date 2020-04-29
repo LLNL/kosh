@@ -69,12 +69,32 @@ class KoshStoreClass(object):
         """
         raise NotImplementedError()
 
-    def add_loader(self, loader):
+    @abstractmethod
+    def save_loader(self):
+        """saves a loader to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    def add_loader(self, loader, save=False):
+        """Adds a loader to the store
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+        :param save: Do we also save it in store for later re-use
+        :type save: bool
+
+        :return: None
+        :rtype: None
+        """
         for k in loader.types:
             if k in self.loaders:
                 self.loaders[k].append(loader)
             else:
                 self.loaders[k] = [loader, ]
+        if save:  # do we save it in store
+            self.save_loader(loader)
 
     def is_synchronous(self):
         """is_synchronous is store is synchronous mode
