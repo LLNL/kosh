@@ -102,6 +102,30 @@ class KoshStoreClass(object):
             self.__sync__ = mode
         return self.__sync__
 
+    @abstractmethod
+    def add_user(self):
+        """Adds a user to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_user_to_group(self):
+        """Adds a user to group(s)
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_group(self):
+        """Adds a group to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
 
 def KoshStore(engine="sina", sync=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
