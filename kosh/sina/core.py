@@ -7,6 +7,7 @@ import time
 import sina.datastores.sql as sina_sql
 import pickle
 import os
+import grp
 
 
 class KoshSinaObject(object):
@@ -897,3 +898,78 @@ class KoshSinaStore(KoshStoreClass):
             except Exception:
                 # probably coming from del then
                 del(self.__sync__deleted__[key])
+
+    def add_user(self, username, groups=[]):
+        """add_user adds a user to the Kosh store
+
+        :param username: username to add
+        :type username: str
+        :param groups: kosh specific groups to add to this user
+        :type groups: list
+        """
+
+        existing_users = self.__record_handler__.get_all_of_type("user")
+        users = [rec["data"]["username"]["value"] for rec in existing_users]
+        if username not in users:
+            # Create user
+            uid = uuid.uuid4().hex
+            user = Record(id=uid, type="user")
+            user.add_data("username", username)
+            self.__record_handler__.insert(user)
+            self.add_user_to_group(username, groups)
+        else:
+            raise ValueError("User {} already exists".format(username))
+
+    def add_group(self, group):
+        """Add a kosh spcific group, cannot match exisiting group on unix system
+
+        :param group: ugroup to add
+        :type group: str
+        """
+
+        existing_groups = self.__record_handler__.get_all_of_type("group")
+        groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
+        if group in groups_names:
+            raise ValueError("group {} already exist".format(group))
+
+        # now get unix groups
+        unix_groups = [g[0] for g in grp.getgrall()]
+        if group in unix_groups:
+            raise ValueError("{} is a unix group on this system.format(group)")
+
+        # Create group
+        uid = uuid.uuid4().hex
+        group_rec = Record(id=uid, type="group")
+        group_rec.add_data("name", group)
+        self.__record_handler__.insert(group_rec)
+
+    def add_user_to_group(self, username, groups):
+        """Add a user to some group(s)
+
+        :param username: username to add
+        :type username: str
+        :param groups: kosh specific groups to add to this user
+        :type groups: list
+        """
+
+        users_filter = self.__record_handler__.get_all_of_type("user", ids_only=True)
+        names_filter = list(self.__record_handler__.data_query(username=username))
+        inter_recs = set(users_filter).intersection(set(names_filter))
+        if len(inter_recs) == 0:
+            raise ValueError("User {} does not exists".format(username))
+        user = self.get_record(names_filter[0])
+        user_groups = user["data"].get("groups", {"value": []})["value"]
+
+        existing_groups = self.__record_handler__.get_all_of_type("group")
+        groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
+        for group in groups:
+            if group not in groups_names:
+                warnings.warn("Group {} is not a Kosh group, skipping".format(group))
+                continue
+            user_groups.append(group)
+        if len(user_groups) == 0:
+            user.add_data("groups", None)
+        else:
+            user.add_data("groups", list(set(user_groups)))
+        self.__record_handler__.delete(names_filter[0])
+        self.__record_handler__.insert(user)
