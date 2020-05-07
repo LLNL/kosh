@@ -13,6 +13,10 @@ try:
     from .loaders import PILLoader
 except ImportError:
     pass
+try:
+    from .loaders import UltraLoader
+except ImportError:
+    pass
 
 
 class KoshAgent(object):
@@ -39,6 +43,10 @@ class KoshStoreClass(object):
             self.add_loader(MashLoader)
         except Exception:
             pass  # no MashExtract?
+        try:
+            self.add_loader(UltraLoader)
+        except Exception:
+            pass  # no pydv?
         self.__sync__ = sync
         self.__sync__dict__ = {}
         self.__sync__deleted__ = {}
