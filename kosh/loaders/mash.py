@@ -39,7 +39,7 @@ class MashReader(object):
         self.metrics_avail = {}
         self.proc_ids = {}
         self.ids = {}
-        for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "srd", "drd"]:
+        for elt in ["zone", "node", "corner", "scalarRlxData", "dimRlxData", "srd", "drd"]:
             try:
                 metrics_avail, proc_ids = self.__query(elt)
                 self.proc_ids[elt] = proc_ids
@@ -61,7 +61,7 @@ class MashReader(object):
         :rtype: tuple
         """
         # Metrics available
-        if elt_type in ["zone", "node"]:
+        if elt_type in ["zone", "node", "corner"]:
             metrics_avail = getattr(self.reader, "{}_metrics".format(elt_type))
         elif elt_type == "scalarRlxData":
             metrics_avail = self.reader.scalar_rlx
@@ -79,14 +79,17 @@ class MashReader(object):
         proc_ids = []
         n_elements = 0
         for proc in processors:
-            if elt_type in ["scalarRlxData", "dimRlxData", "node", "srd", "drd"]:
+            if elt_type in ["scalarRlxData", "dimRlxData", "node", "srd", "drd", "corner"]:
                 get_proc_ids = "Node"
             else:
                 get_proc_ids = "Zone"
-            proc_ids.append(
-                getattr(
-                    self.reader,
-                    "getGlobal{}Ids".format(get_proc_ids))(proc).tolist())
+            if elt_type == "corner":
+                proc_ids.append(list(range(n_elements, n_elements + self.reader.num_proc_corners[proc])))
+            else:
+                proc_ids.append(
+                    getattr(
+                        self.reader,
+                        "getGlobal{}Ids".format(get_proc_ids))(proc).tolist())
             n_elements += len(proc_ids[-1])
         return metrics_avail, proc_ids
 
@@ -135,9 +138,9 @@ class MashReader(object):
                             elt_type, e))
             n_elements = len(elements)
 
-        kargs = {}
+        kargs_core = {}
         if cycles is not None:
-            kargs["cycles"] = cycles
+            kargs_core["cycles"] = cycles
             n_cycles = len(cycles)
         else:
             n_cycles = self.reader.num_cycles
@@ -161,6 +164,7 @@ class MashReader(object):
         if len(processors) % size != 0:
             slices += 1
         for proc in processors[rank*slices:min((rank+1)*slices, len(processors))]:
+            kargs = kargs_core.copy()
             if proc == slices:
                 print("Rank {} reading {} space: ({} ->  {})".format(rank,
                                                                      proc, rank * slices,
@@ -187,11 +191,11 @@ class MashReader(object):
             if "metrics" in kargs:
                 n_metrics_avail == len(metrics)
             # Final shape for one processor
-            if elt_type in ["zone", "node", "scalarRlxData", "srd"]:
+            if elt_type in ["zone", "node", "scalarRlxData", "srd", "corner"]:
                 sh = [n_cycles, n_elements, n_metrics_avail]
             elif elt_type in ["dimRlxData", "drd"]:
                 sh = [n_cycles, n_elements, 2, n_metrics_avail]
-            if elt_type in ["zone", "node"]:
+            if elt_type in ["zone", "node", "corner"]:
                 use_ext = "{} metric".format(elt_type)
             elif elt_type == "scalarRlxData":
                 use_ext = "scalar rlx"
@@ -397,10 +401,13 @@ class MashLoader(KoshLoader):
         """
         reader = self.open()
         out = []
-        for elt in ["zone", "node", "scalarRlxData", "dimRlxData"]:
-            metrics_avail = reader.metrics_avail[elt]
-            for m in metrics_avail:
-                out.append("{}/{}".format(elt, m))
+        for elt in ["zone", "node", "scalarRlxData", "dimRlxData", "corner"]:
+            try:
+                metrics_avail = reader.metrics_avail[elt]
+                for m in metrics_avail:
+                    out.append("{}/{}".format(elt, m))
+            except Exception:
+                pass
         return out
 
     def describe_feature(self, feature):
