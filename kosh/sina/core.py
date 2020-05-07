@@ -406,7 +406,7 @@ class KoshSinaLoader(KoshLoader):
 
 class KoshSinaStore(KoshStoreClass):
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
-                 keyspace=None, sync=True, dataset_record_type="dataset"):
+                 keyspace=None, sync=True, dataset_record_type="dataset", verbose=True):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -425,7 +425,7 @@ class KoshSinaStore(KoshStoreClass):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        KoshStoreClass.__init__(self, sync)
+        KoshStoreClass.__init__(self, sync, verbose)
         self._dataset_record_type = dataset_record_type
         if db == "sql":
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))

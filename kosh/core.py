@@ -1,6 +1,7 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader
+import warnings
 try:
     from .loaders import MashLoader
 except ImportError:
@@ -26,27 +27,35 @@ class KoshAgent(object):
 class KoshStoreClass(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync):
+    def __init__(self, sync, verbose=True):
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         try:
             self.add_loader(KoshHDF5Loader)
-        except Exception:
-            pass  # no h5py module?
+        except Exception:  # no h5py module?
+            if verbose:
+                warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         try:
             self.add_loader(PILLoader)
-        except Exception:
-            pass  # no PIL?
+        except Exception:  # no PIL?
+            if verbose:
+                warnings.warn("Could not add pil loader, check if you have pillow installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         self.add_loader(PGMLoader)
         try:
             self.add_loader(MashLoader)
-        except Exception:
-            pass  # no MashExtract?
+        except Exception:  # no MashExtract?
+            if verbose:
+                warnings.warn("Could not add mash loader, check if you have mashextract ExtractReader installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         try:
             self.add_loader(UltraLoader)
-        except Exception:
-            pass  # no pydv?
+        except Exception:  # no pydv?
+            if verbose:
+                warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         self.__sync__ = sync
         self.__sync__dict__ = {}
         self.__sync__deleted__ = {}
@@ -155,7 +164,7 @@ class KoshStoreClass(object):
         raise NotImplementedError()
 
 
-def KoshStore(engine="sina", sync=True, *args, **kargs):
+def KoshStore(engine="sina", sync=True, verbose=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param engine: The engine used by the store (currently sina only)
@@ -170,7 +179,7 @@ def KoshStore(engine="sina", sync=True, *args, **kargs):
     # Initialize and returns access class
     if engine.lower() == "sina":
         from .sina import KoshSinaStore
-        return KoshSinaStore(sync=sync, *args, **kargs)
+        return KoshSinaStore(sync=sync, verbose=verbose, *args, **kargs)
     else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
