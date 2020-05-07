@@ -264,7 +264,7 @@ class KoshDataset(object):
                     these_features = ld.list_features(*args, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
-                            ided_features.append("{feature}_{obj.uri}".format(feature=feature, obj=obj))
+                            ided_features.append("{feature}_@_{obj.uri}".format(feature=feature, obj=obj))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
@@ -293,7 +293,8 @@ class KoshDataset(object):
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features(**kargs) or \
-                        feature[:-len(ld.obj.uri)-1] in ld.list_features(**kargs):
+                        (feature[:-len(ld.obj.uri)-3] in ld.list_features()
+                         and feature[-len(ld.obj.uri):] == ld.obj.uri):
                     loader = ld
                     break
         elif Id not in self._associated_data_:
@@ -330,7 +331,8 @@ class KoshDataset(object):
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features() or\
                         feature is None or\
-                        feature[:-len(ld.obj.uri)-1] in ld.list_features():
+                        (feature[:-len(ld.obj.uri)-3] in ld.list_features() and
+                         feature[-len(ld.obj.uri):] == ld.obj.uri):
                     possible_ids.append(a)
             if possible_ids == []:  # All failed but could be something about the feature
                 possible_ids = self._associated_data_[:1]
@@ -343,7 +345,10 @@ class KoshDataset(object):
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                tmp = ld.get(feature, format, *args, **kargs)
+                if (feature[:-len(ld.obj.uri)-3] in ld.list_features() and feature[-len(ld.obj.uri):] == ld.obj.uri):
+                    tmp = ld.get(feature[:-len(ld.obj.uri)-3], format, *args, **kargs)
+                else:
+                    tmp = ld.get(feature, format, *args, **kargs)
                 return tmp
             except Exception as err:  # noqa
                 error = err
