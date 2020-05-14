@@ -95,7 +95,7 @@ KOSH DATASET
         with self.assertRaises(ValueError):
             ds.associate("tests/baselines/mash/node_extracts2", "mash2")
         self.assertEqual(len(ds.search()), 1)
-        f = ds.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
+        f = ds.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5", id_only=False)
         self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
         self.assertEqual(len(ds.search()), 2)
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
@@ -103,6 +103,24 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
         ds.deassociate("tests/baselines/mash/node_extracts2")
         self.assertEqual(len(ds._associated_data_), 1)
+        # Now mutliple datasets at once
+        ds = store.create()
+        ds.associate([str(i) for i in range(200)], metadata = [ {"name":str(i)} for i in range(200)], mime_type=["type_{}".format(i) for i in range(200) ])
+        self.assertEqual(len(ds._associated_data_), 200)
+        self.assertEqual(len(ds.search(mime_type="type_12")), 1)
+        self.assertEqual(len(ds.search(name="13")), 1)
+
+        # Ok list completion tests
+        ds = store.create()
+        ds.associate([str(i) for i in range(200)], metadata = [ {"name":str(i)} for i in range(200)], mime_type="a_mime_type")
+        self.assertEqual(len(ds._associated_data_), 200)
+        self.assertEqual(len(ds.search(mime_type="a_mime_type")), 200)
+
+        ds = store.create()
+        ds.associate([str(i) for i in range(200)], metadata = {"name":"my name"}, mime_type="stuff")
+        self.assertEqual(len(ds._associated_data_), 200)
+        self.assertEqual(len(ds.search(name="my name")), 200)
+
         os.remove(kosh_db)
 
     def test_search(self):

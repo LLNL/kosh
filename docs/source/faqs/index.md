@@ -31,5 +31,16 @@ mode = store.synchronous()
 print("Synchrononus mode?", mode, store.is_synchronous())
 ```
 
+If you are associating multiple files with a dataset pass them all at once
 
+Rather than
+```python
+for i in range(200):
+    ds.associate(str(i), metadata={"name":str(i)}, mime_type="type_{}".format(i))
+```
+
+Consider
+```python
+ds.associate([str(i) for i in range(200)], metadata = [ {"name":str(i)} for i in range(200)], mime_type=["type_{}".format(i) for i in range(200) ])
+```
 

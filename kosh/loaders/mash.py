@@ -1,11 +1,11 @@
 from __future__ import print_function, division
 import os
 import sys
-sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
-import ExtractReader
 import numpy
 from kosh.arrays import KoshAxis
 from .core import KoshLoader
+sys.path.append(os.path.expanduser("~/git/mashextract/tools"))  # noqa
+import ExtractReader  # noqa
 try:
     from mpi4py import MPI
     comm = MPI.COMM_WORLD

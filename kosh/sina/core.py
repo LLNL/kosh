@@ -265,59 +265,102 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
 
-    def associate(self, uri, mime_type, metadata={}):
+    def associate(self, uri, mime_type, metadata={}, id_only=True):
         """associates a uri/mime_type with this dataset
 
         :param uri: uri to access file
-        :type uri: str
+        :type uri: str or list of str
         :param mime_type: mime type associated with this file
-        :type mime_type: str
+        :type mime_type: str or list of str
         :param metadata: metadata to associate with file, defaults to {}
         :type metadata: dict, optional
+        :param id_only: do not return kosh file object, just its id
+        :type id_only: bool
         :return: A Kosh Sina File
         :rtype: KoshSinaFile
         """
 
         rec = self.get_record()
-        try:
-            rec.add_file(uri, mime_type)
-            Id = None
-        except Exception:
-            # file already in there
-            # Let's get the matching id
-            existing_mime = rec["files"][uri]["mimetype"]
-            if existing_mime != mime_type:
-                raise ValueError("file {} is already associated with this dataset with mimetype"
-                                 " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
-            else:
-                Id = rec["files"][uri]["kosh_id"]
-
-        kosh_file = KoshSinaObject(Id=Id,
-                                   koshType="file",
-                                   store=self.__store__,
-                                   metadata=metadata,
-                                   record_handler=self.__record_handler__,
-                                   record=rec)
-        kosh_file.uri = uri
-        kosh_file.mime_type = mime_type
-        rec["files"][uri]["kosh_id"] = kosh_file.__id__
         # Need to remember we touched associated files
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
-        if hasattr(kosh_file, "associated"):
-            st = set(kosh_file.associated)
-            st.add(self.__id__)
-            kosh_file.associated = list(st)
+
+        if isinstance(uri, str):
+            uris = [uri, ]
+            metadatas = [metadata, ]
+            mime_types = [mime_type, ]
+            single_element = True
         else:
-            kosh_file.associated = [self.__id__, ]
+            uris = uri
+            if isinstance(metadata, dict):
+                metadatas = [metadata, ] * len(uris)
+            else:
+                metadatas = metadata
+            if isinstance(mime_type, str):
+                mime_types = [mime_type, ] * len(uris)
+            else:
+                mime_types = mime_type
+            single_element = False
+
+        new_recs = []
+        kosh_file_ids = []
+
+        for i, uri in enumerate(uris):
+            try:
+                rec.add_file(uri, mime_types[i])
+                meta = metadatas[i].copy()
+                Id = uuid.uuid4().hex
+                rec["files"][uri]["kosh_id"] = Id
+                rec_obj = Record(id=Id, type="file")
+                meta["uri"] = uri
+                meta["mime_type"] = mime_types[i]
+                meta["associated"] = [self.__id__, ]
+                for key in meta:
+                    rec_obj.add_data(key, meta[key])
+                    last_modif_att = "{name}_last_modified".format(name=key)
+                    rec_obj["user_defined"][last_modif_att] = time.time()
+                if not self.__store__.__sync__:
+                    rec_obj["user_defined"]["last_update_from_db"] = time.time()
+                    self.__store__.__sync__dict__[Id] = rec_obj
+                new_recs.append(rec_obj)
+            except Exception:
+                # file already in there
+                # Let's get the matching id
+                existing_mime = rec["files"][uri]["mimetype"]
+                if existing_mime != mime_type:
+                    raise ValueError("file {} is already associated with this dataset with mimetype"
+                                     " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+                else:
+                    Id = rec["files"][uri]["kosh_id"]
+            kosh_file_ids.append(Id)
+
         if self.__store__.__sync__:
-            self.__record_handler__.delete(self.__id__)
-            self.__record_handler__.insert(rec)
+            self.__store__.__record_handler__.insert(new_recs)
+            self.__store__.__record_handler__.delete(self.__id__)
+            self.__store__.__record_handler__.insert(rec)
         else:
             self.__store__._added_unsync_handler.delete(self.__id__)
             self.__store__._added_unsync_handler.insert(rec)
 
-        return kosh_file
+        if id_only:
+            if single_element:
+                return kosh_file_ids[0]
+            else:
+                return kosh_file_ids
+
+        kosh_files = []
+        for Id in kosh_file_ids:
+            kosh_file = KoshSinaObject(Id=Id,
+                                       koshType="file",
+                                       store=self.__store__,
+                                       metadata=metadata,
+                                       record_handler=self.__record_handler__)
+            kosh_files.append(kosh_file)
+
+        if single_element:
+            return kosh_files[0]
+        else:
+            return kosh_files
 
     def search(self, *atts, **keys):
         """search associated data matching some metadata

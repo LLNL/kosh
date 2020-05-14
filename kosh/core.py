@@ -365,7 +365,7 @@ class KoshDataset(object):
                 traceback.print_exc()
                 pass
         msg = "could not get feature '{feature}'".format(feature=feature)
-        msg += " from dataset '{self.__id__}' in format {format},".format(self=self)
+        msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
         msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
         if error is not None:
             msg += "\nError: {error}".format(error=error)
