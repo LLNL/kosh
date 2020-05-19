@@ -39,7 +39,7 @@ Kosh main developer can be reached at: doutriaux1@llnl.gov
 # Contributing
 Contributions should be submitted as a pull request pointing to the develop branch, and must pass Kosh's CI process; to run the same checks locally, use:
 ```
-nosetests tests
+pytest tests/test_kosh*py
 ```
 
 Contributions must be made under the same license as Kosh (see the bottom of this file).
