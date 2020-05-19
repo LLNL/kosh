@@ -50,9 +50,9 @@ stages:
     - echo "testing Py3"
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
-    - nosetests --with-coverage --cover-package=kosh tests
+    - pytest --cov=kosh -n 16 tests/test_kosh_*.py
     - conda activate gitlab_kosh_py2
-    - nosetests tests
+    - pytest -n 16 tests/test_kosh_*.py
 #this file will store file characteristics that the 
 #pipeline needs to check
   artifacts:
