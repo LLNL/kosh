@@ -2,6 +2,7 @@ from subprocess import Popen, PIPE
 import os
 import shlex
 import sys
+import kosh
 
 
 def create_new_db(name, engine='sina', db='sql', token="", keyspace=None, cluster=None):
@@ -19,6 +20,8 @@ def create_new_db(name, engine='sina', db='sql', token="", keyspace=None, cluste
     :type keyspace: str, optional
     :param cluster: list of Casandra clusters to use
     :type cluster: list of str
+    :return store: An handle to the Kosh store created
+    :rtype: KoshStoreClass
     """
     user = os.environ["USER"]
     if db == 'sql' and name[-4:].lower() != ".sql":
@@ -42,3 +45,5 @@ def create_new_db(name, engine='sina', db='sql', token="", keyspace=None, cluste
                 cluster)
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
+    if engine == "sina":
+        return kosh.KoshStore(engine="sina", db_uri=name)
