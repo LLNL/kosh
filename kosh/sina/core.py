@@ -8,6 +8,7 @@ import sina.datastores.sql as sina_sql
 import pickle
 import os
 import grp
+import fcntl
 
 
 class KoshSinaObject(object):
@@ -47,7 +48,9 @@ class KoshSinaObject(object):
             Id = uuid.uuid4().hex
             record = Record(id=Id, type=koshType)
             if store.__sync__:
+                store.lock()
                 store.__record_handler__.insert(record)
+                store.unlock()
             else:
                 record["user_defined"]["last_update_from_db"] = time.time()
                 self.__store__.__sync__dict__[Id] = record
@@ -60,7 +63,9 @@ class KoshSinaObject(object):
                 except BaseException:  # record exists nowhere
                     record = Record(id=Id, type=koshType)
                     if store.__sync__:
+                        store.lock()
                         store.__record_handler__.insert(record)
+                        store.unlock()
                     else:
                         self.__store__.__sync__dict__[Id] = record
                         record["user_defined"]["last_update_from_db"] = time.time()
@@ -99,7 +104,23 @@ class KoshSinaObject(object):
                                                                   name))
         return record["data"][name]["value"]
 
+    def update(self, attributes):
+        """update many attributes at once to limit db writes"""
+        rec = None
+        N = len(attributes)
+        n = 0
+        for name, value in attributes.items():
+            n += 1
+            if n == N:
+                update_db = True
+            else:
+                update_db = False
+            rec = self.___setattr___(name, value, rec, update_db=update_db)
+
     def __setattr__(self, name, value):
+        self.___setattr___(name, value)
+
+    def ___setattr___(self, name, value, record=None, update_db=True):
         """__setattr__ set an attribute on an object
 
         :param name: name of attribute
@@ -108,7 +129,8 @@ class KoshSinaObject(object):
         """
         if name in self.__protected__:  # Cannot set protected attributes
             return
-        record = self.get_record()
+        if record is None:
+            record = self.get_record()
         if name == "schema":
             assert(isinstance(value, KoshSchema))
             value.validate(self)
@@ -144,9 +166,12 @@ class KoshSinaObject(object):
             self.__dict__["__schema__"] = value
             value = pickle.dumps(value).decode("latin1")
         record["data"][name] = {"value": value}
-        if self.__store__.__sync__:
+        if update_db and self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(record)
+            self.__store__.unlock()
+        return record
 
     def __delattr__(self, name):
         """__delattr__ deletes an attribute
@@ -162,8 +187,10 @@ class KoshSinaObject(object):
         record["user_defined"][last_modif_att] = now
         del(record["data"][name])
         if self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(record)
+            self.__store__.unlock()
 
     def sync(self):
         """sync this object with database"""
@@ -258,8 +285,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
         if self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(rec.id)
             self.__record_handler__.insert(rec)
+            self.__store__.unlock()
         # Get all object that have been associated with this uri
         rec = self.__store__.get_record(kosh_id)
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
@@ -335,9 +364,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             kosh_file_ids.append(Id)
 
         if self.__store__.__sync__:
+            self.__store__.lock()
             self.__store__.__record_handler__.insert(new_recs)
             self.__store__.__record_handler__.delete(self.__id__)
             self.__store__.__record_handler__.insert(rec)
+            self.__store__.unlock()
         else:
             self.__store__._added_unsync_handler.delete(self.__id__)
             self.__store__._added_unsync_handler.insert(rec)
@@ -471,7 +502,10 @@ class KoshSinaStore(KoshStoreClass):
         KoshStoreClass.__init__(self, sync, verbose)
         self._dataset_record_type = dataset_record_type
         if db == "sql":
+            self.lock_file = open(db_uri+".handle", "w")
+            self.lock()
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
+            self.unlock()
         elif db == 'cass':
             import sina.datastores.cass as sina
             self.__factory = sina.DAOFactory(
@@ -479,7 +513,9 @@ class KoshSinaStore(KoshStoreClass):
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
+        self.lock()
         self.__dict__["__record_handler__"] = self.__factory.create_record_dao()
+        self.unlock()
         users_filter = list(self.__record_handler__.get_all_of_type(
             "user", ids_only=True))
         names_filter = list(self.__record_handler__.data_query(username=username))
@@ -505,6 +541,24 @@ class KoshSinaStore(KoshStoreClass):
         mem = sina_sql.DAOFactory(db_path=":memory:")
         self._added_unsync_handler = mem.create_record_dao()
 
+    def __del__(self):
+        name = self.lock_file.name
+        self.lock_file.close()
+        if os.path.exists(name):
+            os.remove(name)
+
+    def lock(self):
+        locked = False
+        while not locked:
+            try:
+                fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+            except Exception:
+                time.sleep(0.1)
+
+    def unlock(self):
+        fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+
     def save_loader(self, loader):
         """Save a loader to the store
         Executed immediately even in async mode
@@ -516,7 +570,9 @@ class KoshSinaStore(KoshStoreClass):
         pickled = pickle.dumps(loader).decode("latin1")
         rec = Record(id=uuid.uuid4().hex, type="koshloader")
         rec.add_data("code", pickled)
+        self.lock()
         self.__record_handler__.insert(rec)
+        self.unlock()
 
     def get_record(self, Id):
         if (not self.__sync__) and Id in self.__sync__dict__:
@@ -582,13 +638,16 @@ class KoshSinaStore(KoshStoreClass):
 
         metadata = metadata.copy()
         metadata["creator"] = self.__user_id__
-        metadata["name"] = name
+        if "name" not in metadata:
+            metadata["name"] = name
         metadata["_associated_data_"] = None
         for k in metadata:
             metadata[k] = {'value': metadata[k]}
         rec = Record(id=Id, type=self._dataset_record_type, data=metadata)
         if self.__sync__:
+            self.lock()
             self.__record_handler__.insert(rec)
+            self.unlock()
         else:
             self.__sync__dict__[Id] = rec
             self._added_unsync_handler.insert(rec)
@@ -596,7 +655,9 @@ class KoshSinaStore(KoshStoreClass):
             ds = KoshSinaDataset(Id, store=self, schema=schema, record=rec)
         except Exception as err:  # probably schema validation error
             if self.__sync__:
+                self.lock()
                 self.__record_handler__.delete(Id)
+                self.unlock()
             else:
                 del(self.__sync__dict__[Id])
                 self._added_unsync_handler.delete(rec)

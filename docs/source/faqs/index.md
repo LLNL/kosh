@@ -44,3 +44,25 @@ Consider
 ds.associate([str(i) for i in range(200)], metadata = [ {"name":str(i)} for i in range(200)], mime_type=["type_{}".format(i) for i in range(200) ])
 ```
 
+Similarly, each update to a dataset requires a database access, consider passing as many attributes as possible at creation time, and doing batch update rather than many single operation updates.
+
+Rather than:
+```python
+ds = store.create()
+ds.name = "My name"
+ds.attr1 = 1
+ds.attr2 = 'two'
+[... some code ...]
+# updating
+ds.new_attr = 'new'
+ds.attr1 = 'one'
+ds.attr2 = 2
+```
+
+Consider
+```python
+ds.store.create(metadata={"name":"My name", "attr1":1, "attr2":"two"})
+[... some code ...]
+# batch update/creation
+ds.update({"new_attr":"new", "attr1":"one", "attr2": 2})
+```

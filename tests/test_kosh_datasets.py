@@ -52,6 +52,15 @@ KOSH DATASET
 """.format(id=ds.__id__, creator=ds.creator)
         print(ds)
         self.assertEqual(str(ds).replace("\t","        "), printTestResults)
+        # Set/update many attributes at once
+        ds.update({"creator":"a new creator!", "some_new_attribute":"a new one", "some_int_attribute": 5})
+        # check they are all here
+        self.assertEqual(ds.listattributes(), ["creator", "name", "some_int_attribute", "some_new_attribute"])
+        # Check they are correctly added with correct value
+        self.assertEqual(ds.some_new_attribute, "a new one")
+        self.assertEqual(ds.some_int_attribute, 5)
+        # Check the pre-existing one was updated
+        self.assertEqual(ds.creator, "a new creator!")
         os.remove(kosh_db)
 
     def test_search_datasets_in_store(self):
