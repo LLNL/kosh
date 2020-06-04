@@ -37,10 +37,10 @@ pip install sphinx sphinx-autoapi nbsphinx recommonmark
 
 ### if you want to run the tests you will need
 
-*nosetests*
+*pytest*
 
 ```bash
-pip install nose
+pip install pytest-xdist pytest-cov
 ```
 
 ### if you want to run the notebooks you will need
@@ -61,7 +61,7 @@ export KOSH_PATH=kosh
 pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
-pip install h5py numpy sqlalchemy six ipython pip sphinx nose sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
+pip install h5py numpy sqlalchemy six ipython pip sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
 git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
 cd sina/python
 pip install -e .

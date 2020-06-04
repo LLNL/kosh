@@ -7,6 +7,8 @@ import time
 import sina.datastores.sql as sina_sql
 import pickle
 import os
+import grp
+import fcntl
 
 
 class KoshSinaObject(object):
@@ -46,7 +48,9 @@ class KoshSinaObject(object):
             Id = uuid.uuid4().hex
             record = Record(id=Id, type=koshType)
             if store.__sync__:
+                store.lock()
                 store.__record_handler__.insert(record)
+                store.unlock()
             else:
                 record["user_defined"]["last_update_from_db"] = time.time()
                 self.__store__.__sync__dict__[Id] = record
@@ -59,7 +63,9 @@ class KoshSinaObject(object):
                 except BaseException:  # record exists nowhere
                     record = Record(id=Id, type=koshType)
                     if store.__sync__:
+                        store.lock()
                         store.__record_handler__.insert(record)
+                        store.unlock()
                     else:
                         self.__store__.__sync__dict__[Id] = record
                         record["user_defined"]["last_update_from_db"] = time.time()
@@ -98,7 +104,23 @@ class KoshSinaObject(object):
                                                                   name))
         return record["data"][name]["value"]
 
+    def update(self, attributes):
+        """update many attributes at once to limit db writes"""
+        rec = None
+        N = len(attributes)
+        n = 0
+        for name, value in attributes.items():
+            n += 1
+            if n == N:
+                update_db = True
+            else:
+                update_db = False
+            rec = self.___setattr___(name, value, rec, update_db=update_db)
+
     def __setattr__(self, name, value):
+        self.___setattr___(name, value)
+
+    def ___setattr___(self, name, value, record=None, update_db=True):
         """__setattr__ set an attribute on an object
 
         :param name: name of attribute
@@ -107,7 +129,8 @@ class KoshSinaObject(object):
         """
         if name in self.__protected__:  # Cannot set protected attributes
             return
-        record = self.get_record()
+        if record is None:
+            record = self.get_record()
         if name == "schema":
             assert(isinstance(value, KoshSchema))
             value.validate(self)
@@ -143,9 +166,12 @@ class KoshSinaObject(object):
             self.__dict__["__schema__"] = value
             value = pickle.dumps(value).decode("latin1")
         record["data"][name] = {"value": value}
-        if self.__store__.__sync__:
+        if update_db and self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(record)
+            self.__store__.unlock()
+        return record
 
     def __delattr__(self, name):
         """__delattr__ deletes an attribute
@@ -161,8 +187,10 @@ class KoshSinaObject(object):
         record["user_defined"][last_modif_att] = now
         del(record["data"][name])
         if self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(self.__id__)
             self.__record_handler__.insert(record)
+            self.__store__.unlock()
 
     def sync(self):
         """sync this object with database"""
@@ -257,66 +285,113 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
         if self.__store__.__sync__:
+            self.__store__.lock()
             self.__record_handler__.delete(rec.id)
             self.__record_handler__.insert(rec)
+            self.__store__.unlock()
         # Get all object that have been associated with this uri
         rec = self.__store__.get_record(kosh_id)
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
 
-    def associate(self, uri, mime_type, metadata={}):
+    def associate(self, uri, mime_type, metadata={}, id_only=True):
         """associates a uri/mime_type with this dataset
 
         :param uri: uri to access file
-        :type uri: str
+        :type uri: str or list of str
         :param mime_type: mime type associated with this file
-        :type mime_type: str
+        :type mime_type: str or list of str
         :param metadata: metadata to associate with file, defaults to {}
         :type metadata: dict, optional
+        :param id_only: do not return kosh file object, just its id
+        :type id_only: bool
         :return: A Kosh Sina File
         :rtype: KoshSinaFile
         """
 
         rec = self.get_record()
-        try:
-            rec.add_file(uri, mime_type)
-            Id = None
-        except Exception:
-            # file already in there
-            # Let's get the matching id
-            existing_mime = rec["files"][uri]["mimetype"]
-            if existing_mime != mime_type:
-                raise ValueError("file {} is already associated with this dataset with mimetype"
-                                 " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
-            else:
-                Id = rec["files"][uri]["kosh_id"]
-
-        kosh_file = KoshSinaObject(Id=Id,
-                                   koshType="file",
-                                   store=self.__store__,
-                                   metadata=metadata,
-                                   record_handler=self.__record_handler__,
-                                   record=rec)
-        kosh_file.uri = uri
-        kosh_file.mime_type = mime_type
-        rec["files"][uri]["kosh_id"] = kosh_file.__id__
         # Need to remember we touched associated files
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
-        if hasattr(kosh_file, "associated"):
-            st = set(kosh_file.associated)
-            st.add(self.__id__)
-            kosh_file.associated = list(st)
+
+        if isinstance(uri, str):
+            uris = [uri, ]
+            metadatas = [metadata, ]
+            mime_types = [mime_type, ]
+            single_element = True
         else:
-            kosh_file.associated = [self.__id__, ]
+            uris = uri
+            if isinstance(metadata, dict):
+                metadatas = [metadata, ] * len(uris)
+            else:
+                metadatas = metadata
+            if isinstance(mime_type, str):
+                mime_types = [mime_type, ] * len(uris)
+            else:
+                mime_types = mime_type
+            single_element = False
+
+        new_recs = []
+        kosh_file_ids = []
+
+        for i, uri in enumerate(uris):
+            try:
+                rec.add_file(uri, mime_types[i])
+                meta = metadatas[i].copy()
+                Id = uuid.uuid4().hex
+                rec["files"][uri]["kosh_id"] = Id
+                rec_obj = Record(id=Id, type="file")
+                meta["uri"] = uri
+                meta["mime_type"] = mime_types[i]
+                meta["associated"] = [self.__id__, ]
+                for key in meta:
+                    rec_obj.add_data(key, meta[key])
+                    last_modif_att = "{name}_last_modified".format(name=key)
+                    rec_obj["user_defined"][last_modif_att] = time.time()
+                if not self.__store__.__sync__:
+                    rec_obj["user_defined"]["last_update_from_db"] = time.time()
+                    self.__store__.__sync__dict__[Id] = rec_obj
+                new_recs.append(rec_obj)
+            except Exception:
+                # file already in there
+                # Let's get the matching id
+                existing_mime = rec["files"][uri]["mimetype"]
+                if existing_mime != mime_type:
+                    raise ValueError("file {} is already associated with this dataset with mimetype"
+                                     " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+                else:
+                    Id = rec["files"][uri]["kosh_id"]
+            kosh_file_ids.append(Id)
+
         if self.__store__.__sync__:
-            self.__record_handler__.delete(self.__id__)
-            self.__record_handler__.insert(rec)
+            self.__store__.lock()
+            self.__store__.__record_handler__.insert(new_recs)
+            self.__store__.__record_handler__.delete(self.__id__)
+            self.__store__.__record_handler__.insert(rec)
+            self.__store__.unlock()
         else:
             self.__store__._added_unsync_handler.delete(self.__id__)
             self.__store__._added_unsync_handler.insert(rec)
 
-        return kosh_file
+        if id_only:
+            if single_element:
+                return kosh_file_ids[0]
+            else:
+                return kosh_file_ids
+
+        kosh_files = []
+        for Id in kosh_file_ids:
+            kosh_file = KoshSinaObject(Id=Id,
+                                       koshType="file",
+                                       store=self.__store__,
+                                       metadata=metadata,
+                                       record_handler=self.__record_handler__)
+            kosh_files.append(kosh_file)
+
+        if single_element:
+            return kosh_files[0]
+        else:
+            return kosh_files
 
     def search(self, *atts, **keys):
         """search associated data matching some metadata
@@ -405,7 +480,7 @@ class KoshSinaLoader(KoshLoader):
 
 class KoshSinaStore(KoshStoreClass):
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
-                 keyspace=None, sync=True, dataset_record_type="dataset"):
+                 keyspace=None, sync=True, dataset_record_type="dataset", verbose=True):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -424,10 +499,13 @@ class KoshSinaStore(KoshStoreClass):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        KoshStoreClass.__init__(self, sync)
+        KoshStoreClass.__init__(self, sync, verbose)
         self._dataset_record_type = dataset_record_type
         if db == "sql":
+            self.lock_file = open(db_uri+".handle", "w")
+            self.lock()
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
+            self.unlock()
         elif db == 'cass':
             import sina.datastores.cass as sina
             self.__factory = sina.DAOFactory(
@@ -435,7 +513,9 @@ class KoshSinaStore(KoshStoreClass):
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
+        self.lock()
         self.__dict__["__record_handler__"] = self.__factory.create_record_dao()
+        self.unlock()
         users_filter = list(self.__record_handler__.get_all_of_type(
             "user", ids_only=True))
         names_filter = list(self.__record_handler__.data_query(username=username))
@@ -452,8 +532,47 @@ class KoshSinaStore(KoshStoreClass):
             self.__user_id__ = list(inter_recs)[0]
         self.storeLoader = KoshSinaLoader
         self.add_loader(self.storeLoader)
+
+        # Now let's add the loaders in the store
+        for rec_loader in self.__record_handler__.get_all_of_type("koshloader"):
+            pickled_code = rec_loader.data["code"]["value"].encode("latin1")
+            loader = pickle.loads(pickled_code)
+            self.add_loader(loader)
         mem = sina_sql.DAOFactory(db_path=":memory:")
         self._added_unsync_handler = mem.create_record_dao()
+
+    def __del__(self):
+        name = self.lock_file.name
+        self.lock_file.close()
+        if os.path.exists(name):
+            os.remove(name)
+
+    def lock(self):
+        locked = False
+        while not locked:
+            try:
+                fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+            except Exception:
+                time.sleep(0.1)
+
+    def unlock(self):
+        fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+
+    def save_loader(self, loader):
+        """Save a loader to the store
+        Executed immediately even in async mode
+
+        :param loader: Loader to save
+        :type loader: KoshLoader
+        """
+
+        pickled = pickle.dumps(loader).decode("latin1")
+        rec = Record(id=uuid.uuid4().hex, type="koshloader")
+        rec.add_data("code", pickled)
+        self.lock()
+        self.__record_handler__.insert(rec)
+        self.unlock()
 
     def get_record(self, Id):
         if (not self.__sync__) and Id in self.__sync__dict__:
@@ -512,20 +631,23 @@ class KoshSinaStore(KoshStoreClass):
             Id = uuid.uuid4().hex
         else:
             if datasetId in self.__record_handler__.get_all_of_type(
-                    "dataset", ids_only=True):
+                    self._dataset_record_type, ids_only=True):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
 
         metadata = metadata.copy()
         metadata["creator"] = self.__user_id__
-        metadata["name"] = name
+        if "name" not in metadata:
+            metadata["name"] = name
         metadata["_associated_data_"] = None
         for k in metadata:
             metadata[k] = {'value': metadata[k]}
         rec = Record(id=Id, type=self._dataset_record_type, data=metadata)
         if self.__sync__:
+            self.lock()
             self.__record_handler__.insert(rec)
+            self.unlock()
         else:
             self.__sync__dict__[Id] = rec
             self._added_unsync_handler.insert(rec)
@@ -533,7 +655,9 @@ class KoshSinaStore(KoshStoreClass):
             ds = KoshSinaDataset(Id, store=self, schema=schema, record=rec)
         except Exception as err:  # probably schema validation error
             if self.__sync__:
+                self.lock()
                 self.__record_handler__.delete(Id)
+                self.unlock()
             else:
                 del(self.__sync__dict__[Id])
                 self._added_unsync_handler.delete(rec)
@@ -878,3 +1002,78 @@ class KoshSinaStore(KoshStoreClass):
             except Exception:
                 # probably coming from del then
                 del(self.__sync__deleted__[key])
+
+    def add_user(self, username, groups=[]):
+        """add_user adds a user to the Kosh store
+
+        :param username: username to add
+        :type username: str
+        :param groups: kosh specific groups to add to this user
+        :type groups: list
+        """
+
+        existing_users = self.__record_handler__.get_all_of_type("user")
+        users = [rec["data"]["username"]["value"] for rec in existing_users]
+        if username not in users:
+            # Create user
+            uid = uuid.uuid4().hex
+            user = Record(id=uid, type="user")
+            user.add_data("username", username)
+            self.__record_handler__.insert(user)
+            self.add_user_to_group(username, groups)
+        else:
+            raise ValueError("User {} already exists".format(username))
+
+    def add_group(self, group):
+        """Add a kosh spcific group, cannot match exisiting group on unix system
+
+        :param group: ugroup to add
+        :type group: str
+        """
+
+        existing_groups = self.__record_handler__.get_all_of_type("group")
+        groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
+        if group in groups_names:
+            raise ValueError("group {} already exist".format(group))
+
+        # now get unix groups
+        unix_groups = [g[0] for g in grp.getgrall()]
+        if group in unix_groups:
+            raise ValueError("{} is a unix group on this system.format(group)")
+
+        # Create group
+        uid = uuid.uuid4().hex
+        group_rec = Record(id=uid, type="group")
+        group_rec.add_data("name", group)
+        self.__record_handler__.insert(group_rec)
+
+    def add_user_to_group(self, username, groups):
+        """Add a user to some group(s)
+
+        :param username: username to add
+        :type username: str
+        :param groups: kosh specific groups to add to this user
+        :type groups: list
+        """
+
+        users_filter = self.__record_handler__.get_all_of_type("user", ids_only=True)
+        names_filter = list(self.__record_handler__.data_query(username=username))
+        inter_recs = set(users_filter).intersection(set(names_filter))
+        if len(inter_recs) == 0:
+            raise ValueError("User {} does not exists".format(username))
+        user = self.get_record(names_filter[0])
+        user_groups = user["data"].get("groups", {"value": []})["value"]
+
+        existing_groups = self.__record_handler__.get_all_of_type("group")
+        groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
+        for group in groups:
+            if group not in groups_names:
+                warnings.warn("Group {} is not a Kosh group, skipping".format(group))
+                continue
+            user_groups.append(group)
+        if len(user_groups) == 0:
+            user.add_data("groups", None)
+        else:
+            user.add_data("groups", list(set(user_groups)))
+        self.__record_handler__.delete(names_filter[0])
+        self.__record_handler__.insert(user)

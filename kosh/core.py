@@ -1,6 +1,7 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader
+import warnings
 try:
     from .loaders import MashLoader
 except ImportError:
@@ -13,6 +14,10 @@ try:
     from .loaders import PILLoader
 except ImportError:
     pass
+try:
+    from .loaders import UltraLoader
+except ImportError:
+    pass
 
 
 class KoshAgent(object):
@@ -22,23 +27,35 @@ class KoshAgent(object):
 class KoshStoreClass(object):
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync):
+    def __init__(self, sync, verbose=True):
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         try:
             self.add_loader(KoshHDF5Loader)
-        except Exception:
-            pass  # no h5py module?
+        except Exception:  # no h5py module?
+            if verbose:
+                warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         try:
             self.add_loader(PILLoader)
-        except Exception:
-            pass  # no PIL?
+        except Exception:  # no PIL?
+            if verbose:
+                warnings.warn("Could not add pil loader, check if you have pillow installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         self.add_loader(PGMLoader)
         try:
             self.add_loader(MashLoader)
-        except Exception:
-            pass  # no MashExtract?
+        except Exception:  # no MashExtract?
+            if verbose:
+                warnings.warn("Could not add mash loader, check if you have mashextract ExtractReader installed."
+                              " Pass verbose=False when creating the store to turn this message off")
+        try:
+            self.add_loader(UltraLoader)
+        except Exception:  # no pydv?
+            if verbose:
+                warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                              " Pass verbose=False when creating the store to turn this message off")
         self.__sync__ = sync
         self.__sync__dict__ = {}
         self.__sync__deleted__ = {}
@@ -69,12 +86,32 @@ class KoshStoreClass(object):
         """
         raise NotImplementedError()
 
-    def add_loader(self, loader):
+    @abstractmethod
+    def save_loader(self):
+        """saves a loader to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    def add_loader(self, loader, save=False):
+        """Adds a loader to the store
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+        :param save: Do we also save it in store for later re-use
+        :type save: bool
+
+        :return: None
+        :rtype: None
+        """
         for k in loader.types:
             if k in self.loaders:
                 self.loaders[k].append(loader)
             else:
                 self.loaders[k] = [loader, ]
+        if save:  # do we save it in store
+            self.save_loader(loader)
 
     def is_synchronous(self):
         """is_synchronous is store is synchronous mode
@@ -102,8 +139,32 @@ class KoshStoreClass(object):
             self.__sync__ = mode
         return self.__sync__
 
+    @abstractmethod
+    def add_user(self):
+        """Adds a user to the store
 
-def KoshStore(engine="sina", sync=True, *args, **kargs):
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_user_to_group(self):
+        """Adds a user to group(s)
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_group(self):
+        """Adds a group to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+
+def KoshStore(engine="sina", sync=True, verbose=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param engine: The engine used by the store (currently sina only)
@@ -118,7 +179,7 @@ def KoshStore(engine="sina", sync=True, *args, **kargs):
     # Initialize and returns access class
     if engine.lower() == "sina":
         from .sina import KoshSinaStore
-        return KoshSinaStore(sync=sync, *args, **kargs)
+        return KoshSinaStore(sync=sync, verbose=verbose, *args, **kargs)
     else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
@@ -212,7 +273,7 @@ class KoshDataset(object):
                     these_features = ld.list_features(*args, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
-                            ided_features.append("{feature}_{obj.uri}".format(feature=feature, obj=obj))
+                            ided_features.append("{feature}_@_{obj.uri}".format(feature=feature, obj=obj))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
@@ -241,7 +302,8 @@ class KoshDataset(object):
             for a in self._associated_data_:
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features(**kargs) or \
-                        feature[:-len(ld.obj.uri)-1] in ld.list_features(**kargs):
+                        (feature[:-len(ld.obj.uri)-3] in ld.list_features()
+                         and feature[-len(ld.obj.uri):] == ld.obj.uri):
                     loader = ld
                     break
         elif Id not in self._associated_data_:
@@ -278,7 +340,8 @@ class KoshDataset(object):
                 ld = self.__store__._find_loader(a)
                 if feature in ld.list_features() or\
                         feature is None or\
-                        feature[:-len(ld.obj.uri)-1] in ld.list_features():
+                        (feature[:-len(ld.obj.uri)-3] in ld.list_features() and
+                         feature[-len(ld.obj.uri):] == ld.obj.uri):
                     possible_ids.append(a)
             if possible_ids == []:  # All failed but could be something about the feature
                 possible_ids = self._associated_data_[:1]
@@ -291,7 +354,10 @@ class KoshDataset(object):
             try:
                 ld = self.__store__._find_loader(Id)
                 possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                tmp = ld.get(feature, format, *args, **kargs)
+                if (feature[:-len(ld.obj.uri)-3] in ld.list_features() and feature[-len(ld.obj.uri):] == ld.obj.uri):
+                    tmp = ld.get(feature[:-len(ld.obj.uri)-3], format, *args, **kargs)
+                else:
+                    tmp = ld.get(feature, format, *args, **kargs)
                 return tmp
             except Exception as err:  # noqa
                 error = err
@@ -299,7 +365,7 @@ class KoshDataset(object):
                 traceback.print_exc()
                 pass
         msg = "could not get feature '{feature}'".format(feature=feature)
-        msg += " from dataset '{self.__id__}' in format {format},".format(self=self)
+        msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
         msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
         if error is not None:
             msg += "\nError: {error}".format(error=error)

@@ -25,8 +25,8 @@ def list_hdf5(obj):
     """
     nest = list(walk_hdf5(obj))
     out = []
-    for l in nest:
-        for d in l.split("***"):
+    for p in nest:
+        for d in p.split("***"):
             if len(d) > 0:
                 if d[0] == "/":
                     out.append(d[1:])

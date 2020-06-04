@@ -12,3 +12,7 @@ try:
     from .hdf5 import KoshHDF5Loader  # noqa
 except ImportError:
     pass  # we do not have h5py
+try:
+    from .UltraLoader import UltraLoader  # noqa
+except ImportError:
+    pass  # we do not have pydv

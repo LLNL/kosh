@@ -5,11 +5,12 @@ import kosh
 import uuid
 import logging
 
-
 # Turn off sina logging
-for name in ["sina.datastores.sql", "sina.model", "sina.utils"]:
+for name in ["sina.datastores.sql", "sina.model", "sina.utils", "sina.dao",
+             "matplotlib", "matplotlib.font", "matplotlib.pyplot"]:
     logger = logging.getLogger(name)
-    logger.setLevel(logging.ERROR)
+    logger.setLevel(logging.CRITICAL)
+    logger.disabled = True
 
 
 class KoshTest(unittest.TestCase):
@@ -35,5 +36,5 @@ class KoshTest(unittest.TestCase):
         if engine == "sina":
             # os.getlogin does not work on my WSL
             store = KoshStore(engine="sina", username=os.environ["USER"], db='sql',
-                      db_uri=kosh_db, sync=sync, dataset_record_type=dataset_record_type)
+                      db_uri=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
         return store, kosh_db
