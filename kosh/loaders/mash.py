@@ -281,6 +281,7 @@ class MashReader(object):
                 empty = numpy.empty(sh, dtype=data.dtype)
                 comm.Recv(empty, source=rk, tag=11)
                 out[:, start:start+sh[1]] = empty
+                start += sh[1]
         if rank == 0:
             return out
 
