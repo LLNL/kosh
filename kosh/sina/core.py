@@ -221,6 +221,12 @@ class KoshSinaObject(object):
             attributes[a] = record["data"][a]["value"]
         return attributes
 
+    def __str__(self):
+        st = "Id: {}".format(self.__id__)
+        for att in sorted(self.listattributes()):
+            st += "\n\t{}: {}".format(att, getattr(self, att))
+        return st
+
 
 class KoshSinaFile(KoshSinaObject):
     """KoshSinaFile file representation in Kosh via Sina"""
@@ -264,6 +270,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             pass
         if schema is not None or "schema" in record["data"]:
             self.validate()
+
+    __str__ = KoshDataset.__str__
 
     def validate(self):
         if self.schema is not None:
@@ -539,6 +547,7 @@ class KoshSinaStore(KoshStoreClass):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
+
         mem = sina_sql.DAOFactory(db_path=":memory:")
         self._added_unsync_handler = mem.create_record_dao()
 
@@ -665,26 +674,25 @@ class KoshSinaStore(KoshStoreClass):
             raise err
         return ds
 
-    def _find_loader(self, Id):
+    def _find_loader(self, Id, format=None, transformers=[]):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
         :type Id: str
-        :return: Kosh object
+        :return: Kosh loader object and mime_type
         """
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] == self._dataset_record_type:
-            return KoshSinaLoader(obj)
-        loader = None
+            return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                return self.loaders[record["data"]["mime_type"]["value"]][0](obj)
+                return self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            return self.loaders[record["type"]][0](obj)
-        return loader
+            return self.loaders[record["type"]][0](obj), record["type"]
+        return
 
     def open(self, Id, loader=None, *args, **kargs):
         """open loads an object in store based on its Id
@@ -696,7 +704,7 @@ class KoshSinaStore(KoshStoreClass):
         :return:
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
         return loader.open(*args, **kargs)
@@ -718,7 +726,7 @@ class KoshSinaStore(KoshStoreClass):
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
-    def get(self, Id, feature, format=None, loader=None, *args, **kargs):
+    def get(self, Id, feature, format=None, loader=None, operators=[], *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -729,13 +737,15 @@ class KoshSinaStore(KoshStoreClass):
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format
+        :param operators: A list of operators to use after the data is loaded
+        :type operators: kosh.operator.KoshTranformer
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 
-        return loader.get(feature, format, *args, **kargs)
+        return loader.get(feature, format, operators=[], *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata
