@@ -1,6 +1,7 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader
+from kosh.transformers import get_path
 import warnings
 try:
     from .loaders import MashLoader
@@ -110,6 +111,7 @@ class KoshStoreClass(object):
                 self.loaders[k].append(loader)
             else:
                 self.loaders[k] = [loader, ]
+
         if save:  # do we save it in store
             self.save_loader(loader)
 
@@ -273,7 +275,7 @@ class KoshDataset(object):
         if Id is None:
             for associated in associated_data:
                 if loader is None:
-                    ld = self.__store__._find_loader(associated)
+                    ld, _ = self.__store__._find_loader(associated)
                 else:
                     ld = loader(self.__store__._load(associated))
                 loaders.append(ld)
@@ -295,7 +297,7 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            ld = self.__store__._find_loader(Id)
+            ld, _ = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
         self.__dict__["__features__"] = features
         self.__store__.synchronous(saved_sync)
@@ -317,7 +319,7 @@ class KoshDataset(object):
         loader = None
         if Id is None:
             for a in self._associated_data_:
-                ld = self.__store__._find_loader(a)
+                ld, _ = self.__store__._find_loader(a)
                 if feature in ld.list_features(**kargs) or \
                         (feature[:-len(ld.obj.uri)-3] in ld.list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
@@ -326,10 +328,10 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            loader = self.__store__._find_loader(Id)
+            loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
-    def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
+    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
         """get data for a specific feature
 
         :param feature: feature (variable) to read, defaults to None
@@ -339,6 +341,11 @@ class KoshDataset(object):
         :param Id: object to read in, defaults to None
         :type Id: str, optional
         :param loader: loader to use to get data, defaults to None means pick for me
+        :type loader: kosh.loaders.KoshLoader
+        :param group: group multiple features in one get call, assumes loader can handle this
+        :type group: bool
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
         :raises RuntimeException: could not get feature
         :raises RuntimeError: object id not associated with dataset
         :return: [description]
@@ -347,46 +354,107 @@ class KoshDataset(object):
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get(Id=None, feature=feat, format=format, loader=loader, *args, **kargs))
+                out.append(self.get(Id=None, feature=feat, format=format,
+                                    loader=loader, transformers=transformers, *args, **kargs))
             return out
-        possible_ids = []
-        possible_formats = []
+        # Need to make sure transformers are a list
+        if not isinstance(transformers, (list, tuple)):
+            transformers = [transformers, ]
         # we need to figure which associated data has the feature
-        if Id is None:
-            for a in self._associated_data_:
-                ld = self.__store__._find_loader(a)
-                if feature in ld.list_features() or\
-                        feature is None or\
-                        (feature[:-len(ld.obj.uri)-3] in ld.list_features() and
-                         feature[-len(ld.obj.uri):] == ld.obj.uri):
-                    possible_ids.append(a)
-            if possible_ids == []:  # All failed but could be something about the feature
-                possible_ids = self._associated_data_[:1]
-        elif Id not in self._associated_data_:
-            raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
+        if not isinstance(feature, list):
+            features = [feature, ]
         else:
-            possible_ids = [Id, ]
-        error = None
-        for Id in possible_ids:
-            try:
-                ld = self.__store__._find_loader(Id)
-                possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                if (feature[:-len(ld.obj.uri)-3] in ld.list_features() and feature[-len(ld.obj.uri):] == ld.obj.uri):
-                    tmp = ld.get(feature[:-len(ld.obj.uri)-3], format, *args, **kargs)
-                else:
-                    tmp = ld.get(feature, format, *args, **kargs)
-                return tmp
-            except Exception as err:  # noqa
-                error = err
-                import traceback
-                traceback.print_exc()
-                pass
-        msg = "could not get feature '{feature}'".format(feature=feature)
-        msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
-        msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
-        if error is not None:
-            msg += "\nError: {error}".format(error=error)
-        raise Exception(msg)
+            features = feature
+        possibles = {}
+        inter = None
+        union = set()
+        for feature_ in features:
+            possible_ids = []
+            if Id is None:
+                for a in self._associated_data_:
+                    ld, _ = self.__store__._find_loader(a)
+                    if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
+                            feature_ is None or\
+                            (feature_[:-len(ld.obj.uri)-3] in ld.list_features() and
+                             feature_[-len(ld.obj.uri):] == ld.obj.uri):
+                        possible_ids.append(a)
+                if possible_ids == []:  # All failed but could be something about the feature
+                    possible_ids = self._associated_data_[:1]
+            elif Id not in self._associated_data_:
+                raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
+            else:
+                possible_ids = [Id, ]
+            if inter is None:
+                inter = set(possible_ids)
+            else:
+                inter = inter.intersection(set(possible_ids))
+            union = union.union(set(possible_ids))
+            possibles[feature_] = possible_ids
+
+        if len(inter) != 0:
+            union = inter
+
+        ids = {}
+        # Now let's go through each possible uri
+        # and group features in thems
+        for id_ in union:
+            matching_features = []
+            for feature_ in features:
+                if feature_ in possibles and id_ in possibles[feature_]:
+                    matching_features.append(feature_)
+                    del(possibles[feature_])
+            if len(matching_features) > 0:
+                ids[id_] = matching_features
+
+        out = []
+        for id_ in ids:
+            features = ids[id_]
+            error = None
+            possible_formats = []
+            for Id in possible_ids:
+                tmp = None
+                try:
+                    ld, mime_type = self.__store__._find_loader(Id)
+                    # Ensures there is a possible path to format
+                    get_path(mime_type, ld, transformers, format)
+                    possible_formats += ld.known_load_formats(ld.obj.mime_type)
+                    # Ok we need to clean the feature names from the uri if associated with it
+                    final_features = []
+                    for feature_ in features:
+                        if (feature_[:-len(ld.obj.uri)-3] in ld.list_features()
+                                and feature_[-len(ld.obj.uri):] == ld.obj.uri):
+                            final_features.append(
+                                feature_[:-len(ld.obj.uri)-3])
+                        else:
+                            final_features.append(feature_)
+                    if len(final_features) == 1:
+                        final_features = final_features[0]
+                    tmp = ld.get(final_features, format,
+                                 transformers=transformers, *args, **kargs)
+                    if not isinstance(final_features, list) or not isinstance(tmp, list):
+                        out += [tmp, ]
+                    else:
+                        out += tmp
+                    break
+                except Exception as err:  # noqa
+                    error = err
+                    import traceback
+                    traceback.print_exc()
+            if tmp is None:  # Failed to load
+                # Ok something went wrong...
+                msg = "could not get feature '{feature}'".format(feature=final_features)
+                msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
+                if len(transformers) != 0:
+                    msg += " with transformers {}".format(transformers)
+                msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
+                if error is not None:
+                    msg += "\nError: {error}".format(error=error)
+                raise Exception(msg)
+
+        if isinstance(feature, list) and group is False:
+            return out
+        else:
+            return out[0]
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

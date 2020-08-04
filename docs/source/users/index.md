@@ -56,7 +56,21 @@ data = ds.get(features[0])
 If multiple loaders are available you can specify the loader you want to use
 
 ```python
-data = ds.get(features[0], loader=mycustomloader)
+# Image loader
+my_loader = kosh.loader.pil.PILLoader  # no need to instantiate
+data = ds.get(features[0], loader=my_loader)
+```
+
+## Transformers
+
+Once data is loaded from its source URI you further process it (subsampling, format change, augmentation, etc...) via *transformers*.
+
+Transformers offer the possibility to cache their result for faster computation the next time around. The default cache directory in stored in `kosh.core.kosh_cache_dir` and points to: `os.path.join(os.environ["HOME"], ".cache", "kosh")`.
+
+```python
+# no transformation but stores cache as numpy (useful if loader takes a long time to convert to numpy)
+my_transformer = kosh.transformers.npy.SimpleNpCache(cache=True, cache_dir="/some/path/to/cache")
+data = ds.get(features[0], transformers=[my_transformer, ])
 ```
 
 

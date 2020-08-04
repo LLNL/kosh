@@ -392,7 +392,7 @@ class MashLoader(KoshLoader):
         """
         args, kargs = self._user_passed_parameters
         reader = self.open()
-        return reader.get(self.feature, *args, **kargs)
+        return reader.get(self.feature, **kargs)
 
     def list_features(self):
         """list_features lists features available

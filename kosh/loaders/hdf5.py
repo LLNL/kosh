@@ -73,7 +73,7 @@ class KoshHDF5Loader(KoshLoader):
 
         self.feature = feat
 
-    def get(self, feature=None, format=None, Id=None, loader=None, *args, **kargs):
+    def get(self, feature=None, format=None, transformers=[], *args, **kargs):
         """get extracts a feature from an hdf5 file
 
         This loader can handle hdf5 files with custom restart in them.
@@ -87,15 +87,12 @@ class KoshHDF5Loader(KoshLoader):
         :type feature: str, optional
         :param format: output format
         :type format: str, optional
-        :param Id: dataset Id, defaults to None
-        :type Id: str, optional
-        :param loader: loader to use, defaults to None
         :return: extracted feature
         :rtype: numpy.ndarray
         """
         if feature not in self.list_features() and feature in self._restart_features:
             feature = " ".join(feature.split(" ")[:-2])
-        return super(KoshHDF5Loader, self).get(feature, format, Id, loader, *args, **kargs)
+        return super(KoshHDF5Loader, self).get(feature, format, transformers, *args, **kargs)
 
     def extract(self):
         """extract return a feature from the loaded object.
@@ -112,156 +109,167 @@ class KoshHDF5Loader(KoshLoader):
         if "restart" in kargs:
             kargs.pop("restart")  # it's for preprocess
         f = h5py.File(self.obj.uri, "r")
-        feat = f[self.feature]
-        if len(kargs) != 0:  # probably requested dims
-            feat_dims = [x.label for x in feat.dims]
-            if feat_dims == [""]:
-                # Probably a dimension (cycle?)
-                feat_dims = [self.feature, ]
-            user_dims = {}
-            for k in list(kargs.keys()):
-                if k in feat_dims:
-                    user_dims[k] = kargs.pop(k)
-            select = {}
-            for dim in user_dims:
-                user_selection = user_dims[dim]
-                if isinstance(user_selection, slice):
-                    indices = user_selection
-                else:  # User passed a value or values
-                    values = f[dim][:].tolist()
-                    indices = [values.index(x) for x in user_selection]
-                select[feat_dims.index(dim)] = indices
-            selectors = []
-            for i in range(len(feat.shape)):
-                if i in select:
-                    selectors.append(select[i])
-                else:
-                    selectors.append(slice(0, None))
-            if "cycles" in kargs:
-                # ok let's make sure it's not a restart!
-                restart = re.search("/\d\d\d/", self.feature)  # noqa
-                if restart is None:  # we need to search dims as well
-                    restart = re.search("\d\d\d/", self.feature)  # noqa
-                if restart is not None:
-                    # Ok it's a restart we need to match cycles/restart file
-                    my_restart = restart.group()
-                    if my_restart[0] != "/":
-                        my_restart = "/{my_restart}".format(my_restart=my_restart)
-                    restarts = {}
-                    restart = int(my_restart[1:-1])
-                    cycles = f["{my_restart}/cycles".format(my_restart=my_restart)]
-                    restarts[restart] = {"first": cycles[0],
-                                         "cycles": cycles[:],
-                                         "feature": self.feature}
-                    last_valid_restart = restart
-                    restart -= 1
-                    while restart > 0:
-                        feature = self.feature.replace(
-                            my_restart, "/{restart:03d}/".format(restart=restart))
-                        cycles = f["{restart:03d}/cycles".format(restart=restart)]
-                        if cycles[0] < restarts[last_valid_restart]["first"]:
-                            restarts[restart] = {"first": cycles[0],
-                                                 "cycles": cycles[:],
-                                                 "feature": feature}
-                            last_valid_restart = restart
-                        restart -= 1
-                    # Original run
-                    cycles = f["cycles"]
-                    fnm = self.feature if "cycles" not in self.feature else "cycles"
-                    s = re.search("/\d\d\d/", fnm)  # noqa
-                    if s is not None:
-                        sp = fnm.split(s.group())
-                        fnm = "/".join(sp)
-                    restarts[0] = {"first": cycles[0],
-                                   "cycles": cycles[:],
-                                   "feature": fnm}
-                    keys = sorted(restarts.keys())
-                    cycles = numpy.array(())
-                    start_indx = 0
-                    for indx, key in enumerate(keys[:-1]):
-                        last = int(numpy.argwhere(restarts[key]["cycles"] == restarts[keys[indx+1]]["first"])[0])
-                        restarts[key]["indices"] = (start_indx, last + start_indx)
-                        start_indx += last
-                        cycles = numpy.concatenate((cycles, restarts[key]["cycles"][:last]))
-                    cycles = numpy.concatenate(
-                        (cycles, restarts[keys[-1]]["cycles"]))
-                    restarts[keys[-1]]["indices"] = (start_indx, len(cycles))
-                    user_cycles = kargs["cycles"]
-                    if not isinstance(user_cycles, slice):
-                        # User wants a value range but we want indices
-                        start = int(numpy.argwhere(
-                            cycles == user_cycles[0])[0])
-                        stop = int(numpy.argwhere(
-                            cycles == user_cycles[-1])[0]) + 1
+        features = self.feature
+        if not isinstance(features, list):
+            features = [self.feature, ]
+
+        out = []
+        for feature in features:
+            feat = f[feature]
+            if len(kargs) != 0:  # probably requested dims
+                feat_dims = [x.label for x in feat.dims]
+                if feat_dims == [""]:
+                    # Probably a dimension (cycle?)
+                    feat_dims = [feature, ]
+                user_dims = {}
+                for k in list(kargs.keys()):
+                    if k in feat_dims:
+                        user_dims[k] = kargs.pop(k)
+                select = {}
+                for dim in user_dims:
+                    user_selection = user_dims[dim]
+                    if isinstance(user_selection, slice):
+                        indices = user_selection
+                    else:  # User passed a value or values
+                        values = f[dim][:].tolist()
+                        indices = [values.index(x) for x in user_selection]
+                    select[feat_dims.index(dim)] = indices
+                selectors = []
+                for i in range(len(feat.shape)):
+                    if i in select:
+                        selectors.append(select[i])
                     else:
-                        step = user_cycles.step
-                        if step is None:
-                            step = 1
-                        start = user_cycles.start
-                        if start is None:
-                            start = 0
-                            if step < 0:
-                                start = len(cycles)
-                        elif start < 0:
-                            start = len(cycles) + start
-                        stop = user_cycles.stop
-                        if stop is None:
-                            stop = len(cycles)
-                            if step < 0:
-                                stop = None
-                        elif stop < 0:
-                            stop = len(cycles) + stop
-                    flip = False
-                    if stop is None or start > stop:
-                        flip = True
-                        tmp = cycles[start:stop:step]
-                        start = int(numpy.argwhere(cycles == tmp[-1])[0])
-                        stop = int(numpy.argwhere(cycles == tmp[0])[0]) + 1
-                        step = -step
-
-                    user_cycles = slice(start, stop, step)
-                    # Ok at this point we have a slice selection
-
-                    start = current_start = user_cycles.start
-                    for cycles_index, fd in enumerate(feat_dims):
-                        if fd[-6:] == "cycles":
-                            break
-                    feat = None
-                    for key in sorted(keys):
-                        rs = restarts[key]
-                        range_key = rs["indices"]
-                        if range_key[0] <= current_start < range_key[1]:
-                            # Ok we have data intersection
-                            if user_cycles.stop >= range_key[1]:
-                                # goes past this restart
-                                stop = range_key[1] - range_key[0]
-                            else:
-                                # We are done here
-                                stop = user_cycles.stop - range_key[0]
-                            start = current_start - range_key[0]
-                            cycle_slice = slice(start, stop, user_cycles.step)
-                            selectors[cycles_index] = cycle_slice
-                            if feat is None:
-                                feat = f[rs["feature"]][tuple(selectors)]
-                            else:
-                                feat = numpy.concatenate(
-                                    (feat, f[rs["feature"]][tuple(selectors)]), axis=cycles_index)
-                            j = 0
-                            while current_start + j*step < range_key[1]:
-                                j += 1
-                            current_start += j*step
-                # Reversed order
-                if flip:
-                    selectors = []
-                    for j in range(len(feat.shape)):
-                        if j == cycles_index:
-                            selectors += [slice(None, None, -1), ]
+                        selectors.append(slice(0, None))
+                if "cycles" in kargs:
+                    # ok let's make sure it's not a restart!
+                    restart = re.search("/\d\d\d/", feature)  # noqa
+                    if restart is None:  # we need to search dims as well
+                        restart = re.search("\d\d\d/", feature)  # noqa
+                    if restart is not None:
+                        # Ok it's a restart we need to match cycles/restart file
+                        my_restart = restart.group()
+                        if my_restart[0] != "/":
+                            my_restart = "/{my_restart}".format(my_restart=my_restart)
+                        restarts = {}
+                        restart = int(my_restart[1:-1])
+                        cycles = f["{my_restart}/cycles".format(my_restart=my_restart)]
+                        restarts[restart] = {"first": cycles[0],
+                                             "cycles": cycles[:],
+                                             "feature": feature}
+                        last_valid_restart = restart
+                        restart -= 1
+                        while restart > 0:
+                            feature = self.feature.replace(
+                                my_restart, "/{restart:03d}/".format(restart=restart))
+                            cycles = f["{restart:03d}/cycles".format(restart=restart)]
+                            if cycles[0] < restarts[last_valid_restart]["first"]:
+                                restarts[restart] = {"first": cycles[0],
+                                                     "cycles": cycles[:],
+                                                     "feature": feature}
+                                last_valid_restart = restart
+                            restart -= 1
+                        # Original run
+                        cycles = f["cycles"]
+                        fnm = feature if "cycles" not in feature else "cycles"
+                        s = re.search("/\d\d\d/", fnm)  # noqa
+                        if s is not None:
+                            sp = fnm.split(s.group())
+                            fnm = "/".join(sp)
+                        restarts[0] = {"first": cycles[0],
+                                       "cycles": cycles[:],
+                                       "feature": fnm}
+                        keys = sorted(restarts.keys())
+                        cycles = numpy.array(())
+                        start_indx = 0
+                        for indx, key in enumerate(keys[:-1]):
+                            last = int(numpy.argwhere(restarts[key]["cycles"] == restarts[keys[indx+1]]["first"])[0])
+                            restarts[key]["indices"] = (start_indx, last + start_indx)
+                            start_indx += last
+                            cycles = numpy.concatenate((cycles, restarts[key]["cycles"][:last]))
+                        cycles = numpy.concatenate(
+                            (cycles, restarts[keys[-1]]["cycles"]))
+                        restarts[keys[-1]]["indices"] = (start_indx, len(cycles))
+                        user_cycles = kargs["cycles"]
+                        if not isinstance(user_cycles, slice):
+                            # User wants a value range but we want indices
+                            start = int(numpy.argwhere(
+                                cycles == user_cycles[0])[0])
+                            stop = int(numpy.argwhere(
+                                cycles == user_cycles[-1])[0]) + 1
                         else:
-                            selectors += [slice(0, None)]
+                            step = user_cycles.step
+                            if step is None:
+                                step = 1
+                            start = user_cycles.start
+                            if start is None:
+                                start = 0
+                                if step < 0:
+                                    start = len(cycles)
+                            elif start < 0:
+                                start = len(cycles) + start
+                            stop = user_cycles.stop
+                            if stop is None:
+                                stop = len(cycles)
+                                if step < 0:
+                                    stop = None
+                            elif stop < 0:
+                                stop = len(cycles) + stop
+                        flip = False
+                        if stop is None or start > stop:
+                            flip = True
+                            tmp = cycles[start:stop:step]
+                            start = int(numpy.argwhere(cycles == tmp[-1])[0])
+                            stop = int(numpy.argwhere(cycles == tmp[0])[0]) + 1
+                            step = -step
+
+                        user_cycles = slice(start, stop, step)
+                        # Ok at this point we have a slice selection
+
+                        start = current_start = user_cycles.start
+                        for cycles_index, fd in enumerate(feat_dims):
+                            if fd[-6:] == "cycles":
+                                break
+                        feat = None
+                        for key in sorted(keys):
+                            rs = restarts[key]
+                            range_key = rs["indices"]
+                            if range_key[0] <= current_start < range_key[1]:
+                                # Ok we have data intersection
+                                if user_cycles.stop >= range_key[1]:
+                                    # goes past this restart
+                                    stop = range_key[1] - range_key[0]
+                                else:
+                                    # We are done here
+                                    stop = user_cycles.stop - range_key[0]
+                                start = current_start - range_key[0]
+                                cycle_slice = slice(start, stop, user_cycles.step)
+                                selectors[cycles_index] = cycle_slice
+                                tmp = f[rs["feature"]]
+                                if feat is None:
+                                    feat = tmp[tuple(selectors)]
+                                else:
+                                    feat = numpy.concatenate(
+                                        (feat, tmp[tuple(selectors)]), axis=cycles_index)
+                                j = 0
+                                while current_start + j*step < range_key[1]:
+                                    j += 1
+                                current_start += j*step
+                    # Reversed order
+                    if flip:
+                        selectors = []
+                        for j in range(len(feat.shape)):
+                            if j == cycles_index:
+                                selectors += [slice(None, None, -1), ]
+                            else:
+                                selectors += [slice(0, None)]
+                        feat = feat[tuple(selectors)]
+                else:
                     feat = feat[tuple(selectors)]
-            else:
-                feat = feat[tuple(selectors)]
-        return feat
+            out.append(feat)
+        if not isinstance(self.feature, list):
+            return out[0]
+        else:
+            return out
 
     def list_features(self, group=None, restarts=False, **kargs):
         """list_features list features in file,

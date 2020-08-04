@@ -10,7 +10,7 @@ class KoshTestLoaders(KoshTest):
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
-        l = store._find_loader(ds._associated_data_[0])
+        l, _ = store._find_loader(ds._associated_data_[0])
         self.assertEqual(sorted(l.known_types()), ["hdf5"])
         self.assertEqual(l.known_load_formats("file"), [])
         os.remove(kosh_db)
@@ -19,13 +19,12 @@ class KoshTestLoaders(KoshTest):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate("setup.py", "ascii")
-        l = store._find_loader(ds._associated_data_[0])
+        l, _ = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
         self.assertEqual(sorted(l.known_types()), ["file"])
         self.assertEqual(l.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
-
 
     def test_images(self):
         store, kosh_db = self.connect()
