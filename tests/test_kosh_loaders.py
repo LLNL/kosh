@@ -38,7 +38,7 @@ class KoshTestLoaders(KoshTest):
         # Duplicate features names URI should be added
         ds.associate(
             "tests/baselines/images/wci_logo.gif", "gif")
-        features = sorted(ds.list_features())
+        features = sorted(ds.list_features(use_cache=False))
         self.assertEqual(features, ["image_@_tests/baselines/images/LLNLiconWHITE.png","image_@_tests/baselines/images/wci_logo.gif"])
 
 
@@ -79,14 +79,14 @@ class KoshTestLoaders(KoshTest):
                              'node/metrics_7', 'node/metrics_8', 'node/metrics_9',
                              'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
                           'zone/metrics_3', 'zone/metrics_4'])
-        features = sorted(ds.list_features(None, group="node"))
+        features = sorted(ds.list_features(None, group="node", use_cache=False))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
                           'metrics_4', 'metrics_5', 'metrics_6',
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         
-        features = sorted(ds.list_features(ds._associated_data_[0],"node"))
+        features = sorted(ds.list_features(ds._associated_data_[0], group="node", use_cache=False))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
