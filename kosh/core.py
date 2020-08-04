@@ -248,28 +248,43 @@ class KoshDataset(object):
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         return self.__store__.open(Id, loader, *args, **kargs)
 
-    def list_features(self, Id=None, *args, **kargs):
+    def list_features(self, Id=None, loader=None, use_cache=True, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
         then the associated_data uri gets appended to feature name
 
         :param Id: id of associated object to get list of features from, defaults to None which means all
         :type Id: str, optional
+        :param loader: loader to use to search for feature, will return ONLY features that the loader knows about
+        :type loader: kosh.loaders.KoshLoader
+        :param use_cache: If features is found on cache use it (default: True)
+        :type use_cache: bool
         :raises RuntimeError: object id not associated with dataset
         :return: list of features available
         :rtype: list
         """
+        if use_cache and self.__dict__["__features__"] is not None:
+            return self.__dict__["__features__"]
+        # Ok no need to sync any of this we will not touch the code
+        saved_sync = self.__store__.is_synchronous()
+        self.__store__.synchronous(False)
         features = []
+        loaders = []
+        associated_data = self._associated_data_
         if Id is None:
-            for a in self._associated_data_:
-                ld = self.__store__._find_loader(a)
+            for associated in associated_data:
+                if loader is None:
+                    ld = self.__store__._find_loader(associated)
+                else:
+                    ld = loader(self.__store__._load(associated))
+                loaders.append(ld)
                 features += ld.list_features(*args, **kargs)
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
                 ided_features = []
-                for a in self._associated_data_:
-                    obj = self.__store__._load(a)
-                    ld = self.__store__._find_loader(a)
+                for index, associated in enumerate(associated_data):
+                    obj = self.__store__._load(associated)
+                    ld = loaders[index]
                     these_features = ld.list_features(*args, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
@@ -282,6 +297,8 @@ class KoshDataset(object):
         else:
             ld = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
+        self.__dict__["__features__"] = features
+        self.__store__.synchronous(saved_sync)
         return features
 
     def describe_feature(self, feature, Id=None, **kargs):

@@ -247,10 +247,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         super(KoshSinaDataset, self).__init__(datasetId, koshType=store._dataset_record_type,
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
-                                                         "_associated_data_"],
+                                                         "_associated_data_", "__features__"],
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
         self.__dict__["__record_handler__"] = store.__record_handler__
+        self.__dict__["__features__"] = None
         if record is None:
             record = self.get_record()
         try:

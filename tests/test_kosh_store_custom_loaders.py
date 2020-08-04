@@ -29,7 +29,7 @@ class TestKoshStoreCustomLoaders(KoshTest):
 
         store.add_loader(CustomLoader)
 
-        feats = ds.list_features()
+        feats = ds.list_features(use_cache=False)
         self.assertEqual(feats, ["data_xyz",])
 
         data = ds.get("data_xyz")
@@ -45,7 +45,7 @@ class TestKoshStoreCustomLoaders(KoshTest):
         # Now add it to the store and store it
         store2.add_loader(CustomLoader, save=True)
 
-        feats = ds.list_features()
+        feats = ds.list_features(use_cache=False)
         self.assertEqual(feats, ["data_xyz",])
 
         # now loader is in store should know about this type right away
