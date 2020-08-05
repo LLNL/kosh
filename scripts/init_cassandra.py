@@ -1,16 +1,28 @@
 #!/usr/bin/env python
 
 import argparse
-from cassandra.cluster import Cluster, Session
+from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 import os
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--user", default="cdoutrix", help="username to connect to cassandra")
-parser.add_argument("--token", default=None, help="token to log, will try to read from ${HOME}/.cassandra/cqlshrc")
-parser.add_argument("--keyspace", default=None, help="keyspace, will try to read from ${HOME}/.cassandra/cqlshrc")
+parser.add_argument(
+    "--user",
+    default="cdoutrix",
+    help="username to connect to cassandra")
+parser.add_argument(
+    "--token",
+    default=None,
+    help="token to log, will try to read from ${HOME}/.cassandra/cqlshrc")
+parser.add_argument(
+    "--keyspace",
+    default=None,
+    help="keyspace, will try to read from ${HOME}/.cassandra/cqlshrc")
 parser.add_argument("--cluster", default="sonar8", help="Cluster")
-parser.add_argument("--tables_root", default="kosh", help="root for tables names")
+parser.add_argument(
+    "--tables_root",
+    default="kosh",
+    help="root for tables names")
 args = parser.parse_args()
 
 token = args.token
@@ -22,7 +34,8 @@ with open(os.path.expanduser("~/.cassandra/cqlshrc")) as f:
     if keyspace is None:
         keyspace = lines[3].split("=")[1].strip()
 auth_provider = PlainTextAuthProvider(username=args.user, password=token)
-cluster = Cluster(args.cluster.split(),auth_provider=auth_provider)#, protocol_version=2)
+# , protocol_version=2)
+cluster = Cluster(args.cluster.split(), auth_provider=auth_provider)
 session = cluster.connect(keyspace)
 
 drop_commands = """
@@ -43,9 +56,9 @@ create table {root}_users(id int, name text, primary key (name, id))
 create table {root}_permissions(user_id int, resource_id text, resource_type int, permission int, primary key (user_id, resource_id, resource_type))
 create table {root}_targets(id timeuuid primary key, source_type int, source_parameters map<text, text>, target_url text)
 insert into {root}_users (id, name) values (0, '{user}')
-""".format(root=args.tables_root, user=args.user)
+""".format(root=args.tables_root, user=args.user)  # noqa
 for command in drop_commands.split("\n"):
-    if len(command)>0:
+    if len(command) > 0:
         print("Executing:", command)
         try:
             session.execute(command)
@@ -64,6 +77,6 @@ for table in tables:
 
 # Create tables
 for command in create_commands.split("\n"):
-    if len(command)>0:
+    if len(command) > 0:
         print("Executing:", command)
         session.execute(command)

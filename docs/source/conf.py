@@ -42,6 +42,7 @@ extensions = [
 
 # NBSPHIX OPTIONS
 nbsphinx_allow_errors = True
+nbsphinx_execute = 'never'
 
 # AUTOAPI confi
 autoapi_dirs = ['../../kosh']

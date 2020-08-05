@@ -21,7 +21,7 @@ class KoshTestManyFeaturesSameName(KoshTest):
         ds = store.create()
         
         for i in range(6):
-            ds.associate(chr(i+65), mime_type="fake")
+            ds.associate(chr(i+65), mime_type="fake", absolute_path=False)
         
         feats = sorted(ds.list_features())  # Not necessarily coming back ordered
         self.assertEqual(len(feats), 6)
@@ -34,8 +34,8 @@ class KoshTestManyFeaturesSameName(KoshTest):
         store, kosh_db = self.connect()
         store.add_loader(FakeLoader)
         ds = store.create()
-        ds.associate("examples/sample_files/run_001.hdf5", mime_type="hdf5")
-        ds.associate("examples/sample_files/run_002.hdf5", mime_type="hdf5")
+        ds.associate("examples/sample_files/run_001.hdf5", mime_type="hdf5", absolute_path=False)
+        ds.associate("examples/sample_files/run_002.hdf5", mime_type="hdf5", absolute_path=False)
 
         ds.get('cycles_@_examples/sample_files/run_001.hdf5')
 

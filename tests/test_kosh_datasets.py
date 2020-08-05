@@ -95,14 +95,14 @@ KOSH DATASET
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(ds.search()), 0)
-        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds.associate("tests/baselines/mash/node_extracts2", "mash", absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
         # Make sure associating again will not create additional data
-        ds.associate("tests/baselines/mash/node_extracts2", "mash")
+        ds.associate("tests/baselines/mash/node_extracts2", "mash", absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
         with self.assertRaises(ValueError):
-            ds.associate("tests/baselines/mash/node_extracts2", "mash2")
+            ds.associate("tests/baselines/mash/node_extracts2", "mash2", absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
         f = ds.associate("tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5", id_only=False)
         self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
@@ -110,7 +110,7 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="mash")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
-        ds.deassociate("tests/baselines/mash/node_extracts2")
+        ds.deassociate("tests/baselines/mash/node_extracts2", absolute_path=False)
         self.assertEqual(len(ds._associated_data_), 1)
         # Now mutliple datasets at once
         ds = store.create()
@@ -146,13 +146,13 @@ KOSH DATASET
         s = store.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 2)
 
         self.assertEqual(len(ds._associated_data_), 1)
         ds2.deassociate("tests/baselines/mash/node_extracts2")
         self.assertEqual(len(ds2._associated_data_), 0)
-        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 1)
         os.remove(kosh_db)
 

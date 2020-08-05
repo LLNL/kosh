@@ -3,6 +3,8 @@ from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader
 from kosh.transformers import get_path
 import warnings
+import os
+import kosh
 try:
     from .loaders import MashLoader
 except ImportError:
@@ -165,10 +167,106 @@ class KoshStoreClass(object):
         """
         raise NotImplementedError()
 
+    def export_dataset(self, dataset_Id):
+        """exports a dataset
 
-def KoshStore(engine="sina", sync=True, verbose=True, *args, **kargs):
+        :param dataset_Id: Id of datset to export
+        """
+        return self.open(dataset_Id).export()
+
+    def import_dataset(self, dataset, match_attributes=["name", ]):
+        """import a dataset that was exported from another store
+        :param dataset: Dataset object exported by another store
+        :type dataset: json
+        :return: dataset
+        :rtype: KoshSinaDataset
+        """
+        min_ver = dataset["minimum_kosh_version"]
+        if min_ver is not None and kosh.__version__ < min_ver:
+            raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
+                min_ver, kosh.__version__))
+
+        # Ok now we need to see if dataset already exist?
+        match_dict = {}
+        for attribute in match_attributes:
+            match_dict[attribute] = dataset["attributes"][attribute]
+
+        matching = self.search(**match_dict)
+
+        if len(matching) > 1:
+            raise ValueError("dataset {} matches multiple datasets store {} please change matching_attributes".format(
+                dataset.__id__, self.db_uri))
+        elif len(matching) == 1:
+            # All right we do have a possible conflict here
+            match = matching[0]
+            match_attributes = match.listattributes(dictionary=True)
+            # ok we have some match let's make sure there is no conflict
+            for att in set(match_attributes).intersection(dataset["attributes"].keys()):
+                if match_attributes[att] != dataset["attributes"][att]:
+                    # TODO ERROR HANDLING (--force options?)
+                    raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
+                        att, dataset["attributes"][att], match_attributes[att]))
+            # Ok at this point no conflict!
+            match.update(dataset["attributes"])
+        else:  # Non existent dataset
+            match = self.create(metadata=dataset["attributes"])
+
+        # now we need to handle associated files
+        for associated in dataset["associated"]:
+            uri = associated.pop("uri")
+            mime_type = associated.pop("mime_type")
+            associated.pop("associated")
+            match.associate(uri, mime_type, metadata=associated)
+        return match
+
+    def reassociate(self, target, source=None, absolute_path=True):
+        """This function allows to re-associate data whose uri might have changed
+
+        The source can be the original uri or sha and target is the new uri to use.
+        :param target: New uri
+        :type target: str
+        :param source: uri or sha (long or short of reassociate) to reassociate
+                       with target, if None then the short uri from target will be used
+        :type source: str or None
+        :param absolute_path: if file exists should we store its absolute_path
+        :type absolute_path: bool
+        :return: None
+        :rtype: None
+        """
+
+        # First let's convert to abs path if necessary
+        if absolute_path:
+            if os.path.exists(target):
+                target = os.path.abspath(target)
+            if source is not None and os.path.exists(source):
+                source = os.path.abspath(source)
+
+        # Now, did we pass a source for uri to replace?
+        if source is None:
+            source = kosh.utils.compute_fast_sha(target)
+
+        # Ok now let's get all associated uri that match
+        # Fist assuming it's a fast_sha search all "kosh files" that match this
+        matches = self.search(kosh_type="file", fast_sha=source, ids_only=True)
+        # Now it could be simply a uri
+        matches += self.search(kosh_type="file", uri=source, ids_only=True)
+        # And it's quite possible it's a long_sha too
+        matches += self.search(kosh_type="file", long_sha=source, ids_only=True)
+
+        # And now let's do the work
+        for match_id in matches:
+            try:
+                match = self._load(match_id)
+                match.uri = target
+            except Exception:
+                pass
+
+
+def KoshStore(db_uri=None, engine="sina", sync=True, verbose=True, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
+    :param db_uri: URI to access backend database
+    :type db_uri: str
     :param engine: The engine used by the store (currently sina only)
     :type engine: str
     :param sync: Does Kosh sync automatically to the db (True) or on demand (False)
@@ -181,7 +279,7 @@ def KoshStore(engine="sina", sync=True, verbose=True, *args, **kargs):
     # Initialize and returns access class
     if engine.lower() == "sina":
         from .sina import KoshSinaStore
-        return KoshSinaStore(sync=sync, verbose=verbose, *args, **kargs)
+        return KoshSinaStore(db_uri=db_uri, sync=sync, verbose=verbose, *args, **kargs)
     else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
@@ -198,7 +296,7 @@ class KoshDataset(object):
         except Exception:
             st += "\tname:???\n"
         try:
-            st += "\tcreator: {}\n".format(self.__creator__)
+            st += "\tcreator: {}\n".format(self.creator)
         except Exception:
             st += "\tcreator: ???\n"
         atts = self.__attributes__
@@ -229,6 +327,31 @@ class KoshDataset(object):
 
     def _repr_pretty_(self, p, cycle):
         p.text(self.__str__())
+
+    def list_attributes(self, dictionary=False):
+        """list_attributes list all non protected attributes
+
+        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :type dictionary: bool
+
+        :return: list of attributes set on object
+        :rtype: list
+        """
+        raise NotImplementedError
+
+    def export(self):
+        """Exports a dataset"""
+        output_dict = {
+            "minimum_kosh_version": None,
+            "kosh_version": kosh.__version__,
+            "attributes": self.list_attributes(dictionary=True)
+        }
+        associated_records = []
+        for associated in self._associated_data_:
+            a = self.__store__._load(associated)
+            associated_records.append(a.list_attributes(dictionary=True))
+        output_dict["associated"] = associated_records
+        return output_dict
 
     def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
@@ -333,14 +456,14 @@ class KoshDataset(object):
 
     def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
         """get data for a specific feature
-
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
         :param format: desired format after extraction
         :type format: str
         :param Id: object to read in, defaults to None
         :type Id: str, optional
-        :param loader: loader to use to get data, defaults to None means pick for me
+        :param loader: loader to use to get data,
+                       defaults to None means pick for me
         :type loader: kosh.loaders.KoshLoader
         :param group: group multiple features in one get call, assumes loader can handle this
         :type group: bool
