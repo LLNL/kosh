@@ -44,9 +44,9 @@ class KoshTestSync(KoshTest):
         s = store2.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 1)
-        s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store2.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 2)
         store2.sync()
         s = store.search(key2=DataRange("A"))
@@ -54,9 +54,9 @@ class KoshTestSync(KoshTest):
         s = store2.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        s = store.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 2)
-        s = store2.search(key2=DataRange("A"), file="tests/baselines/mash/node_extracts2")
+        s = store2.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
         self.assertEqual(len(s), 2)
 
         store2.sync()

@@ -38,7 +38,8 @@ class KoshTestLoaders(KoshTest):
         ds.associate(
             "tests/baselines/images/wci_logo.gif", "gif")
         features = sorted(ds.list_features(use_cache=False))
-        self.assertEqual(features, ["image_@_tests/baselines/images/LLNLiconWHITE.png","image_@_tests/baselines/images/wci_logo.gif"])
+        self.assertEqual(features, ["image_@_{}/tests/baselines/images/LLNLiconWHITE.png".format(os.getcwd()),
+                                    "image_@_{}/tests/baselines/images/wci_logo.gif".format(os.getcwd())])
 
 
         ds = store.create(metadata={"key1": 1, "key2": "A"})
@@ -57,11 +58,11 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["format"], "pgm (P2)")
         self.assertEqual(info["max_value"], 255)
         ds.associate("tests/baselines/images/wci_logo.gif", mime_type="gif")
-        self.assertEqual(sorted(ds.list_features()), ['image_@_tests/baselines/images/brain_398.ascii.pgm',
-                                              'image_@_tests/baselines/images/wci_logo.gif'])  # URI is now added to feature to deambiguous them
-        info = ds.describe_feature("image_@_tests/baselines/images/wci_logo.gif")
+        self.assertEqual(sorted(ds.list_features()), ['image_@_{}/tests/baselines/images/brain_398.ascii.pgm'.format(os.getcwd()),
+                                              'image_@_{}/tests/baselines/images/wci_logo.gif'.format(os.getcwd())])  # URI is now added to feature to deambiguous them
+        info = ds.describe_feature("image_@_{}/tests/baselines/images/wci_logo.gif".format(os.getcwd()))
         self.assertEqual(info["size"], (595, 517))
-        data = ds.get("image_@_tests/baselines/images/wci_logo.gif")
+        data = ds.get("image_@_{}/tests/baselines/images/wci_logo.gif".format(os.getcwd()))
         self.assertEqual(data.shape, info["size"][::-1])
 
     def test_hdf5(self):

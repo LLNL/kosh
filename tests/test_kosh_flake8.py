@@ -22,7 +22,7 @@ class TestFlake8(unittest.TestCase):
         print()
         print()
         cmd = "flake8 --show-source --statistics " +\
-              "--max-line-length=120 %s --exclude %s" % (pth, "kosh/cassandra")
+              "--max-line-length=120 {} scripts ".format(pth)
         P = Popen(shlex.split(cmd),
                   stdout=PIPE,
                   stderr=PIPE)

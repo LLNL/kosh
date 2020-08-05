@@ -51,8 +51,12 @@ stages:
     - echo "Activating env py3"
     - conda activate gitlab_kosh_py3
     - pytest --cov=kosh -n 16 tests/test_kosh_*.py
+    - eval `ssh-agent`
+    - ssh-add ${HOME}/.ssh/gitlab
+    - pytest --cov=kosh --cov-append tests/non_parallel/test_kosh_*.py
     - conda activate gitlab_kosh_py2
     - pytest -n 16 tests/test_kosh_*.py
+    - pytest tests/non_parallel/test_kosh_*.py
 #this file will store file characteristics that the 
 #pipeline needs to check
   artifacts:

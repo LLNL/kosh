@@ -30,8 +30,6 @@ setup(name="kosh",
                "scripts/init_sina.py",
                "scripts/kosh",
                ],
-      test_suite='nose.collector',
-      tests_require=['nose'],
       zip_safe=False,
       install_requires=[
           'sina', 

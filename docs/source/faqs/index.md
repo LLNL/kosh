@@ -67,6 +67,15 @@ ds.store.create(metadata={"name":"My name", "attr1":1, "attr2":"two"})
 ds.update({"new_attr":"new", "attr1":"one", "attr2": 2})
 ```
 
+## Can I move files after I associated them with datasets in Kosh?
+
+Yes Kosh offers many option to manipulate the files directly and update your Kosh stores.
+
+Look for `kosh cp`, `kosh mv`, `kosh rm`, `kosh tar`
+
+In particular take a closer look at [this notebook](../jupyter/Example_06_Transfering_Datasets.ipynb)
+
+
 ## What loaders come with Kosh by default?
 
 Currently Kosh comes with the following loaders
@@ -74,7 +83,7 @@ Currently Kosh comes with the following loaders
 
 | Name | Description | mime_type | out type(s) | Required Python Modules |
 | ---- | ---- | ---- | --- | ---- |
-| KoshHDF5Loader | Loads data from HDF% format files | hdf5 | numpy | h5py |
+| KoshHDF5Loader | Loads data from HDF5 format files | hdf5 | numpy | h5py |
 | MashLoader | Load data from MashExtract files | mash | numpy | ExtractReader
 | PGMLoader | Load pgm formatted images (P2 and P5) | pgm | numpy | None
 | PILLoader | Load images that PIL can read | png, pil, tif, tiff, gif, image | numpy, raw binary | pillow
