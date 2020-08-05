@@ -68,7 +68,7 @@ class KoshTestLoaders(KoshTest):
     def test_hdf5(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
-        ds.associate(
+        kosh_id = ds.associate(
             "tests/baselines/mash/node_extracts2/node_extracts2.hdf5", "hdf5")
         features = sorted(ds.list_features())
         self.assertEqual(features,
@@ -100,11 +100,11 @@ class KoshTestLoaders(KoshTest):
         info = ds.describe_feature("node/metrics_1")
         self.assertEqual(info["size"], (2,18))
         self.assertEqual(info["format"], "hdf5")
-        h5 = ds.open(mode="r")
+        h5 = ds.open(Id=kosh_id, mode="r")
         self.assertIsInstance(h5, h5py._hl.files.File)
         self.assertEqual(h5.mode, "r")
         h5.close()
-        h5 = ds.open(mode="r+")
+        h5 = ds.open(Id=kosh_id, mode="r+")
         self.assertEqual(h5.mode, "r+")
         h5.close()
         os.remove(kosh_db)
