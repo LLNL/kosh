@@ -84,7 +84,6 @@ Currently Kosh comes with the following loaders
 | Name | Description | mime_type | out type(s) | Required Python Modules |
 | ---- | ---- | ---- | --- | ---- |
 | KoshHDF5Loader | Loads data from HDF5 format files | hdf5 | numpy | h5py |
-| MashLoader | Load data from MashExtract files | mash | numpy | ExtractReader
 | PGMLoader | Load pgm formatted images (P2 and P5) | pgm | numpy | None
 | PILLoader | Load images that PIL can read | png, pil, tif, tiff, gif, image | numpy, raw binary | pillow
 | UltraLoader | Loads ultra files | ultra | numpy | pydv
@@ -102,6 +101,7 @@ Currently Kosh provides the following transformers
 | KoshSimpleNpCache | Does nothing to the data simply allows to cache | numpy | numpy  | | |
 | Take | mimics numpy's take function | numpy | numpy | |
 | Delta | computes delta between consecutive slice of an array over a specific axis | numpy | numpy | | 
+| Shuffle | shuffles input array over a specific axis | numpy | numpy | | 
 | **SKL** | **SKL-based transformers** | | | | 
 | Splitter | Splits the input into train/test and validation if specified | numpy | numpy | scikit-learn | |
 | StandardScaler | Returns a skl standard scaler | numpy | numpy  | scikit-learn | |

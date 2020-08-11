@@ -2,13 +2,12 @@
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader
 from kosh.transformers import get_path
+from kosh.utils import compute_fast_sha
 import warnings
 import os
 import kosh
-try:
-    from .loaders import MashLoader
-except ImportError:
-    pass
+import time
+import fcntl
 try:
     from .loaders import KoshHDF5Loader
 except ImportError:
@@ -28,9 +27,16 @@ class KoshAgent(object):
 
 
 class KoshStoreClass(object):
+    """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
     def __init__(self, sync, verbose=True):
+        """Constructor
+        :param sync: Does this store constantly sync with db
+        :type sync: bool
+        :param verbose: Print warning messages and such
+        :type verbose: bool
+        """
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
@@ -47,12 +53,6 @@ class KoshStoreClass(object):
                 warnings.warn("Could not add pil loader, check if you have pillow installed."
                               " Pass verbose=False when creating the store to turn this message off")
         self.add_loader(PGMLoader)
-        try:
-            self.add_loader(MashLoader)
-        except Exception:  # no MashExtract?
-            if verbose:
-                warnings.warn("Could not add mash loader, check if you have mashextract ExtractReader installed."
-                              " Pass verbose=False when creating the store to turn this message off")
         try:
             self.add_loader(UltraLoader)
         except Exception:  # no pydv?
@@ -90,6 +90,30 @@ class KoshStoreClass(object):
         raise NotImplementedError()
 
     @abstractmethod
+    def add_user(self):
+        """Adds a user to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_user_to_group(self):
+        """Adds a user to group(s)
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def add_group(self):
+        """Adds a group to the store
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
     def save_loader(self):
         """saves a loader to the store
 
@@ -117,6 +141,36 @@ class KoshStoreClass(object):
         if save:  # do we save it in store
             self.save_loader(loader)
 
+    def lock(self):
+        """Attempts to lock the store, helps when many concurrent requests are made to the store"""
+        locked = False
+        while not locked:
+            try:
+                self.lock_file = open(self.db_uri+".handle", "w")
+                fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+            except Exception:
+                time.sleep(0.1)
+
+    def unlock(self):
+        """Unlocks the store so other can access it"""
+        fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+        self.lock_file.close()
+        # Wrapping this in a try/except
+        # In case concurrency by same user
+        # already removed the file
+        try:
+            os.remove(self.lock_file.name)
+        except Exception:
+            pass
+
+    def __del__(self):
+        """delete the KoshStore object"""
+        name = self.lock_file.name
+        self.lock_file.close()
+        if os.path.exists(name):
+            os.remove(name)
+
     def is_synchronous(self):
         """is_synchronous is store is synchronous mode
 
@@ -142,30 +196,6 @@ class KoshStoreClass(object):
                 self.sync()
             self.__sync__ = mode
         return self.__sync__
-
-    @abstractmethod
-    def add_user(self):
-        """Adds a user to the store
-
-        :raises NotImplementedError: Needs to be implemented for each engine
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def add_user_to_group(self):
-        """Adds a user to group(s)
-
-        :raises NotImplementedError: Needs to be implemented for each engine
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def add_group(self):
-        """Adds a group to the store
-
-        :raises NotImplementedError: Needs to be implemented for each engine
-        """
-        raise NotImplementedError()
 
     def export_dataset(self, dataset_Id):
         """exports a dataset
@@ -288,6 +318,7 @@ def KoshStore(db_uri=None, engine="sina", sync=True, verbose=True, *args, **karg
 
 class KoshDataset(object):
     def __str__(self):
+        """string representation"""
         st = ""
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.__id__)
@@ -326,6 +357,7 @@ class KoshDataset(object):
         return st
 
     def _repr_pretty_(self, p, cycle):
+        """Pretty display in Ipython"""
         p.text(self.__str__())
 
     def list_attributes(self, dictionary=False):
@@ -340,7 +372,9 @@ class KoshDataset(object):
         raise NotImplementedError
 
     def export(self):
-        """Exports a dataset"""
+        """Exports this dataset
+        :return: datset and its associated data
+        :rtype: dict"""
         output_dict = {
             "minimum_kosh_version": None,
             "kosh_version": kosh.__version__,
@@ -391,7 +425,12 @@ class KoshDataset(object):
             return self.__dict__["__features__"]
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
-        self.__store__.synchronous(False)
+        if saved_sync:
+            # we will not update any rec in here, turnin off sync
+            # it makes things much d=faster
+            backup = self.__store__.__sync__dict__
+            self.__store__.__sync__dict__ = {}
+            self.__store__.synchronous()
         features = []
         loaders = []
         associated_data = self._associated_data_
@@ -423,7 +462,10 @@ class KoshDataset(object):
             ld, _ = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
         self.__dict__["__features__"] = features
-        self.__store__.synchronous(saved_sync)
+        if saved_sync:
+            # we need to restore sync mode
+            self.__store__.__sync__dict__ = backup
+            self.__store__.synchronous()
         return features
 
     def describe_feature(self, feature, Id=None, **kargs):
@@ -590,3 +632,45 @@ class KoshDataset(object):
         except Exception:
             atts = set()
         return list(current.union(atts))
+
+    def reassociate(self, target, source=None, absolute_path=True):
+        """This function allows to re-associate data whose uri might have changed
+
+        The source can be the original uri or sha and target is the new uri to use.
+        :param target: New uri
+        :type target: str
+        :param source: uri or sha (long or short of reassociate)
+                       to reassociate with target, if None then the short uri from target will be used
+        :type source: str or None
+        :param absolute_path: if file exists should we store its absolute_path
+        :type absolute_path: bool
+        :return: None
+        :rtype: None
+        """
+        # First let's convert to abs path if necessary
+        if absolute_path:
+            if os.path.exists(target):
+                target = os.path.abspath(target)
+            if source is not None and os.path.exists(source):
+                source = os.path.abspath(source)
+
+        # Now, did we pass a source for uri to replace?
+        if source is None:
+            source = compute_fast_sha(target)
+
+        # Ok now let's get all associated uri that match
+        # Fist assuming it's a fast_sha
+        matches = self.search(fast_sha=source)
+        # Now it could be simply a uri
+        matches += self.search(uri=source)
+        # And it's quite possible it's a long_sha too
+        matches += self.search(long_sha=source)
+
+        # And now let's do the work
+        for match in matches:
+            match.uri = target
+
+    def validate(self):
+        """If dataset has a schema then make sure all attributes pass the schema"""
+        if self.schema is not None:
+            self.schema.validate(self)

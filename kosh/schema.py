@@ -69,6 +69,7 @@ class KoshSchema(object):
         self.optional = optional
 
     def __str__(self):
+        """string representation"""
         st = """Kosh Validation Object
         Required attributes and their validations:
         {}

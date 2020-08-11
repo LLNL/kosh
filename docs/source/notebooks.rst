@@ -10,5 +10,8 @@ Jupyter Notebooks
    jupyter/Example_03_Working_with_Datasets
    jupyter/Example_04_Schemas
    jupyter/Example_Custom_Loader
+   jupyter/Example_05a_Transformers
+   jupyter/Example_05b_Transformers-SKL
+   jupyter/Example_Command_Line_Kosh
+   jupyter/Example_Custom_Loader
    jupyter/Example_MNIST
-   jupyter/Example_PyTorch_ShockTube

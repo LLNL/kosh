@@ -4,12 +4,16 @@ import os
 import shlex
 from subprocess import Popen, PIPE
 
+
 class TestFlake8(unittest.TestCase):
 
     def testFlake8(self):
+        # Code path
         pth = os.path.dirname(__file__)
         pth = os.path.dirname(pth)
-        pth = os.path.join(pth, "kosh")
+        code_pth = os.path.join(pth, "kosh")
+        # Tests path
+        test_pth = os.path.join(pth, "tests")
         print()
         print()
         print()
@@ -22,7 +26,7 @@ class TestFlake8(unittest.TestCase):
         print()
         print()
         cmd = "flake8 --show-source --statistics " +\
-              "--max-line-length=120 {} scripts ".format(pth)
+              "--max-line-length=120 {} scripts {} ".format(code_pth, test_pth)
         P = Popen(shlex.split(cmd),
                   stdout=PIPE,
                   stderr=PIPE)

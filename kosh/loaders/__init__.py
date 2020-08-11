@@ -1,9 +1,5 @@
 from .core import KoshLoader, KoshFileLoader  # noqa
 try:
-    from .mash import MashLoader  # noqa
-except ImportError:
-    pass  # we do not have mash
-try:
     from .pil import PILLoader  # noqa
 except ImportError:
     pass  # we do not have PIL

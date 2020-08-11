@@ -5,25 +5,34 @@ from .core import KoshLoader
 import numpy
 
 
-def walk_hdf5(d, prefix=""):
+def walk_hdf5(dataset, prefix=""):
     """Walk through hdf5 groups to find all datsets and return their paths
     return generator
+    :param dataset: hdf5 dataset to start walking from
+    :type dataset: h5py._hl.dataset.Dataset
+    :param prefix: prefix to use when walking hdf5 paths
+    :return: hdf5 dataset structure
+    :rtype: generator
     """
-    for k in sorted(d.keys()):
-        v = d[k]
-        if isinstance(v, h5py._hl.dataset.Dataset):
-            yield prefix+"/"+k+"***"
+    for key in sorted(dataset.keys()):
+        value = dataset[key]
+        if isinstance(value, h5py._hl.dataset.Dataset):
+            yield prefix+"/"+key+"***"
         else:
             if prefix == "":
-                yield "/".join(walk_hdf5(v, prefix=k))
+                yield "/".join(walk_hdf5(value, prefix=key))
             else:
-                yield "/".join(walk_hdf5(v, prefix=prefix+"/"+k))
+                yield "/".join(walk_hdf5(value, prefix=prefix+"/"+key))
 
 
-def list_hdf5(obj):
+def list_hdf5(dataset):
     """walk hdf5 and return list of path to all datasets
+    :param dataset: hdf5 dataset to start walking from
+    :type dataset: h5py._hl.dataset.Dataset
+    :return: hdf5 dataset structure
+    :rtype: list
     """
-    nest = list(walk_hdf5(obj))
+    nest = list(walk_hdf5(dataset))
     out = []
     for p in nest:
         for d in p.split("***"):
@@ -36,6 +45,7 @@ def list_hdf5(obj):
 
 
 class KoshHDF5Loader(KoshLoader):
+    """ Kosh loader to load HDF5 data"""
     types = {"hdf5": ["numpy", ]}
 
     def __init__(self, obj):

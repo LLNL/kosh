@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# This implements Kosh's CLI
 from __future__ import print_function
 import argparse
 import kosh
@@ -11,11 +12,19 @@ import tempfile
 import ast
 import glob
 import json
+try:
+    basestring
+except NameError:
+    basestring = str
 
 
 def get_all_files(opts):
     """given a list of files, directory or pattern
     returns the list of files describe by these
+    :param opts: list of files, directory or pattern
+    :type opts: list
+    :return: list of files
+    :rtype: list
     """
     files = []
     for filename in opts:
@@ -31,6 +40,12 @@ def get_all_files(opts):
 
 
 def find_files_from_list(uris):
+    """given a uri/path walks this path/pattern to get sub dir/files
+    :param uris: list of uris to scan (or list of lists)
+    :type uris: list
+    :return: List of files
+    :rtype: list
+    """
     # figure out targets
     new_uris = []
     for uri in uris:
@@ -62,6 +77,14 @@ def core_parser(description,
                 usage=None, prog=None):
     """
     Return the core parser with arguments common to all operations
+    :param description: Description for the argparse parser
+    :type description: str
+    :param usage: Usage string
+    :type usage: str
+    :param prog: Name of the program for argparse to print
+    :type prog: str
+    :return: arparse parser
+    :rtype: argparse.ArgumentParser
     """
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -79,6 +102,14 @@ def core_parser(description,
 
 
 def parse_metadata(terms):
+    """
+    Parse metadata for Kosh search
+    param=value / param>value, etc...
+    :param terms: list of strings conatining name/operator/value
+    :term terms: list of str
+    :return: Dictionary with name as key and matching sina search object as value
+    :rtype: dict
+    """
     metadata = {}
     for term in terms:
         found = False
@@ -109,19 +140,41 @@ def parse_metadata(terms):
     return metadata
 
 
-def process_cmd(cmd, use_shell=False, shell="/usr/bin/bash"):
+def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
+    """ Convenience function to run a command
+    :param command: command to run
+    :type command: str
+    :param use_shell: ssh needs to be run as 'shell' and communicated command
+                      This let us decide if it's our way to run the command
+    :type use_shell: bool
+    :param shell: If using a shell, this tells which shell to use
+    :type shell: str
+    :return: process object and output and error streams
+    :rtype: list
+    """
+
     if use_shell:
         proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        o, e = proc.communicate(cmd.encode())
+        o, e = proc.communicate(command.encode())
     else:
-        proc = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+        proc = Popen(shlex.split(command), stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate()
     return proc, o, e
 
 
 def open_stores(uris, dataset_record_type):
+    """Given a list of paths/uri to Kosh stores this opens them all
+    :param uris: list of Kosh stores to open
+    :type uris: list
+    :param dataset_record_type: record type in the store(s) or list of
+    :type dataset_record_type: list or str
+    :return: list of kosh stores
+    :rtype: list
+    """
     stores = []
-    for store_uri in uris:
+    if isinstance(dataset_record_type, basestring):
+        dataset_record_type = [dataset_record_type, ] * len(uris)
+    for index, store_uri in enumerate(uris):
         if "@" in store_uri:
             # Remote store let's go fetch it
             _, store_local_uri = tempfile.mkstemp()
@@ -133,12 +186,18 @@ def open_stores(uris, dataset_record_type):
             store_local_uri = store_uri
         store = kosh.KoshStore(
             db_uri=store_local_uri,
-            dataset_record_type=dataset_record_type)
+            dataset_record_type=dataset_record_type[index])
         stores.append(store)
     return stores
 
 
 def close_stores(stores, uris):
+    """Closes a list of stores and if it was remte send it back to remote
+    :param stores: List of Kosh store objects
+    :type stores: list
+    :param uris: list of Kosh stores to open
+    :type uris: list
+    """
     for i, store in enumerate(stores):
         # store.close()
         if store.db_uri != uris[i]:
@@ -152,6 +211,7 @@ def close_stores(stores, uris):
 
 
 class KoshCmd(object):
+    """Engine to dispatch kosh command to apprpriate function"""
     def __init__(self):
         commands = "".join(
             ["" if k[0] == "_" else "\n\t" + k for k in sorted(dir(self))])
@@ -197,6 +257,7 @@ Available commands are:
         getattr(self, args.command)()
 
     def search(self):
+        """search a store command"""
         parser = core_parser(
             description='Search Kosh store for datasets matching metadata in form key=value')
         parser.add_argument(
@@ -220,6 +281,7 @@ Available commands are:
             print("\n".join(ids))
 
     def add(self):
+        """add a dataset to a Kosh store command"""
         parser = core_parser(
             prog="kosh add",
             description='Adds a dataset to store')
@@ -233,6 +295,7 @@ Available commands are:
         print(ds.__id__)
 
     def remove(self):
+        """Remove dataset(s) from store command"""
         parser = core_parser(
             prog="kosh remove",
             description='Removes a dataset from store')
@@ -261,6 +324,7 @@ Available commands are:
                     print("Skipping, will not remove {Id}".format(Id=Id))
 
     def features(self):
+        """List features for a dataset command"""
         parser = core_parser(
             prog="kosh features",
             description='List features for (some) dataset(s)')
@@ -278,6 +342,7 @@ Available commands are:
             print("\nDataset: {}:\n\t {}".format(Id, ds.list_features()))
 
     def extract(self):
+        """Extract feature from dataset"""
         parser = core_parser(
             prog="kosh extract",
             description='Extract features from a dataset')
@@ -315,6 +380,7 @@ Available commands are:
                 print(data)
 
     def print(self):
+        """print dataset(s)"""
         parser = core_parser(
             prog="kosh print",
             description='Print information about a dataset')
@@ -334,6 +400,7 @@ Available commands are:
                 "=======================================================================")
 
     def associate(self):
+        """Associate uri with dataset command"""
         parser = core_parser(
             prog="kosh associate",
             description="Associate a (set of) files with a dataset")
@@ -354,6 +421,7 @@ Available commands are:
             ds.associate(u, mime_type=args.mime_type)
 
     def deassociate(self):
+        """Deassociate uri from dataset command"""
         parser = core_parser(
             prog="kosh deassociate",
             description="Dessociate a (set of) file(s) from a dataset")
@@ -372,12 +440,15 @@ Available commands are:
             ds.deassociate(u)
 
     def mv(self):
+        """mv files command"""
         self._mv_cp_("mv")
 
     def cp(self):
+        """cp files command"""
         self._mv_cp_("cp")
 
     def tar(self):
+        """tar files command"""
         parser = argparse.ArgumentParser(
             prog="kosh tar",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -515,6 +586,7 @@ Available commands are:
                         dataset, args.dataset_matching_attributes)
 
     def rm(self):
+        """rm files command"""
         parser = argparse.ArgumentParser(
             prog="kosh rm",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -572,6 +644,7 @@ Available commands are:
                     dataset.deassociate(filename)
 
     def fast_sha(self):
+        """print fast_sha Kosh would compute for a list of files"""
         parser = argparse.ArgumentParser(
             prog="kosh fast_sha",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -585,6 +658,7 @@ Available commands are:
             print("{} {}".format(sha, filename))
 
     def reassociate(self):
+        """reassociate files with datasets"""
         parser = argparse.ArgumentParser(
             prog="kosh reassociate",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -633,6 +707,7 @@ Available commands are:
                         absolute_path=not args.no_absolute_path)
 
     def _mv_cp_(self, command):
+        """core function to implement mv and cp"""
         if command == "mv":
             command_str = "move"
         elif command == "cp":
@@ -761,8 +836,16 @@ Available commands are:
         close_stores(dest_stores, args.destination_stores)
 
 
-def is_remote(name):
-    dot = name.split(":")[0]
+def is_remote(path):
+    """Determine if a uri is located on a remote server
+    First figures out if theres is a ':' in the path (e.g user@host:/path)
+    Then looks if there is a single @ in part preceding the first ':'
+    :param path: uri/path
+    :type path: str
+    :return: True if path points to remote server, False otherwise
+    :rtype: bool
+    """
+    dot = path.split(":")[0]
     at = dot.split("@")
     if len(at) == 1:
         return False
@@ -770,9 +853,16 @@ def is_remote(name):
 
 
 def get_realpath_and_status(source):
-    """figure out if a path is a dir or not and if it exists or not
+    """figure out if a path is:
+        local or remote
+        a dir or not
+        if it exists or not
     works with remote paths as well.
     Return absolute path on host to directory where file exist or directory
+    :param source: path to use
+    :type source: str
+    :return: abs path on host, is_it_remote, is_it_a_directory, does_it_exist
+    :rtype: str, bool, bool, bool
     """
     is_dir_cmd = "if [ -d {} ]; then echo -e 1 ; else echo -e 0 ;  fi ;"
     realpath_cmd = "realpath {}"
@@ -812,15 +902,32 @@ def get_realpath_and_status(source):
 
 
 def find_depth(path):
+    """Given a path returnns how level of directories this is in
+    :param path: path to scan
+    :type path: str
+    :return: number of directories in which the file is in this path
+    :rtype: int
+    """
     depth = 0
     tmp = os.path.split(path)
     while tmp[-1] != "":
         depth += 1
         tmp = os.path.split(tmp[0])
-    return depth
+    return depth - 1
 
 
 def find_sources_and_targets(options, sources, target):
+    """Given a list of sources (files, dir, patterns) and a target destination,
+    runs 'rsync' between these to obtain the list of files being touched
+    :param options: option to send to rsync
+    :type options: list
+    :param sources: list of sources files, dirs or patterns
+    :type sources: list
+    :param target: target file or directory
+    :type target: str
+    :return: List of sources and there matching path after cp/mv
+    :rtype: list, list
+    """
     target_realpath, is_target_remote, is_target_dir, target_exists = get_realpath_and_status(
         target)
     source_uris = []
@@ -843,7 +950,7 @@ def find_sources_and_targets(options, sources, target):
         found_a_dir_to_rsync = False
         for i, ln in enumerate(rsync_dryrun_out_lines):
             if i == 0:
-                depth = find_depth(ln)
+                depth = find_depth(ln) + 1
                 counter = 0
                 non_base = []
                 abs_path = source_realpath
