@@ -594,10 +594,9 @@ class KoshSinaStore(KoshStoreClass):
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
-            self.lock_file = open(db_uri+".handle", "w")
-            self.lock()
             if not os.path.exists(db_uri):
                 raise ValueError("Kosh store could not be found at: {}".format(db_uri))
+            self.lock()
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
             self.unlock()
         elif db == 'cass':
@@ -650,6 +649,7 @@ class KoshSinaStore(KoshStoreClass):
         locked = False
         while not locked:
             try:
+                self.lock_file = open(self.db_uri+".handle", "w")
                 fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 locked = True
             except Exception:
@@ -657,6 +657,14 @@ class KoshSinaStore(KoshStoreClass):
 
     def unlock(self):
         fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+        self.lock_file.close()
+        # Wrapping this in a try/except
+        # In case concurrency by same user
+        # already removed the file
+        try:
+            os.remove(self.lock_file.name)
+        except Exception:
+            pass
 
     def save_loader(self, loader):
         """Save a loader to the store
