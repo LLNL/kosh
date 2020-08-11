@@ -10,7 +10,7 @@ Via "loaders" kosh can open files associated with datasets in a seemless fashion
 
 # Getting Started
 
-You will need a Python environment with Sina installed. 
+You will need a Python environment with [Sina](https://github.com/LLNL/Siba) and networkx installed. 
 
 Then simply run:
 
