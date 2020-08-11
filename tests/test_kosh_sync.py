@@ -3,6 +3,7 @@ from koshbase import KoshTest
 import time
 from sina.utils import DataRange
 
+
 class KoshTestSync(KoshTest):
     def test_sync_mode_switch(self):
         store, kosh_db = self.connect()
@@ -34,19 +35,23 @@ class KoshTestSync(KoshTest):
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds2 = store2.create(metadata={"key2": "B", "key3": 3})
         ds3 = store.create()
-        ds4 = store2.create(metadata={"key2": "C", "key3": 4})
-        ds.associate("tests/baselines/mash/node_extracts2", "mash")
-        ds2.associate("tests/baselines/mash/node_extracts2", "mash")
-        ds3.associate("tests/baselines/mash/node_extracts2", "mash")
+        store2.create(metadata={"key2": "C", "key3": 4})
+        ds.associate("tests/baselines/node_extracts2", "something")
+        ds2.associate("tests/baselines/node_extracts2", "something")
+        ds3.associate("tests/baselines/node_extracts2", "something")
 
         s = store.search(key2=DataRange("A"))
         self.assertEqual(len(s), 1)
         s = store2.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
+        s = store.search(
+            key2=DataRange("A"),
+            file=os.path.abspath("tests/baselines/node_extracts2"))
         self.assertEqual(len(s), 1)
-        s = store2.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
+        s = store2.search(
+            key2=DataRange("A"),
+            file=os.path.abspath("tests/baselines/node_extracts2"))
         self.assertEqual(len(s), 2)
         store2.sync()
         s = store.search(key2=DataRange("A"))
@@ -54,9 +59,13 @@ class KoshTestSync(KoshTest):
         s = store2.search(key2=DataRange("A"))
         self.assertEqual(len(s), 3)
 
-        s = store.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
+        s = store.search(
+            key2=DataRange("A"),
+            file=os.path.abspath("tests/baselines/node_extracts2"))
         self.assertEqual(len(s), 2)
-        s = store2.search(key2=DataRange("A"), file=os.path.abspath("tests/baselines/mash/node_extracts2"))
+        s = store2.search(
+            key2=DataRange("A"),
+            file=os.path.abspath("tests/baselines/node_extracts2"))
         self.assertEqual(len(s), 2)
 
         store2.sync()
@@ -69,17 +78,16 @@ class KoshTestSync(KoshTest):
         ds1 = store1.create()
         dsid = ds1.__id__
         # Check it exists on store2
-        self.assertEqual(len(store1.search()),1)
-        self.assertEqual(len(store2.search()),1)
-        ds2 = store2.delete(dsid)
-        #self.assertEqual(len(store2.search()),0)
+        self.assertEqual(len(store1.search()), 1)
+        self.assertEqual(len(store2.search()), 1)
+        store2.delete(dsid)
+        # self.assertEqual(len(store2.search()),0)
         store2.sync()
-        self.assertEqual(len(store1.search()),0)
+        self.assertEqual(len(store1.search()), 0)
         store2, kosh_db = self.connect(db_uri=kosh_db)
         with self.assertRaises(Exception):
-            ds = store2.open(dsid)
-        self.assertEqual(len(store2.search()),0)
-
+            store2.open(dsid)
+        self.assertEqual(len(store2.search()), 0)
 
     def test_sync_dataset_attributes(self):
         store1, kosh_db = self.connect(sync=True)
@@ -142,7 +150,7 @@ class KoshTestSync(KoshTest):
         ds2.sync()
         self.assertEqual(ds1.test_sync, "I changed it after you")
         self.assertEqual(ds2.test_sync, "I changed it after you")
-        
+
         # Now testing deletion stuff
         del(ds1.test_sync)
         ds2.test_sync = "Ok let's change you"
@@ -153,7 +161,7 @@ class KoshTestSync(KoshTest):
 
         ds2.associate("ghost", "not_real")
         self.assertNotEqual(ds2._associated_data_, ds1._associated_data_)
-        ds1.associate("ghostly","fake")
+        ds1.associate("ghostly", "fake")
         ds2.associate("ghostlier", "not_real_as_well")
         self.assertEqual(len(ds2._associated_data_), 2)
         ds2.sync()

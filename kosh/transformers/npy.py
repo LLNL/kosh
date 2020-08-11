@@ -6,6 +6,18 @@ import time
 
 
 def make_slices_args(ndims, axis, start, end):
+    """given the number of total dimenions return the slice(start, end) at the correct postion for axis
+    :param ndims: Total number of dimensions
+    :type ndims: int
+    :param axis: axis where to position the slice
+    :type axis: int
+    :param start: start index of the slice we want
+    :type start: int
+    :param end: end indexof the slice we want
+    :type end: int
+    :return: list of lsice to pass to numpy to operate on slice(start, end) on axis
+    :rtype: list
+    """
     if axis < 0:
         pos = ndims + axis
     else:
@@ -21,10 +33,22 @@ def make_slices_args(ndims, axis, start, end):
 
 class KoshSimpleNpCache(KoshTransformer):
     def save(self, signature, *arrays):
+        """some data to a numpy cache file
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :param content: content to save to cache
+        :type content: object
+        """
         cache_file = os.path.join(self.cache_dir, signature)
         numpy.savez(cache_file, *arrays)
 
     def load(self, signature):
+        """loads content from numpy cache
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :return: data
+        :rtpye: object
+        """
         cache_file = os.path.join(self.cache_dir, signature) + ".npz"
         npz = numpy.load(cache_file)
         out = [npz[x] for x in npz.files]
@@ -32,8 +56,65 @@ class KoshSimpleNpCache(KoshTransformer):
             out = out[0]
         return out
 
-    def transform(self, input):
+    def transform(self, input, format):
+        """does absolutely nothing but is used as base class to cache a numpy array
+        :param input: numpy array(s) to cache
+        :type input: ndarray
+        :param format: desired format (numpy)
+        :type format: str
+        :return: same input
+        :rtype: ndarray
+        """
         return input
+
+
+class Shuffle(KoshSimpleNpCache):
+    """Shuffles data along an axis"""
+    types = {"numpy": ["numpy", ]}
+
+    def __init__(self,
+                 cache_dir=kosh_cache_dir,
+                 cache=False,
+                 axis=0,
+                 random_state=None,
+                 verbose=False):
+        """
+        :param cache_dir: directory to save cachd files
+        :type cache_dir: str
+        :param cache: do we use cache?
+        :type cache: bool
+        :param axis: axis over with to take
+        :type axis: int
+        :param random_state: random state for reproducibility
+                             Controls the randomness of the training and
+                             testing indices produced.
+                             Pass an int for reproducible output across
+                             multiple function calls.
+        :type random_state: int
+        :param verbose: verbose or not
+        :type verbose: bool
+        """
+
+        super(Shuffle, self).__init__(
+            cache_dir, cache,
+            axis=axis,
+            random_state=random_state)
+        self.axis = axis
+        self.random_state = random_state
+
+    def transform(self, input, format):
+        """Shuffles data over the transformer's axis
+        :param input: array from previous loader or transformer
+        :type input: ndarray
+        :param format: output format
+        :type format: str
+        :return: shuffled input over transformer's axis
+        :rtype: ndarray
+        """
+
+        numpy.random.seed = self.random_state
+        return numpy.take(input, numpy.random.permutation(input.shape[self.axis]),
+                          axis=self.axis)
 
 
 class Take(KoshSimpleNpCache):
@@ -42,10 +123,22 @@ class Take(KoshSimpleNpCache):
 
     def __init__(self,
                  cache_dir=kosh_cache_dir,
-                 cache=True,
+                 cache=False,
                  indices=[],
                  axis=0,
                  verbose=False):
+        """
+        :param cache_dir: directory to save cachd files
+        :type cache_dir: str
+        :param cache: do we use cache?
+        :type cache: bool
+        :param indices: indices to send to take
+        :type indices: list
+        :param axis: axis over with to take
+        :type axis: int
+        :param verbose: verbose or not
+        :type verbose: bool
+        """
 
         super(Take, self).__init__(
             cache_dir, cache, indices=indices, axis=axis)
@@ -54,6 +147,15 @@ class Take(KoshSimpleNpCache):
         self.verbose = verbose
 
     def transform(self, input, format):
+        """Perform take over transformer's axis and indices
+        Can take advantage of MPI if present
+        :param input: array from previous loader or transformer
+        :type input: ndarray
+        :param format: output format
+        :type format: str
+        :return: input taken over transformer's axis and indices
+        :rtype: ndarray
+        """
         my_ids = get_ids_for_rank(self.indices)
 
         if self.verbose and rank == 0:
@@ -106,6 +208,20 @@ class Delta(KoshSimpleNpCache):
                  pad=None,
                  pad_value=0,
                  verbose=False):
+        """
+        :param cache_dir: directory to save cachd files
+        :type cache_dir: str
+        :param cache: do we use cache?
+        :type cache: bool
+        :param axis: axis over with to take
+        :type axis: int
+        :param pad: Do we pad and i so where? None, "start", "end"
+        :type pad: str or None
+        :param pad_value: Value to use for padding
+        :type pad_value: float
+        :param verbose: verbose or not
+        :type verbose: bool
+        """
 
         super(Delta, self).__init__(
             cache_dir, cache, axis=axis, pad=pad, pad_value=pad_value)
@@ -115,6 +231,15 @@ class Delta(KoshSimpleNpCache):
         self.verbose = verbose
 
     def transform(self, input, format):
+        """Computes delta between two consecutive slices over a given axis
+        Possibly pads the ends with a value
+        :param input: array from previous loader or transformer
+        :type input: ndarray
+        :param format: output format
+        :type format: str
+        :return: input taken over transformer's axis and indices
+        :rtype: ndarray
+        """
         args1 = make_slices_args(input.ndim, self.axis, 0, -1)
         args2 = make_slices_args(input.ndim, self.axis, 1, None)
         delta = input[args2] - input[args1]

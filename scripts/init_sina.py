@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# This creates a new sina-base databse with users
 from sina.model import Record
 import argparse
 import os

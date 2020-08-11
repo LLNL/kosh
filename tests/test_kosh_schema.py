@@ -2,7 +2,6 @@ import os
 from koshbase import KoshTest
 import kosh
 from kosh.schema import KoshSchema
-from sina.utils import DataRange
 
 
 def g5(value):
@@ -21,13 +20,13 @@ class KoshTestDataset(KoshTest):
     def test_store_schema(self):
         store, kosh_db = self.connect()
         schema = kosh.KoshSchema(
-                                 {"req1": float,
-                                  "req_int": int,
-                                  "req_list": [1, 2, 3],
-                                  "req_list_comb": ["a", g5]},
-                                 {"opt1": None, "opt_g5": g5b})
+            {"req1": float,
+             "req_int": int,
+             "req_list": [1, 2, 3],
+             "req_list_comb": ["a", g5]},
+            {"opt1": None, "opt_g5": g5b})
         schema2 = kosh.KoshSchema(
-                                  {"req1": None})
+            {"req1": None})
         # Create dataset
         ds = store.create()
         self.assertEqual(ds.schema, None)
@@ -70,11 +69,11 @@ class KoshTestDataset(KoshTest):
         # Create dataset
 
         schema = kosh.KoshSchema(
-                                 {"req1": None,
-                                  "req_int": lambda x: isinstance(x, int),
-                                  "req_list": [1, 2, 3],
-                                  "req_list_comb": ["a", g5]},
-                                 {"opt1": None, "opt_g5": g5b})
+            {"req1": None,
+             "req_int": lambda x: isinstance(x, int),
+             "req_list": [1, 2, 3],
+             "req_list_comb": ["a", g5]},
+            {"opt1": None, "opt_g5": g5b})
 
         meta = {"req1": "blah",
                 "req_int": 6,

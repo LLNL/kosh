@@ -5,6 +5,7 @@ import pickle
 
 
 class KoshGenericObjectFromFile(object):
+    """Kosh object pointing to a file"""
     def __init__(self, *args, **kwds):
         self.args = args
         self.kwds = kwds
@@ -17,7 +18,8 @@ class KoshGenericObjectFromFile(object):
     def __exit__(self, *args):
         self.file_obj.close()
 
-    def get(self, feature, *args, **kargs):
+    def get(self, *args, **kargs):
+        """Reads the file all arguments are ignored"""
         return self.file_obj.read()
 
 
@@ -25,13 +27,14 @@ class KoshLoader(object):
     """
     :param types: types is a dictionary on known type that can be loaded
     as key and export format as value, defaults to {"dataset": []}
-    :type types: dict, optional
+    :type types: dict
     """
     types = {"dataset": []}
 
     def __init__(self, obj):
         """KoshLoader generic Kosh loader
-        :param obj: object
+        :param obj: object the loader will try to load from
+        :type obj: object
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(obj.__id__)
@@ -68,9 +71,22 @@ class KoshLoader(object):
         return self.types.get(atype, [])
 
     def open(self, mode="r"):
+        """Open function
+        :param mode: mode to open the object in
+        :type mode: str
+        :return: opened object
+        :rtype: object"""
         return self
 
     def update_signature(self, *args, **kargs):
+        """Updated the signature based to a set of args and kargs
+        :param *args: as many arguments as you want
+        :type *args: list
+        :param **kargs: key=value style argmunets
+        :type **kargs: dict
+        :return: updated signature
+        :rtype: str
+        """
         signature = self.signature.copy()
         for arg in args:
             signature.update(repr(arg).encode())
@@ -102,13 +118,14 @@ class KoshLoader(object):
         :type format: str
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
-        :return: extracted feature
-        :param cache: do we cache the result
-        :type cache: bool
         :param use_cache: Try to use cached data if available
         :type use_cache: bool
         :param cache_file_only: If True, simply return name of cache_file
         :type cache_file_only: bool
+        :param cache_dir: where do we cache the result?
+        :type cache_dir: str
+        :return: extracted feature
+        :rtype: ???
         """
         if cache_dir is None:
             cache_dir = kosh_cache_dir
@@ -160,13 +177,23 @@ class KoshLoader(object):
             data = p[1].transform_(data, path[i+1][0], signature=signatures[i])
         return data
 
-    def save(self, cache_file, saved):
-        """ Given data and a signature save to cache"""
+    def save(self, cache_file, content):
+        """Pickle some data to a cache file
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :param content: content to save to cache
+        :type content: object
+        """
         with open(os.path.join(self.cache_dir, cache_file), "wb") as f:
-            pickle.dump(saved, f)
+            pickle.dump(content, f)
 
     def load(self, cache_file):
-        """Given a unique signature loads from cache"""
+        """loads content from cache
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :return: unpickled data
+        :rtpye: object
+        """
         with open(os.path.join(self.cache_dir, cache_file), "rb") as f:
             data = pickle.load(f)
         return data
@@ -220,6 +247,7 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
+    """Kosh loader to load content from files"""
     types = {"file": []}
 
     def __init__(self, obj):

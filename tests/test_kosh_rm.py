@@ -4,6 +4,7 @@ import os
 from subprocess import Popen, PIPE
 import shlex
 
+
 def create_file(filename):
     with open(filename, "w") as f:
         print("whatever", file=f)
@@ -30,7 +31,7 @@ class KoshTestRm(KoshTest):
         create_file(filename)
         ds.associate(filename, "text")
         ds.associate("fake_one.text", "text")
-        run_rm([filename,], [db_uri,])
+        run_rm([filename, ], [db_uri, ])
 
         associated = ds.search(mime_type="text")
         self.assertEqual(len(associated), 1)
@@ -48,7 +49,7 @@ class KoshTestRm(KoshTest):
             create_file(f)
         ds.associate(filenames, "text")
         ds.associate("fake_one.text", "text")
-        run_rm(filenames, [db_uri,])
+        run_rm(filenames, [db_uri, ])
 
         associated = ds.search(mime_type="text")
         self.assertEqual(len(associated), 1)
@@ -64,11 +65,11 @@ class KoshTestRm(KoshTest):
         filenames = []
         try:
             os.removedirs("rm_from_dir")
-        except:
+        except BaseException:
             pass
         try:
             os.makedirs("rm_from_dir")
-        except:
+        except BaseException:
             pass
         for f in ["rm_a", "rm_b"]:
             filename = os.path.join("rm_from_dir", f)
@@ -76,7 +77,7 @@ class KoshTestRm(KoshTest):
             create_file(filename)
         ds.associate(filenames, "text")
         ds.associate("fake_one.text", "text")
-        run_rm(["rm_from_dir",], [db_uri,])
+        run_rm(["rm_from_dir", ], [db_uri, ])
 
         associated = ds.search(mime_type="text")
         self.assertEqual(len(associated), 1)
@@ -92,11 +93,11 @@ class KoshTestRm(KoshTest):
         filenames = []
         try:
             os.removedirs("rm_from_dir_mix")
-        except:
+        except BaseException:
             pass
         try:
             os.makedirs("rm_from_dir_mix")
-        except:
+        except BaseException:
             pass
         for f in ["rm_a", "rm_b"]:
             filename = os.path.join("rm_from_dir_mix", f)
@@ -106,7 +107,7 @@ class KoshTestRm(KoshTest):
         create_file(filenames[-1])
         ds.associate(filenames, "text")
         ds.associate("fake_one.text", "text")
-        run_rm(["rm_from_dir_mix", filenames[-1]], [db_uri,])
+        run_rm(["rm_from_dir_mix", filenames[-1]], [db_uri, ])
 
         associated = ds.search(mime_type="text")
         self.assertEqual(len(associated), 1)

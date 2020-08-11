@@ -10,6 +10,19 @@ kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
 
 
 def populate(G, node, output_formats, next_nodes, final_format=None):
+    """Populates networkx
+    :param G: networkx Graph to populate
+    :type G: nx.Graph
+    :param node: transformer to be chained needs to have dict "types"
+    :type node: object with types attributes as a dictionary
+    :param output_formats: output_format of the first node
+    :type output_formats: list
+    :param next_nodes: next set of transformers to add to graph
+    :type next_nodes: object with types attriubte as a dictionary
+    :param final_format: desired end format
+    :type final_format: str
+    :return: Nothing but the graph passed is updated
+    """
     for format in output_formats:
         if format in next_nodes[0].types:
             this_node = (format, next_nodes[0])
@@ -23,7 +36,19 @@ def populate(G, node, output_formats, next_nodes, final_format=None):
 
 
 def get_path(input_type, loader, transformers, output_format):
-    """given a loader and its transformer return path to desired format"""
+    """given a loader and its transformer return path to desired format
+    e.g which output format should each transformer pick to be chained to the follwoing one
+    in order to obtain the desired outcome for format
+    :param input_type: input type of first node
+    :type input_type: str
+    :param loader: original loader
+    :type loader: KoshLoader
+    :param transformers: set of transformers to be added after loader exits
+    :type transformers: list of KoshTransformer
+    :param output_format: desired output format
+    :type output_format: str
+    :return: shortest path from desired input_type to desired format
+    """
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
@@ -56,6 +81,10 @@ class KoshTransformer(object):
                  cache=False, *args, **kargs):
         """init function will receive the previous step's signature and the cache directory
         and output signature is also geenrated from the input args (w/o the cache_dir)
+        :param cache_dir: directory to save cachd files
+        :type cache_dir: str
+        :param cache: do we use cache?
+        :type cache: bool
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
@@ -68,6 +97,14 @@ class KoshTransformer(object):
         self.cache = cache
 
     def update_signature(self, *args, **kargs):
+        """Updated the signature based to a set of args and kargs
+        :param *args: as many arguments as you want
+        :type *args: list
+        :param **kargs: key=value style argmunets
+        :type **kargs: dict
+        :return: updated signature
+        :rtype: str
+        """
         signature = self.signature.copy()
         for arg in args:
             signature.update(repr(arg).encode())
@@ -77,10 +114,29 @@ class KoshTransformer(object):
         return signature
 
     def show_cache_file(self, input, format):
+        """Given a set of input and format returns the unique signature used for cache file
+        :param input: set of input passed from loader or previous transformer
+        :type input: object
+        :param format: desired output format
+        :type format: str
+        :return: The unique signature
+        :rtype: str
+        """
         signature = self.update_signature(input, format).hexdigest()
         return os.path.join(self.cache_dir, signature)
 
     def transform_(self, input, format, signature=None):
+        """Given input from previous loade ror transformer and desired format
+        computes the unique signature and tries to extract from cache, calls transformer's
+        `transform` function if no cache available.
+        :param input: set of input passed from loader or previous transformer
+        :type input: object
+        :param format: desired output format
+        :type format: str
+        :return: The result from transform function
+        :rtype: object
+        """
+
         if signature is None:
             use_signature = self.update_signature(input, format).hexdigest()
         else:
@@ -97,14 +153,24 @@ class KoshTransformer(object):
                 self.save(signature, result)
         return result
 
-    def save(self, cache_file, *saved):
-        """ Given data and a signature save to cache"""
+    def save(self, cache_file, *content):
+        """Pickle some data to a cache file
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :param content: content to save to cache
+        :type content: object
+        """
         with open(os.path.join(self.cache_dir, cache_file), "wb") as f:
-            for sv in saved:
+            for sv in content:
                 pickle.dump(sv, f)
 
     def load(self, cache_file):
-        """Given a unique signature loads from cache"""
+        """loads content from cache
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :return: unpickled data
+        :rtpye: object
+        """
         with open(os.path.join(self.cache_dir, cache_file), "rb") as f:
             cont = True
             data = []
@@ -121,5 +187,6 @@ class KoshTransformer(object):
     @abstractmethod
     def transform(self, input_, format):
         """The transform function
+        :param input_: result returned by loader or previous transformer
         """
         raise NotImplementedError("the transform function is not implemented")

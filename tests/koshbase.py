@@ -20,7 +20,8 @@ class KoshTest(unittest.TestCase):
         if engine == "sina":
             # Make sure local file is new sql file
             if db_uri is None:
-                kosh_test_sql_file = "kosh_test_{}.sql".format(uuid.uuid1().hex)
+                kosh_test_sql_file = "kosh_test_{}.sql".format(
+                    uuid.uuid1().hex)
             else:
                 kosh_test_sql_file = db_uri
             if db_uri is None and os.path.exists(kosh_test_sql_file):
@@ -29,12 +30,13 @@ class KoshTest(unittest.TestCase):
                 kosh.utils.create_new_db(kosh_test_sql_file[:-4])
             return kosh_test_sql_file
 
-    def connect(self, engine=None, db_uri=None, sync=True, dataset_record_type="blah"):
+    def connect(self, engine=None, db_uri=None, sync=True,
+                dataset_record_type="blah"):
         if engine is None:
             engine = os.environ.get("KOSH_ENGINE", "sina")
         kosh_db = self.init_db(engine, db_uri)
         if engine == "sina":
             # os.getlogin does not work on my WSL
             store = KoshStore(engine="sina", username=os.environ["USER"], db='sql',
-                      db_uri=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
+                              db_uri=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
         return store, os.path.abspath(kosh_db)
