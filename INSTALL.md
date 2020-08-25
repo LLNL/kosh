@@ -29,7 +29,7 @@ python -m virtualenv kosh
 
 ### Sina (LLNL's)
 
-We use Sina to manage/store metadata, make sure you look at the casandra section i you plan on using cassandra.
+We use Sina to manage/store metadata, make sure you look at the casandra section if you plan on using cassandra.
 
 Sina is on LLNL's github [here](https://github.com/LLNL/Sina)
 

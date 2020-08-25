@@ -128,7 +128,7 @@ KOSH DATASET
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         self.assertEqual(len(ds.search(mime_type="something")), 1)
         self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
-        ds.deassociate("tests/baselines/node_extracts2", absolute_path=False)
+        ds.dissociate("tests/baselines/node_extracts2", absolute_path=False)
         self.assertEqual(len(ds._associated_data_), 1)
         # Now mutliple datasets at once
         ds = store.create()
@@ -175,7 +175,7 @@ KOSH DATASET
         self.assertEqual(len(s), 2)
 
         self.assertEqual(len(ds._associated_data_), 1)
-        ds2.deassociate("tests/baselines/node_extracts2")
+        ds2.dissociate("tests/baselines/node_extracts2")
         self.assertEqual(len(ds2._associated_data_), 0)
         s = store.search(
             key2=DataRange("A"),
@@ -210,7 +210,7 @@ KOSH DATASET
         ds4.associate("tests/baselines/node_extracts2", "something")
         ds_associated = ds._associated_data_[0]
         _ = store.open(ds_associated)
-        ds.deassociate("setup.py")
+        ds.dissociate("setup.py")
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
         self.assertEqual(len(store.search(project="test")), 4)
@@ -281,8 +281,8 @@ KOSH DATASET
         end = time.time()
         self.assertLess(end - start, 1.)
 
-        # Ok this time let's deassociate to reset cache
-        ds.deassociate("fake_file", absolute_path=False)
+        # Ok this time let's dissociate to reset cache
+        ds.dissociate("fake_file", absolute_path=False)
 
         start = time.time()
         features = ds.list_features()

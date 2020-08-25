@@ -5,7 +5,7 @@ except ImportError:
     pass  # we do not have PIL
 from .pgm import PGMLoader  # noqa
 try:
-    from .hdf5 import KoshHDF5Loader  # noqa
+    from .hdf5 import HDF5Loader  # noqa
 except ImportError:
     pass  # we do not have h5py
 try:

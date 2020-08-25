@@ -33,7 +33,7 @@ class Splitter(KoshTransformer):
         :param validation_size: size of the dataset to reserve for validating (.0 = 0% default)
         :type validation_size: float
         :param splitter: SKL splitter to use to split
-                         Same one will be used to first sleect training set
+                         Same one will be used to first select training set
                          and then split again the rest between test and validation
                          default: sklearn.model_selection.ShuffleSplit
         :type splitter: sklearn.model_selection Splitter class
@@ -43,7 +43,7 @@ class Splitter(KoshTransformer):
                              Pass an int for reproducible output across
                              multiple function calls.
         :type random_state: int
-        :param n_splits: totla number of split iteration to generate (default 1)
+        :param n_splits: total number of split iteration to generate (default 1)
         :type n_splits: int
         :param groups: split data according to a third-party provided group.
                        This group information can be used to encode
@@ -177,7 +177,7 @@ class SKL(KoshTransformer):
         :type skl_class: sklearn classifier
         :return: estimator from classifier.fit(input) function or
                  labels, list of ndarray with samples in each class
-                        possiboy sub-sampled via n_sample/sampling_method
+                        possibly sub-sampled via n_sample/sampling_method
         """
         kw = {}
         for arg in ["n_samples", "sampling_method", "random_state"]:

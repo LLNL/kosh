@@ -16,7 +16,7 @@ except Exception:
     pass
 
 try:
-    # Let's make sure the correct sina is installed
+    # Let's make sure sina is installed
     import sina
 except ImportError:
     raise RuntimeError("Please install Sina from: https://github.com/LLNL/Sina")

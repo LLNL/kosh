@@ -15,7 +15,7 @@ def make_slices_args(ndims, axis, start, end):
     :type start: int
     :param end: end indexof the slice we want
     :type end: int
-    :return: list of lsice to pass to numpy to operate on slice(start, end) on axis
+    :return: list of slice objects to pass to numpy to operate on slice(start, end) on axis
     :rtype: list
     """
     if axis < 0:

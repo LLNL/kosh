@@ -26,7 +26,7 @@ class KoshSinaObject(object):
                  record=None):
         """__init__ sina object base class
 
-        :param Id: id to use forunique identification, if None is passed set for you via uui4()
+        :param Id: id to use for unique identification, if None is passed set for you via uui4()
         :type Id: str
         :param store: Kosh store associated
         :type store: KoshSinaStore
@@ -312,8 +312,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
     __str__ = KoshDataset.__str__
 
-    def deassociate(self, uri, absolute_path=True):
-        """deassociates a uri/mime_type with this dataset
+    def dissociate(self, uri, absolute_path=True):
+        """dissociates a uri/mime_type with this dataset
 
         :param uri: uri to access file
         :type uri: str
@@ -660,7 +660,7 @@ class KoshSinaStore(KoshStoreClass):
 
     def delete(self, Id):
         """remove a record from store.
-        for datasets deassociate all associated data first.
+        for datasets dissociate all associated data first.
 
         :param Id: unique Id or kosh_obj
         :type Id: str
@@ -672,8 +672,8 @@ class KoshSinaStore(KoshStoreClass):
         if rec.type == self._dataset_record_type:
             kosh_obj = self.open(Id)
             for uri in list(rec["files"].keys()):
-                # Let's deassociate to remove unused kosh objects as well
-                kosh_obj.deassociate(uri)
+                # Let's dissociate to remove unused kosh objects as well
+                kosh_obj.dissociate(uri)
         if not self.__sync__:
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
@@ -1035,7 +1035,7 @@ class KoshSinaStore(KoshStoreClass):
                         if att[-27:-14] == "___associated":
                             # ok it's an associated thing
                             uri = att[:-27]
-                            if uri not in local["files"]:  # deassociated
+                            if uri not in local["files"]:  # dissociated
                                 del(db["files"][uri])
                             elif att not in db["user_defined"]:  # newly associated
                                 db["files"][uri] = local["files"][uri]
@@ -1094,7 +1094,7 @@ class KoshSinaStore(KoshStoreClass):
             raise ValueError("User {} already exists".format(username))
 
     def add_group(self, group):
-        """Add a kosh spcific group, cannot match exisiting group on unix system
+        """Add a kosh specific group, cannot match existing group on unix system
 
         :param group: ugroup to add
         :type group: str

@@ -9,7 +9,7 @@ import kosh
 import time
 import fcntl
 try:
-    from .loaders import KoshHDF5Loader
+    from .loaders import HDF5Loader
 except ImportError:
     pass
 try:
@@ -41,7 +41,7 @@ class KoshStoreClass(object):
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         try:
-            self.add_loader(KoshHDF5Loader)
+            self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
             if verbose:
                 warnings.warn("Could not add hdf5 loader, check if you have h5py installed."

@@ -80,7 +80,7 @@ class KoshTransformer(object):
                  cache_dir=kosh_cache_dir,
                  cache=False, *args, **kargs):
         """init function will receive the previous step's signature and the cache directory
-        and output signature is also geenrated from the input args (w/o the cache_dir)
+        and output signature is also generated from the input args (w/o the cache_dir)
         :param cache_dir: directory to save cachd files
         :type cache_dir: str
         :param cache: do we use cache?
@@ -126,7 +126,7 @@ class KoshTransformer(object):
         return os.path.join(self.cache_dir, signature)
 
     def transform_(self, input, format, signature=None):
-        """Given input from previous loade ror transformer and desired format
+        """Given input from previous loader or transformer and desired format
         computes the unique signature and tries to extract from cache, calls transformer's
         `transform` function if no cache available.
         :param input: set of input passed from loader or previous transformer
