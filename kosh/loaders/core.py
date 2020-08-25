@@ -1,4 +1,11 @@
+from kosh.transformers import get_path, kosh_cache_dir
+import os
+import hashlib
+import pickle
+
+
 class KoshGenericObjectFromFile(object):
+    """Kosh object pointing to a file"""
     def __init__(self, *args, **kwds):
         self.args = args
         self.kwds = kwds
@@ -11,7 +18,8 @@ class KoshGenericObjectFromFile(object):
     def __exit__(self, *args):
         self.file_obj.close()
 
-    def get(self, feature, *args, **kargs):
+    def get(self, *args, **kargs):
+        """Reads the file all arguments are ignored"""
         return self.file_obj.read()
 
 
@@ -19,14 +27,17 @@ class KoshLoader(object):
     """
     :param types: types is a dictionary on known type that can be loaded
     as key and export format as value, defaults to {"dataset": []}
-    :type types: dict, optional
+    :type types: dict
     """
     types = {"dataset": []}
 
     def __init__(self, obj):
         """KoshLoader generic Kosh loader
-        :param obj: object
+        :param obj: object the loader will try to load from
+        :type obj: object
         """
+        self.signature = hashlib.sha256(repr(self.__class__).encode())
+        self.signature = self.update_signature(obj.__id__)
         mime_type = obj.mime_type
         if mime_type == obj.__store__._dataset_record_type:
             mime_type = "dataset"
@@ -60,9 +71,32 @@ class KoshLoader(object):
         return self.types.get(atype, [])
 
     def open(self, mode="r"):
+        """Open function
+        :param mode: mode to open the object in
+        :type mode: str
+        :return: opened object
+        :rtype: object"""
         return self
 
-    def get(self, feature, format=None, *args, **kargs):
+    def update_signature(self, *args, **kargs):
+        """Updated the signature based to a set of args and kargs
+        :param *args: as many arguments as you want
+        :type *args: list
+        :param **kargs: key=value style argmunets
+        :type **kargs: dict
+        :return: updated signature
+        :rtype: str
+        """
+        signature = self.signature.copy()
+        for arg in args:
+            signature.update(repr(arg).encode())
+        for kw in kargs:
+            signature.update(repr(kw).encode())
+            signature.update(repr(kargs[kw]).encode())
+        return signature
+
+    def get(self, feature, format=None, transformers=[],
+            use_cache=True, cache_file_only=False, cache_dir=None, **kargs):
         """get extract a feature
         *args and **kargs will be stored on loader object
         format and feature are stored on the object for extraction by extraction functions
@@ -82,19 +116,87 @@ class KoshLoader(object):
         :type feature: str
         :param format: desired output format
         :type format: str
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
+        :param use_cache: Try to use cached data if available
+        :type use_cache: bool
+        :param cache_file_only: If True, simply return name of cache_file
+        :type cache_file_only: bool
+        :param cache_dir: where do we cache the result?
+        :type cache_dir: str
         :return: extracted feature
+        :rtype: ???
         """
-        if format is None:
-            format = self.types[self.obj.mime_type][0]
-        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
+        if cache_dir is None:
+            cache_dir = kosh_cache_dir
+        self.cache_dir = cache_dir
+        # first let's get the execution path
+        path = get_path(self.obj.mime_type, self, transformers, format)
+        frmt = path[1][0]
+        if frmt is None:
+            frmt = self.types[self.obj.mime_type][0]
+        if len(self.types) != 0 and frmt not in self.types[self.obj.mime_type]:
             raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
                 self=self, format=format))
-        self.format = format
+        self.format = frmt
         self.feature = feature
-        self._user_passed_parameters = args, kargs
+        self._user_passed_parameters = (None, kargs)
+        signature = self.update_signature(feature, self.format, **kargs).hexdigest()
+        if cache_file_only is True:
+            # Ok user just wants to know where cache should be (plus/minus extesions)
+            return signature
+        # Let's generate the signatures for each step of the path.
+        # And try to load it
+        signatures = [signature, ]
+        for i, p in enumerate(path[1:-1], start=1):
+            signatures.append(p[1].update_signature(signatures[-1], path[i-1][0]).hexdigest())
+
+        cache_success = False
+        if use_cache:
+            for i, p in enumerate(path[-2:0:-1]):
+                try:
+                    data = p[1].load(signatures[len(signatures)-i-1])
+                    cache_success = True
+                    for j, p in enumerate(path[-i-1:-1], start=len(signatures)-i):
+                        try:
+                            data = p[1].transform_(data, path[j+1][0], signature=signatures[j])
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            if cache_success:
+                return data
+
         kargs.get("preprocess", self.preprocess)()
         data = self.extract()
-        return kargs.get("postprocess", self.postprocess)(data)
+        data = kargs.get("postprocess", self.postprocess)(data)
+        for i, p in enumerate(path[1:-1], start=1):
+            # Get the transformer and tell it to return it
+            # in format that next transformer wants
+            # the last item is the output it only has the format
+            data = p[1].transform_(data, path[i+1][0], signature=signatures[i])
+        return data
+
+    def save(self, cache_file, content):
+        """Pickle some data to a cache file
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :param content: content to save to cache
+        :type content: object
+        """
+        with open(os.path.join(self.cache_dir, cache_file), "wb") as f:
+            pickle.dump(content, f)
+
+    def load(self, cache_file):
+        """loads content from cache
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :return: unpickled data
+        :rtpye: object
+        """
+        with open(os.path.join(self.cache_dir, cache_file), "rb") as f:
+            data = pickle.load(f)
+        return data
 
     def list_features(self):
         """list_features Given the obj it's loading return a list of features (variables)
@@ -145,13 +247,14 @@ class KoshLoader(object):
 
 
 class KoshFileLoader(KoshLoader):
+    """Kosh loader to load content from files"""
     types = {"file": []}
 
     def __init__(self, obj):
         super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
-        """open/load the matching Kosh SIna File
+        """open/load the matching Kosh Sina File
 
         :param mode: mode to open the file in, defaults to 'r'
         :type mode: str, optional

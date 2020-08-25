@@ -2,13 +2,17 @@ import uuid
 from kosh.core import KoshStoreClass, KoshDataset
 from kosh.schema import KoshSchema
 from kosh.loaders import KoshLoader
+from kosh.utils import compute_fast_sha, compute_long_sha
 import warnings
 import time
 import sina.datastores.sql as sina_sql
 import pickle
 import os
 import grp
-import fcntl
+try:
+    basestring
+except NameError:
+    basestring = str
 
 
 class KoshSinaObject(object):
@@ -22,7 +26,7 @@ class KoshSinaObject(object):
                  record=None):
         """__init__ sina object base class
 
-        :param Id: id to use forunique identification, if None is passed set for you via uui4()
+        :param Id: id to use for unique identification, if None is passed set for you via uui4()
         :type Id: str
         :param store: Kosh store associated
         :type store: KoshSinaStore
@@ -102,10 +106,18 @@ class KoshSinaObject(object):
                 raise AttributeError(
                     "Object {} does not have {} attribute".format(self.__id__,
                                                                   name))
-        return record["data"][name]["value"]
+        value = record["data"][name]["value"]
+        if name == "creator":
+            # old records have user id let's fix this
+            if value in self.__store__.__record_handler__.get_all_of_type("user", ids_only=True):
+                value = self.__store__.get_record(value)["data"]["username"]["value"]
+        return value
 
     def update(self, attributes):
-        """update many attributes at once to limit db writes"""
+        """update many attributes at once to limit db writes
+        :param: attributes: dictionary with attributes to update
+        :type attributes: dict
+        """
         rec = None
         N = len(attributes)
         n = 0
@@ -118,6 +130,10 @@ class KoshSinaObject(object):
             rec = self.___setattr___(name, value, rec, update_db=update_db)
 
     def __setattr__(self, name, value):
+        """set an attribute
+        We are calling the ___setattr___
+        because of special case that needs extra args and return values
+        """
         self.___setattr___(name, value)
 
     def ___setattr___(self, name, value, record=None, update_db=True):
@@ -126,6 +142,11 @@ class KoshSinaObject(object):
         :param name: name of attribute
         :type name: str
         :param value: value to set attribute to
+        :type value: object
+        :param record: sina record if already extracted before, save db access
+        :type record: sina.model.Record
+        :return: sina record updated
+        :rtype: sina.model.Record
         """
         if name in self.__protected__:  # Cannot set protected attributes
             return
@@ -196,8 +217,15 @@ class KoshSinaObject(object):
         """sync this object with database"""
         self.__store__.sync([self.__id__, ])
 
-    def listattributes(self):
+    def list_attributes(self, dictionary=False):
+        __doc__ = self.listattributes.__doc__.replace("listattributes", "list_attributes")  # noqa
+        return self.listattributes(dictionary=dictionary)
+
+    def listattributes(self, dictionary=False):
         """listattributes list all non protected attributes
+
+        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :type dictionary: bool
 
         :return: list of attributes set on object
         :rtype: list
@@ -207,7 +235,13 @@ class KoshSinaObject(object):
         for att in self.__protected__:
             if att in attributes:
                 attributes.remove(att)
-        return sorted(attributes)
+        if dictionary:
+            out = {}
+            for att in attributes:
+                out[att] = getattr(self, att)
+            return out
+        else:
+            return sorted(attributes)
 
     def __getattributes__(self):
         """__getattributes__ return dictionary with pairs of attribute/value
@@ -219,7 +253,18 @@ class KoshSinaObject(object):
         attributes = {}
         for a in record["data"]:
             attributes[a] = record["data"][a]["value"]
+            if a == "creator":
+                # old records have user id let's fix this
+                if attributes[a] in self.__store__.__record_handler__.get_all_of_type("user", ids_only=True):
+                    attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
+
+    def __str__(self):
+        """String for printing"""
+        st = "Id: {}".format(self.__id__)
+        for att in sorted(self.listattributes()):
+            st += "\n\t{}: {}".format(att, getattr(self, att))
+        return st
 
 
 class KoshSinaFile(KoshSinaObject):
@@ -247,10 +292,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         super(KoshSinaDataset, self).__init__(datasetId, koshType=store._dataset_record_type,
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
-                                                         "_associated_data_"],
+                                                         "_associated_data_", "__features__"],
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
         self.__dict__["__record_handler__"] = store.__record_handler__
+        self.__dict__["__features__"] = None
         if record is None:
             record = self.get_record()
         try:
@@ -264,18 +310,21 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if schema is not None or "schema" in record["data"]:
             self.validate()
 
-    def validate(self):
-        if self.schema is not None:
-            self.schema.validate(self)
+    __str__ = KoshDataset.__str__
 
-    def deassociate(self, uri):
-        """deassociates a uri/mime_type with this dataset
+    def dissociate(self, uri, absolute_path=True):
+        """dissociates a uri/mime_type with this dataset
 
         :param uri: uri to access file
         :type uri: str
+        :param absolute_path: if file exists should we store its absolute_path
+        :type absolute_path: bool
         :return: None
         :rtype: None
         """
+
+        if absolute_path and os.path.exists(uri):
+            uri = os.path.abspath(uri)
         rec = self.get_record()
         if uri not in rec["files"]:
             # Not associated with this uri anyway
@@ -294,10 +343,15 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
 
-    def associate(self, uri, mime_type, metadata={}, id_only=True):
+        # Since we changed the associated, we need to cleanup
+        # the features cache
+        if self.__dict__["__features__"] is not None:
+            self.__dict__["__features__"] = None
+
+    def associate(self, uri, mime_type, metadata={}, id_only=True, long_sha=False, absolute_path=True):
         """associates a uri/mime_type with this dataset
 
-        :param uri: uri to access file
+        :param uri: uri(s) to access content
         :type uri: str or list of str
         :param mime_type: mime type associated with this file
         :type mime_type: str or list of str
@@ -305,16 +359,19 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :type metadata: dict, optional
         :param id_only: do not return kosh file object, just its id
         :type id_only: bool
-        :return: A Kosh Sina File
-        :rtype: KoshSinaFile
+        :param long_sha: Do we compute the long sha on this or not?
+        :type long_sha: bool
+        :param absolute_path: if file exists should we store its absolute_path
+        :type absolute_path: bool
+        :return: A (list) Kosh Sina File(s)
+        :rtype: list of KoshSinaFile or KoshSinaFile
         """
 
         rec = self.get_record()
         # Need to remember we touched associated files
         now = time.time()
-        rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
 
-        if isinstance(uri, str):
+        if isinstance(uri, basestring):
             uris = [uri, ]
             metadatas = [metadata, ]
             mime_types = [mime_type, ]
@@ -325,7 +382,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 metadatas = [metadata, ] * len(uris)
             else:
                 metadatas = metadata
-            if isinstance(mime_type, str):
+            if isinstance(mime_type, basestring):
                 mime_types = [mime_type, ] * len(uris)
             else:
                 mime_types = mime_type
@@ -336,8 +393,16 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         for i, uri in enumerate(uris):
             try:
-                rec.add_file(uri, mime_types[i])
                 meta = metadatas[i].copy()
+                if os.path.exists(uri):
+                    if long_sha:
+                        meta["long_sha"] = compute_long_sha(uri)
+                    if absolute_path:
+                        uri = os.path.abspath(uri)
+                    if not os.path.isdir(uri):
+                        meta["fast_sha"] = compute_fast_sha(uri)
+                rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
+                rec.add_file(uri, mime_types[i])
                 Id = uuid.uuid4().hex
                 rec["files"][uri]["kosh_id"] = Id
                 rec_obj = Record(id=Id, type="file")
@@ -361,6 +426,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                      " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
                 else:
                     Id = rec["files"][uri]["kosh_id"]
+                    if len(metadatas[i]) == 0:
+                        warnings.warn("uri {} was already associated, metadata will stay unchanged".format(uri))
             kosh_file_ids.append(Id)
 
         if self.__store__.__sync__:
@@ -372,6 +439,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         else:
             self.__store__._added_unsync_handler.delete(self.__id__)
             self.__store__._added_unsync_handler.insert(rec)
+
+        # Since we changed the associated, we need to cleanup
+        # the features cache
+        if self.__dict__["__features__"] is not None:
+            self.__dict__["__features__"] = None
 
         if id_only:
             if single_element:
@@ -457,6 +529,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
 
 class KoshSinaLoader(KoshLoader):
+    """Sina base class for loaders"""
     types = {"dataset": []}
 
     def __init__(self, obj):
@@ -479,6 +552,7 @@ class KoshSinaLoader(KoshLoader):
 
 
 class KoshSinaStore(KoshStoreClass):
+    """Sina-based implementation of Kosh store"""
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
                  keyspace=None, sync=True, dataset_record_type="dataset", verbose=True):
         """__init__ initialize a new Sina-based store
@@ -501,8 +575,10 @@ class KoshSinaStore(KoshStoreClass):
         """
         KoshStoreClass.__init__(self, sync, verbose)
         self._dataset_record_type = dataset_record_type
+        self.db_uri = db_uri
         if db == "sql":
-            self.lock_file = open(db_uri+".handle", "w")
+            if not os.path.exists(db_uri):
+                raise ValueError("Kosh store could not be found at: {}".format(db_uri))
             self.lock()
             self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
             self.unlock()
@@ -538,26 +614,13 @@ class KoshSinaStore(KoshStoreClass):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
+
         mem = sina_sql.DAOFactory(db_path=":memory:")
         self._added_unsync_handler = mem.create_record_dao()
 
-    def __del__(self):
-        name = self.lock_file.name
-        self.lock_file.close()
-        if os.path.exists(name):
-            os.remove(name)
-
-    def lock(self):
-        locked = False
-        while not locked:
-            try:
-                fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                locked = True
-            except Exception:
-                time.sleep(0.1)
-
-    def unlock(self):
-        fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
+    def close(self):
+        """closes store and sina related things"""
+        self.__factory.close()
 
     def save_loader(self, loader):
         """Save a loader to the store
@@ -575,6 +638,13 @@ class KoshSinaStore(KoshStoreClass):
         self.unlock()
 
     def get_record(self, Id):
+        """Gets the sina record tied to an id
+        tags record with time of last access to db
+        :param Id: record id
+        :type Id: str
+        :return: sina record
+        :rtpye: sina.model.Record
+        """
         if (not self.__sync__) and Id in self.__sync__dict__:
             record = self.__sync__dict__[Id]
         else:
@@ -590,20 +660,20 @@ class KoshSinaStore(KoshStoreClass):
 
     def delete(self, Id):
         """remove a record from store.
-        for datasets deassociate all associated data first.
+        for datasets dissociate all associated data first.
 
         :param Id: unique Id or kosh_obj
         :type Id: str
         """
-        if not isinstance(Id, str):
+        if not isinstance(Id, basestring):
             Id = Id.__id__
 
         rec = self.get_record(Id)
         if rec.type == self._dataset_record_type:
             kosh_obj = self.open(Id)
             for uri in list(rec["files"].keys()):
-                # Let's deassociate to remove unused kosh objects as well
-                kosh_obj.deassociate(uri)
+                # Let's dissociate to remove unused kosh objects as well
+                kosh_obj.dissociate(uri)
         if not self.__sync__:
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
@@ -664,26 +734,25 @@ class KoshSinaStore(KoshStoreClass):
             raise err
         return ds
 
-    def _find_loader(self, Id):
+    def _find_loader(self, Id, format=None, transformers=[]):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
         :type Id: str
-        :return: Kosh object
+        :return: Kosh loader object and mime_type
         """
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] == self._dataset_record_type:
-            return KoshSinaLoader(obj)
-        loader = None
+            return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                return self.loaders[record["data"]["mime_type"]["value"]][0](obj)
+                return self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            return self.loaders[record["type"]][0](obj)
-        return loader
+            return self.loaders[record["type"]][0](obj), record["type"]
+        return
 
     def open(self, Id, loader=None, *args, **kargs):
         """open loads an object in store based on its Id
@@ -695,7 +764,7 @@ class KoshSinaStore(KoshStoreClass):
         :return:
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
         return loader.open(*args, **kargs)
@@ -717,7 +786,7 @@ class KoshSinaStore(KoshStoreClass):
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
-    def get(self, Id, feature, format=None, loader=None, *args, **kargs):
+    def get(self, Id, feature, format=None, loader=None, operators=[], *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -728,13 +797,15 @@ class KoshSinaStore(KoshStoreClass):
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format
+        :param operators: A list of operators to use after the data is loaded
+        :type operators: kosh.operator.KoshTranformer
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 
-        return loader.get(feature, format, *args, **kargs)
+        return loader.get(feature, format, operators=[], *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata
@@ -765,12 +836,13 @@ class KoshSinaStore(KoshStoreClass):
             raise NotImplementedError("Need key/value at the moment")
         # for att in atts:
         #     sina_kargs[att] = DataRange(min=-9.e999999)
+        search_type = keys.pop("kosh_type", self._dataset_record_type)
         sina_kargs.update(keys)
-
         ds_filter = list(self.__record_handler__.get_all_of_type(
-            self._dataset_record_type, ids_only=True))
+            search_type, ids_only=True))
+
         if not self.__sync__:
-            ds_filter += list(self._added_unsync_handler.get_all_of_type(self._dataset_record_type, ids_only=True))
+            ds_filter += list(self._added_unsync_handler.get_all_of_type(search_type, ids_only=True))
 
         file_uri = sina_kargs.pop("file", None)
         if len(sina_kargs) != 0:  # no restriction, all datasets
@@ -796,12 +868,9 @@ class KoshSinaStore(KoshStoreClass):
             inter_recs = set(ds_filter)
 
         if file_uri is not None:
-            # print("INTRERE SRESC:", inter_recs)
             file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
-            # print("FILE MATCH:", file_match)
             if not self.__sync__:
                 file_match += list(self._added_unsync_handler.get_given_document_uri(file_uri, inter_recs, True))
-                # print("FILE MATCH 2:", file_match)
             inter_recs = set(inter_recs).intersection(file_match)
 
         if ids_only:
@@ -966,7 +1035,7 @@ class KoshSinaStore(KoshStoreClass):
                         if att[-27:-14] == "___associated":
                             # ok it's an associated thing
                             uri = att[:-27]
-                            if uri not in local["files"]:  # deassociated
+                            if uri not in local["files"]:  # dissociated
                                 del(db["files"][uri])
                             elif att not in db["user_defined"]:  # newly associated
                                 db["files"][uri] = local["files"][uri]
@@ -1025,7 +1094,7 @@ class KoshSinaStore(KoshStoreClass):
             raise ValueError("User {} already exists".format(username))
 
     def add_group(self, group):
-        """Add a kosh spcific group, cannot match exisiting group on unix system
+        """Add a kosh specific group, cannot match existing group on unix system
 
         :param group: ugroup to add
         :type group: str

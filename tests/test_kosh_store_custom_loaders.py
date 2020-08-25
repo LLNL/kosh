@@ -29,12 +29,12 @@ class TestKoshStoreCustomLoaders(KoshTest):
 
         store.add_loader(CustomLoader)
 
-        feats = ds.list_features()
-        self.assertEqual(feats, ["data_xyz",])
+        feats = ds.list_features(use_cache=False)
+        self.assertEqual(feats, ["data_xyz", ])
 
         data = ds.get("data_xyz")
 
-        self.assertTrue(numpy.allclose(data, numpy.array([1,2,3,4])))
+        self.assertTrue(numpy.allclose(data, numpy.array([1, 2, 3, 4])))
 
         # now try to open again and check it was not added to store
         store2 = kosh.KoshStore(db_uri=kosh_db, dataset_record_type="blah")
@@ -45,11 +45,11 @@ class TestKoshStoreCustomLoaders(KoshTest):
         # Now add it to the store and store it
         store2.add_loader(CustomLoader, save=True)
 
-        feats = ds.list_features()
-        self.assertEqual(feats, ["data_xyz",])
+        feats = ds.list_features(use_cache=False)
+        self.assertEqual(feats, ["data_xyz", ])
 
         # now loader is in store should know about this type right away
         store3 = kosh.KoshStore(db_uri=kosh_db, dataset_record_type="blah")
         ds = store3.open("123")
         feats = ds.list_features()
-        self.assertEqual(feats, ["data_xyz",])
+        self.assertEqual(feats, ["data_xyz", ])

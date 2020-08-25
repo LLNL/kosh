@@ -25,9 +25,11 @@ class PGMLoader(KoshLoader):
         super(PGMLoader, self).__init__(obj)
 
     def open(self, mode="rb"):
-        """open the mash reader
-
-        :return: Image file from PIL
+        """open the pgm reader
+        :param mode: mode to open the file in, defaults to 'r'
+        :type mode: str, optional
+        :return: Image file
+        :rtype: file
         """
         return open(self.obj.uri, mode)
 
@@ -63,7 +65,7 @@ class PGMLoader(KoshLoader):
     def list_features(self):
         """list_features lists features available
 
-        :return: list of features you can retrieve
+        :return: list of features you can retrievea ["iamge", ] in our case
         :rtype: list
         """
 
@@ -74,7 +76,7 @@ class PGMLoader(KoshLoader):
 
         :param feature: feature to describe
         :type feature: str
-        :return: dictionary with attributes describing the feature
+        :return: dictionary with attributes describing the feature: 'size', 'format', 'max_value'
         :rtype: dict
         """
         with open(self.obj.uri, "rb") as f:

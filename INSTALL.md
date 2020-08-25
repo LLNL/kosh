@@ -15,16 +15,10 @@ Copy/paste from [here](copy_paste_pip.md)
 
 ### Some environement
 
-#### LC provided virtual env
-
-```
-source /collab/usr/gapps/wf/releases/sina/bin/activate
-```
-
 #### Conda
 
 ```
-conda create -n Kosh -c conda-forge "python<3.8"
+conda create -n kosh -c conda-forge "python<3.8" networkx
 ```
 
 #### Virtual Envirnoment
@@ -33,11 +27,11 @@ conda create -n Kosh -c conda-forge "python<3.8"
 python -m virtualenv kosh
 ```
 
-### Sina
+### Sina (LLNL's)
 
-We use Sina to manage/store metadata, make sure you look at the casandra section i you plan on using cassandra.
+We use Sina to manage/store metadata, make sure you look at the casandra section if you plan on using cassandra.
 
-Sina is on LC's bitbucket [here](https://lc.llnl.gov/bitbucket/projects/SIBO/repos/sina/browse)
+Sina is on LLNL's github [here](https://github.com/LLNL/Sina)
 
 Sina. For details see [Sina's Readme](https://lc.llnl.gov/workflow/docs/sina/readme.html)
 
@@ -70,12 +64,12 @@ pip install cython cassandra-driver
 
 ### Niceties
 
-We recommend adding the following packages matplotlib, h5py, jupyter-lab and tqdm. pytest if you plan to run the test suite
+We recommend adding the following packages matplotlib, h5py, scikit-learn, jupyter-lab and tqdm. pytest if you plan to run the test suite
 
 #### Conda
 
 ```
-conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm pytorch torchvision matplotlib pillow
+conda install -n kosh -c conda-forge h5py jupyterlab nb_conda_kernels tqdm pytorch torchvision matplotlib pillow scikit-learn
 ```
 
 ```
@@ -85,7 +79,7 @@ conda install -n kosh -c conda-forge pytest-xdist pytest-cov
 #### Virtual Environment
 
 ```
-pip install h5py jupyterlab tqdm matplotlib pillow
+pip install h5py jupyterlab tqdm matplotlib pillow scikit-learn
 ```
 
 ```
@@ -94,7 +88,7 @@ pip install pytest-xdist pytest-cov
 
 ### Jupyter
 
-Make sure you get your env registered on LC jupyter lab via:
+Register your Python env via Jupyter:
 
 ```bash
 python -m ipykernel install --user --name sonar-custom --display-name "Kosh Environment"

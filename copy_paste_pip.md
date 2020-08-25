@@ -9,12 +9,12 @@ export KOSH_PATH=kosh
 pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
-pip install h5py numpy sqlalchemy six pip
-git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
+pip install h5py numpy sqlalchemy six pip networkx
+git clone https://github.com/LLNL/sina
 cd sina/python
 pip install -e .
 cd ../..
-git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+git clone https://github.com/LLNL/kosh
 cd kosh
 python setup.py install
 ```
@@ -33,6 +33,14 @@ pip install pillow
 
 ```bash
 pip install sphinx sphinx-autoapi nbsphinx recommonmark
+```
+
+### If you want the scikit-learn-based transformers you will need
+
+*scikit-learn*
+
+```bash
+pip install scikit-learn
 ```
 
 ### if you want to run the tests you will need
@@ -61,12 +69,12 @@ export KOSH_PATH=kosh
 pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
-pip install h5py numpy sqlalchemy six ipython pip sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets
-git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
+pip install h5py numpy sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets scikit-learn
+git clone https://github.com/LLNL/sina
 cd sina/python
 pip install -e .
 cd ../..
-git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+git clone https://github.com/LLNL/kosh
 cd kosh
 python setup.py install
 ```

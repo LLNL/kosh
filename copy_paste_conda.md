@@ -5,13 +5,13 @@
 ### Just kosh and hdf5 loaders
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip networkx
 conda activate kosh
-git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
+git clone https://github.com/LLNL/Sina
 cd sina/python
 pip install -e .
 cd ../..
-git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+git clone https://github.com/LLNL/kosh
 cd kosh
 python setup.py install
 ```
@@ -30,6 +30,14 @@ conda install -n kosh -c conda-forge pillow
 
 ```bash
 conda install -n kosh -c conda-forge sphinx sphinx-autoapi nbsphinx recommonmark
+```
+
+### If you want the scikit-learn-based transformers you will need
+
+*scikit-learn*
+
+```bash
+conda install -n kosh -c conda-forge scikit-learn
 ```
 
 ### if you want to run the tests you will need
@@ -54,13 +62,13 @@ python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 This will let you build the documentation
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels scikit-learn
 conda activate kosh
-git clone https://lc.llnl.gov/bitbucket/scm/sibo/sina.git
+git clone https://github.com/LLNL/sina
 cd sina/python
 pip install -e .
 cd ../..
-git clone https://lc.llnl.gov/bitbucket/scm/ascaml/kosh.git
+git clone https://github.com/LLNL/kosh
 cd kosh
 python setup.py install
 ```
