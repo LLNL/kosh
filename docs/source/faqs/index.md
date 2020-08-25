@@ -83,7 +83,7 @@ Currently Kosh comes with the following loaders
 
 | Name | Description | mime_type | out type(s) | Required Python Modules |
 | ---- | ---- | ---- | --- | ---- |
-| KoshHDF5Loader | Loads data from HDF5 format files | hdf5 | numpy | h5py |
+| HDF5Loader | Loads data from HDF5 format files | hdf5 | numpy | h5py |
 | PGMLoader | Load pgm formatted images (P2 and P5) | pgm | numpy | None
 | PILLoader | Load images that PIL can read | png, pil, tif, tiff, gif, image | numpy, raw binary | pillow
 | UltraLoader | Loads ultra files | ultra | numpy | pydv
@@ -111,9 +111,9 @@ Currently Kosh provides the following transformers
 
 # Cache vs Association?
 
-Is it better to cache results from transformers or should I associate the results witth the store?
+Is it better to cache results from transformers or should I associate the results with the store?
 
-One thing to consider is that associating with the kosh store usually requires a bit more work, for example making sure all the users of the kosh store can access the data and the path is going to stay consistent through the whole life of the store.
+One thing to consider is that associating with the Kosh store usually requires a bit more work, for example making sure all the users of the Kosh store can access the data and the path is going to stay consistent through the whole life of the store.
 
 In general you should re-associate with the store if:
 

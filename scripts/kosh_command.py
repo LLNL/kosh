@@ -192,7 +192,7 @@ def open_stores(uris, dataset_record_type):
 
 
 def close_stores(stores, uris):
-    """Closes a list of stores and if it was remte send it back to remote
+    """Closes a list of stores and if it was remote send it back to remote
     :param stores: List of Kosh store objects
     :type stores: list
     :param uris: list of Kosh stores to open
@@ -211,7 +211,7 @@ def close_stores(stores, uris):
 
 
 class KoshCmd(object):
-    """Engine to dispatch kosh command to apprpriate function"""
+    """Engine to dispatch kosh command to appropriate function"""
     def __init__(self):
         commands = "".join(
             ["" if k[0] == "_" else "\n\t" + k for k in sorted(dir(self))])
@@ -420,14 +420,14 @@ Available commands are:
         for u in uris:
             ds.associate(u, mime_type=args.mime_type)
 
-    def deassociate(self):
-        """Deassociate uri from dataset command"""
+    def dissociate(self):
+        """dissociate uri from dataset command"""
         parser = core_parser(
-            prog="kosh deassociate",
-            description="Dessociate a (set of) file(s) from a dataset")
+            prog="kosh dissociate",
+            description="dissociate a (set of) file(s) from a dataset")
         parser.add_argument(
-            "--id", "-i", help="id of datasets from which file(s) will be deassociated", required=True)
-        parser.add_argument("--uri", "-u", help="uri(s) to deassociate from dataset",
+            "--id", "-i", help="id of datasets from which file(s) will be dissociated", required=True)
+        parser.add_argument("--uri", "-u", help="uri(s) to dissociate from dataset",
                             nargs="*", required=True, action="append")
         args = parser.parse_args(sys.argv[2:])
         uris = []
@@ -437,7 +437,7 @@ Available commands are:
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.open(args.id)
         for u in uris:
-            ds.deassociate(u)
+            ds.dissociate(u)
 
     def mv(self):
         """mv files command"""
@@ -641,7 +641,7 @@ Available commands are:
             for store in stores:
                 datasets = store.search(file=filename)
                 for dataset in datasets:
-                    dataset.deassociate(filename)
+                    dataset.dissociate(filename)
 
     def fast_sha(self):
         """print fast_sha Kosh would compute for a list of files"""
@@ -809,7 +809,7 @@ Available commands are:
                             d_store.import_dataset(
                                 exported, args.dataset_matching_attributes)
 
-            # Now let's run te command and see if it worked
+            # Now let's run the command and see if it worked
             # But only if not ran for directory before
             if os.path.dirname(source) + "/" not in sources[:i]:
                 skip_it = False
@@ -838,7 +838,7 @@ Available commands are:
 
 def is_remote(path):
     """Determine if a uri is located on a remote server
-    First figures out if theres is a ':' in the path (e.g user@host:/path)
+    First figures out if there is a ':' in the path (e.g user@host:/path)
     Then looks if there is a single @ in part preceding the first ':'
     :param path: uri/path
     :type path: str
@@ -902,7 +902,7 @@ def get_realpath_and_status(source):
 
 
 def find_depth(path):
-    """Given a path returnns how level of directories this is in
+    """Given a path returns how level of directories this is in
     :param path: path to scan
     :type path: str
     :return: number of directories in which the file is in this path

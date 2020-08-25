@@ -1,4 +1,4 @@
-# Developpers Guide
+# Developers Guide
 
 This document describe necessary implementations for various component of Kosh.
 
@@ -9,7 +9,7 @@ This document describe necessary implementations for various component of Kosh.
 The store object is the entry point to your Kosh implementation.
 That is how the user connects to your implementation.
 
-The following function are expected to be implemented
+The following function are expected to be implemented.
 
 ### connect
 
@@ -17,9 +17,9 @@ This method is meant to allow the end user to connect to the store, it should ta
 
 ### search
 
-this method search the kosh for dataset matching the user's criteria.
+This method search the kosh for dataset matching the user's criteria.
 
-It returns a list of *datasets* objects unless `ids_only` was passed as true in which case it returns a list of the unique ids for the matching datasets
+It returns a list of *datasets* objects unless `ids_only` was passed as true in which case it returns a list of the unique ids for the matching datasets.
 
 ### open
 
@@ -42,7 +42,7 @@ Schemas are used by end users and programmatic tools to understand how Kosh can 
 
 ## Dataset Objects
 
-A *dataset* represents a collection of data related to each other in some ways. Datasets have attributes that help distinguish them from each others and are used by the store ~search` function
+A *dataset* represents a collection of data related to each other in some ways. Datasets have attributes that help distinguish them from each others and are used by the store `search` function
 
 Dataset object should implement the following functions.
 
@@ -91,7 +91,7 @@ A data loader must at a minimum implement the following functions
 
 `extract`: function to extract a given feature (or list of) from the object.
          necessary parameters will be available in loader under self._user_passed_parameters.
-         'extract' is called from the loader's get function, AFTER the preprocess function and BEFORE the psotprocess function.
+         'extract' is called from the loader's get function, AFTER the preprocess function and BEFORE the postprocess function.
          We recommend extract to return a pointer to the data rather than the data itself.
          feature, format and user arguments (args/kargs) are stored on the object and accessible via:
          self.format, self.feature, self._user_passed_parameters

@@ -105,7 +105,7 @@ class KoshTestLoaders(KoshTest):
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         data = ds.get("node/metrics_1")
         self.assertEqual(data.shape, (2, 18))
-        data = ds.get("node/metrics_1", cycles=slice(1, 2), elements=[15, 21])
+        data = ds.get("node/metrics_1", cycles=slice(1, 2), elements=[47, 79])
         self.assertEqual(data.shape, (1, 2))
         ds.associate("tests/baselines/images/brain_398.ascii.pgm", "pgm")
         info = ds.describe_feature("node/metrics_1")

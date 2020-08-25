@@ -54,7 +54,7 @@ class KoshTestDataset(KoshTest):
         ds = store.open('2019-04-05-02-11-29')
         self.assertEqual(len(ds._associated_data_), 1)
         o, e = run_cmd(
-            "kosh deassociate -s 'cmd_line.sql' -d obs -i '2019-04-05-02-11-29'"
+            "kosh dissociate -s 'cmd_line.sql' -d obs -i '2019-04-05-02-11-29'"
             " -u tests/baselines/node_extracts2/node_extracts2.hdf5")
         self.assertEqual(len(ds._associated_data_), 0)
         o, e = run_cmd(

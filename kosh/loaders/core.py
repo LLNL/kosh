@@ -254,7 +254,7 @@ class KoshFileLoader(KoshLoader):
         super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
-        """open/load the matching Kosh SIna File
+        """open/load the matching Kosh Sina File
 
         :param mode: mode to open the file in, defaults to 'r'
         :type mode: str, optional

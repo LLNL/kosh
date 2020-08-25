@@ -167,7 +167,7 @@ class KoshTestSync(KoshTest):
         ds2.sync()
         self.assertEqual(len(ds2._associated_data_), 3)
         self.assertEqual(ds2._associated_data_, ds1._associated_data_)
-        ds2.deassociate("ghost")
+        ds2.dissociate("ghost")
         self.assertEqual(len(ds2._associated_data_), 2)
         self.assertEqual(len(ds1._associated_data_), 3)
         ds2.sync()
@@ -180,7 +180,7 @@ class KoshTestSync(KoshTest):
 
         with self.assertRaises(RuntimeError):
             ds2.sync()
-        ds2.deassociate("conflict")
+        ds2.dissociate("conflict")
         ds2.associate("conflict", "conf2")
         ds2.sync()
         store2.sync()
