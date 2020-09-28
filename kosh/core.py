@@ -20,6 +20,7 @@ try:
     from .loaders import UltraLoader
 except ImportError:
     pass
+from .loaders import JSONLoader
 
 
 class KoshAgent(object):
@@ -40,6 +41,7 @@ class KoshStoreClass(object):
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
+        self.add_loader(JSONLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
