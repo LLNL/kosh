@@ -2,9 +2,37 @@ import os
 from koshbase import KoshTest
 import kosh
 import h5py
+import json
+import random
 
 
 class KoshTestLoaders(KoshTest):
+    def test_load_jsons(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        name = "kosh_random_json_{}".format(random.randint(0, 23434434))
+        with open(name, "w") as f:
+            json.dump([1, 2, 3, 4], f)
+
+        ds.associate(name, "json")
+        lst = ds.get("content")
+        self.assertEqual(lst, [1, 2, 3, 4])
+        with open(name, "w") as f:
+            json.dump("testme", f)
+        st = ds.get("content")
+        self.assertEqual(st, "testme")
+        with open(name, "w") as f:
+            json.dump({"A": "a", "B": "b", "C": "c"}, f)
+        self.assertEqual(ds.list_features(), ["A", "B", "C", "content"])
+        ct = ds.get("content")
+        self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
+        ct = ds.get("A")
+        self.assertEqual(ct, "a")
+        ct = ds.get(["B", "A"])
+        self.assertEqual(ct, ["b", "a"])
+        ct = ds.get(["B", "A"], format="dict", group=True)
+        self.assertEqual(ct, {"B": "b", "A": "a"})
+
     def test_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
