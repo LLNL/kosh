@@ -537,7 +537,14 @@ class KoshDataset(object):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
-                    ld, _ = self.__store__._find_loader(a)
+                    a_obj = self.__store__._load(a)
+                    if loader is None:
+                        ld, _ = self.__store__._find_loader(a)
+                    else:
+                        if a_obj.mime_type in loader.types:
+                            ld = loader(a_obj)
+                        else:
+                            continue
                     if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
                             feature_ is None or\
                             (feature_[:-len(ld.obj.uri)-3] in ld.list_features() and
@@ -579,7 +586,12 @@ class KoshDataset(object):
             for Id in possible_ids:
                 tmp = None
                 try:
-                    ld, mime_type = self.__store__._find_loader(Id)
+                    if loader is None:
+                        ld, mime_type = self.__store__._find_loader(Id)
+                    else:
+                        a_obj = self.__store__._load(Id)
+                        ld = loader(a_obj)
+                        mime_type = a_obj.mime_type
                     # Ensures there is a possible path to format
                     get_path(mime_type, ld, transformers, format)
                     possible_formats += ld.known_load_formats(ld.obj.mime_type)

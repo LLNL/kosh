@@ -4,6 +4,25 @@ import kosh
 import h5py
 
 
+class SecondHDF5Loader(kosh.loaders.HDF5Loader):
+    types = {"hdf5": ["numpy", ]}
+
+    def extract(self):
+        if not isinstance(self.feature, list):
+            features = [self.feature, ]
+        else:
+            features = self.feature
+
+        out = []
+        h5 = h5py.File(self.obj.uri, "r")
+        for feature in features:
+            out.append(h5[feature][:] * 2.)
+        if isinstance(self.feature, str):
+            out = out[0]
+        h5.close()
+        return out
+
+
 class KoshTestLoaders(KoshTest):
     def test_loader(self):
         store, kosh_db = self.connect()
@@ -67,6 +86,23 @@ class KoshTestLoaders(KoshTest):
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
         self.assertEqual(data.shape[:-1], info["size"][::-1])
+
+    def test_force_loader(self):
+        store, kosh_db = self.connect()
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+
+        # get data via regular loader
+        original = ds.get("node/metrics_1")[:]
+
+        # now let's register the new loader
+        store.add_loader(SecondHDF5Loader)
+        new = ds.get("node/metrics_1", loader=SecondHDF5Loader)
+
+        diff = new - original*2.
+
+        self.assertEqual(diff.max(), 0.)
 
     def test_hdf5(self):
         store, kosh_db = self.connect()
