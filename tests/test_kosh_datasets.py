@@ -78,12 +78,9 @@ KOSH DATASET
         store.create(metadata={"key1": 4, "key3": "d", "key2": "D"})
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key1")), 4)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key2")), 3)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key3")), 2)
+        self.assertEqual(len(store.search("key1")), 4)
+        self.assertEqual(len(store.search("key2")), 3)
+        self.assertEqual(len(store.search("key3")), 2)
         # Remove this when above passes outside of exceptions
         from sina.utils import DataRange
         self.assertEqual(len(store.search(key1=DataRange(min=-1.e40))), 4)
@@ -94,6 +91,7 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
+        # Search for attribute that exists
         os.remove(kosh_db)
 
     def test_associate(self):
@@ -138,6 +136,7 @@ KOSH DATASET
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(mime_type="type_12")), 1)
         self.assertEqual(len(ds.search(name="13")), 1)
+        self.assertEqual(len(ds.search("name")), 200)
 
         # Ok list completion tests
         ds = store.create()
