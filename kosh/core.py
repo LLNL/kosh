@@ -421,8 +421,8 @@ class KoshDataset(object):
         :return: list of features available
         :rtype: list
         """
-        if use_cache and self.__dict__["__features__"] is not None:
-            return self.__dict__["__features__"]
+        if use_cache and self.__dict__["__features__"].get(Id, {}).get(loader, None) is not None:
+            return self.__dict__["__features__"][Id][loader]
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
         if saved_sync:
@@ -461,7 +461,9 @@ class KoshDataset(object):
         else:
             ld, _ = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
-        self.__dict__["__features__"] = features
+        features_id = self.__dict__["__features__"].get(Id, {})
+        features_id[loader] = features
+        self.__dict__["__features__"][Id] = features_id
         if saved_sync:
             # we need to restore sync mode
             self.__store__.__sync__dict__ = backup

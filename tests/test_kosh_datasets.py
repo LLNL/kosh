@@ -291,3 +291,60 @@ KOSH DATASET
         self.assertGreaterEqual(end - start, 1.)
 
         os.remove(db_uri)
+
+    def test_list_features(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds.associate(
+            "tests/baselines/images/LLNLiconWHITE.png", "png")
+
+        self.assertEqual(sorted(ds.list_features()), ['cycles',
+                                                      'direction',
+                                                      'elements',
+                                                      'image',
+                                                      'node/metrics_0',
+                                                      'node/metrics_1',
+                                                      'node/metrics_10',
+                                                      'node/metrics_11',
+                                                      'node/metrics_12',
+                                                      'node/metrics_2',
+                                                      'node/metrics_3',
+                                                      'node/metrics_4',
+                                                      'node/metrics_5',
+                                                      'node/metrics_6',
+                                                      'node/metrics_7',
+                                                      'node/metrics_8',
+                                                      'node/metrics_9',
+                                                      'zone/metrics_0',
+                                                      'zone/metrics_1',
+                                                      'zone/metrics_2',
+                                                      'zone/metrics_3',
+                                                      'zone/metrics_4'])
+
+        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="hdf5", ids_only=True)[0])),
+                         ['cycles',
+                          'direction',
+                          'elements',
+                          'node/metrics_0',
+                          'node/metrics_1',
+                          'node/metrics_10',
+                          'node/metrics_11',
+                          'node/metrics_12',
+                          'node/metrics_2',
+                          'node/metrics_3',
+                          'node/metrics_4',
+                          'node/metrics_5',
+                          'node/metrics_6',
+                          'node/metrics_7',
+                          'node/metrics_8',
+                          'node/metrics_9',
+                          'zone/metrics_0',
+                          'zone/metrics_1',
+                          'zone/metrics_2',
+                          'zone/metrics_3',
+                          'zone/metrics_4'])
+        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="png", ids_only=True)[0])),
+                         ["image", ])
+        os.remove(db_uri)

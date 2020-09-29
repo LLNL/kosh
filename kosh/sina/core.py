@@ -296,7 +296,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
         self.__dict__["__record_handler__"] = store.__record_handler__
-        self.__dict__["__features__"] = None
+        self.__dict__["__features__"] = {None: {}}
         if record is None:
             record = self.get_record()
         try:
@@ -345,8 +345,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        if self.__dict__["__features__"] is not None:
-            self.__dict__["__features__"] = None
+        self.__dict__["__features__"][None] = {}
+        self.__dict__["__features__"][kosh_id] = {}
 
     def associate(self, uri, mime_type, metadata={}, id_only=True, long_sha=False, absolute_path=True):
         """associates a uri/mime_type with this dataset
@@ -442,8 +442,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        if self.__dict__["__features__"] is not None:
-            self.__dict__["__features__"] = None
+        self.__dict__["__features__"][None] = {}
 
         if id_only:
             if single_element:
@@ -453,6 +452,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         kosh_files = []
         for Id in kosh_file_ids:
+            self.__dict__["__features__"][Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
                                        koshType="file",
                                        store=self.__store__,
