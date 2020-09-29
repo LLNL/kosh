@@ -402,10 +402,23 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     if not os.path.isdir(uri):
                         meta["fast_sha"] = compute_fast_sha(uri)
                 rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
+                # We need to check if the uri was already associated somewhere
+                tmp_uris = self.__store__.search(kosh_type="file", uri=uri, ids_only=True)
+                if len(tmp_uris) == 0:
+                    Id = uuid.uuid4().hex
+                    rec_obj = Record(id=Id, type="file")
+                else:
+                    rec_obj = self.__store__.get_record(tmp_uris[0])
+                    Id = rec_obj.id
+                    existing_mime = rec_obj["data"]["mime_type"]["value"]
+                    mime_type = mime_types[i]
+                    if existing_mime != mime_types[i]:
+                        rec["files"][uri]["mime_type"] = existing_mime
+                        raise TypeError("file {} is already associated with another dataset with mimetype"
+                                        " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
                 rec.add_file(uri, mime_types[i])
-                Id = uuid.uuid4().hex
+
                 rec["files"][uri]["kosh_id"] = Id
-                rec_obj = Record(id=Id, type="file")
                 meta["uri"] = uri
                 meta["mime_type"] = mime_types[i]
                 meta["associated"] = [self.__id__, ]
@@ -417,17 +430,20 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     rec_obj["user_defined"]["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
                 new_recs.append(rec_obj)
+            except TypeError as err:
+                raise(err)
             except Exception:
                 # file already in there
                 # Let's get the matching id
-                existing_mime = rec["files"][uri]["mimetype"]
-                if existing_mime != mime_type:
-                    raise ValueError("file {} is already associated with this dataset with mimetype"
-                                     " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+                if rec_obj["data"]["mime_type"]["value"] != mime_types[i]:
+                    raise TypeError("file {} is already associated with this dataset with mimetype"
+                                    " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
                 else:
                     Id = rec["files"][uri]["kosh_id"]
-                    if len(metadatas[i]) == 0:
-                        warnings.warn("uri {} was already associated, metadata will stay unchanged".format(uri))
+                    if len(metadatas[i]) != 0:
+                        warnings.warn(
+                            "uri {} was already associated, metadata will "
+                            "stay unchanged\nEdit object (id={}) directly to update attributes.".format(uri, Id))
             kosh_file_ids.append(Id)
 
         if self.__store__.__sync__:

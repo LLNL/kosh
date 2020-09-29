@@ -113,12 +113,19 @@ KOSH DATASET
             absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             ds.associate(
                 "tests/baselines/node_extracts2",
                 "something_else",
                 absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
+        # Associating with another dataset does not create another obj in db
+        n_files = len(store.search(kosh_type="file", ids_only=True))
+        ds_2 = store.create("multi")
+        ds_2.associate("tests/baselines/node_extracts2", "something", absolute_path=False)
+        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        self.assertEqual(n_files, n_files_2)
+
         f = ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5",
@@ -141,18 +148,30 @@ KOSH DATASET
 
         # Ok list completion tests
         ds = store.create()
-        ds.associate([str(i) for i in range(200)],
+        ds.associate([str(i+300) for i in range(200)],
                      metadata=[{"name": str(i)} for i in range(200)],
                      mime_type="a_mime_type")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(mime_type="a_mime_type")), 200)
 
         ds = store.create()
-        ds.associate([str(i) for i in range(200)], metadata={
+        ds.associate([str(i+600) for i in range(200)], metadata={
                      "name": "my name"}, mime_type="stuff")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(name="my name")), 200)
 
+        # Make sure you cannot assoicate with different type
+        ds.associate("some_uri", "some_mime_type")
+        with self.assertRaises(TypeError):
+            ds.associate("some_uri", "some_other_mime_type")
+        with self.assertRaises(TypeError):
+            ds_2.associate("some_uri", "some_other_mime_type")
+
+        # make sure dissociate fully removes obj from store
+        n_files = len(store.search(kosh_type="file", ids_only=True))
+        ds.dissociate("some_uri")  # shouldn't be anywhere now
+        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        self.assertEqual(n_files - 1, n_files_2)
         os.remove(kosh_db)
 
     def test_search(self):
