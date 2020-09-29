@@ -6,6 +6,7 @@ from kosh.utils import compute_fast_sha, compute_long_sha
 import warnings
 import time
 import sina.datastores.sql as sina_sql
+import sina.utils
 import pickle
 import os
 import grp
@@ -486,7 +487,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
         for att in atts:
-            sina_kargs[att] = DataRange(min=-9.e999999)
+            sina_kargs[att] = sina.utils.exists()
         sina_kargs.update(keys)
 
         inter_recs = self._associated_data_
@@ -831,11 +832,8 @@ class KoshSinaStore(KoshStoreClass):
             self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
-        # Until fix in sina
-        if len(atts) != 0:
-            raise NotImplementedError("Need key/value at the moment")
-        # for att in atts:
-        #     sina_kargs[att] = DataRange(min=-9.e999999)
+        for att in atts:
+            sina_kargs[att] = sina.utils.exists()
         search_type = keys.pop("kosh_type", self._dataset_record_type)
         sina_kargs.update(keys)
         ds_filter = list(self.__record_handler__.get_all_of_type(
