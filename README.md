@@ -2,9 +2,9 @@
 # Overview
 Kosh allows codes to store, query, share data via an easy-to-use Python API. Kosh lies on top of Sina and as a result can use any database backend supported by Sina.
 
-In adition Kosh aims to make data access and sharing as simple as possible.
+In addition Kosh aims to make data access and sharing as simple as possible.
 
-Via "loaders" kosh can open files associated with datasets in a seemless fashion independently of the actual file format. Kosh's loader can also load data in different format, although numpy is the most usual output type. 
+Via "loaders" Kosh can open files associated with datasets in a seamless fashion independently of the actual file format. Kosh's loader can also load data in different format, although numpy is the most usual output type. 
 
 
 
