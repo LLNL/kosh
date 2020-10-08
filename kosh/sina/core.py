@@ -14,6 +14,10 @@ try:
     basestring
 except NameError:
     basestring = str
+from sina import get_version
+
+
+sina_version = float(".".join(get_version().split(".")[:2]))
 
 
 class KoshSinaObject(object):
@@ -631,8 +635,10 @@ class KoshSinaStore(KoshStoreClass):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
-
-        mem = sina_sql.DAOFactory(db_path=":memory:")
+        if sina_version < 1.9:
+            mem = sina_sql.DAOFactory(db_path=":memory:")
+        else:
+            mem = sina_sql.DAOFactory(db_path=None)
         self._added_unsync_handler = mem.create_record_dao()
 
     def close(self):
