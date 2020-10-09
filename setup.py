@@ -45,3 +45,4 @@ setup(name="kosh",
           'sina', 
       ],
       )
+Popen(("scripts/render_logos.py",)).communicate()
