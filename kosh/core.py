@@ -690,3 +690,13 @@ class KoshDataset(object):
         """If dataset has a schema then make sure all attributes pass the schema"""
         if self.schema is not None:
             self.schema.validate(self)
+
+    def searchable_source_attributes(self):
+        """Returns all the attributes of associated sources
+        :return: List of all attributes you can use to search sources in the dataset
+        :rtype: set
+        """
+        searchable = set()
+        for source in self.search():
+            searchable = searchable.union(source.listattributes())
+        return searchable
