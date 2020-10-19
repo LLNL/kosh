@@ -8,6 +8,7 @@ import os
 import kosh
 import time
 import fcntl
+import copy
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -208,11 +209,13 @@ class KoshStoreClass(object):
 
     def import_dataset(self, dataset, match_attributes=["name", ]):
         """import a dataset that was exported from another store
-        :param dataset: Dataset object exported by another store
-        :type dataset: json
+        :param dataset: Dataset object exported by another store, or a dataset
+        :type dataset: json or kosh.KoshDataset
         :return: dataset
         :rtype: KoshSinaDataset
         """
+        if isinstance(dataset, KoshDataset):
+            dataset = dataset.export()
         min_ver = dataset["minimum_kosh_version"]
         if min_ver is not None and kosh.__version__ < min_ver:
             raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
@@ -226,8 +229,10 @@ class KoshStoreClass(object):
         matching = self.search(**match_dict)
 
         if len(matching) > 1:
-            raise ValueError("dataset {} matches multiple datasets store {} please change matching_attributes".format(
-                dataset.__id__, self.db_uri))
+            raise ValueError("dataset criterias: {} matches multiple ({}) "
+                             "datasets in store {}, try changing 'matching_attributes' when calling"
+                             " this function".format(
+                                 match_dict, len(matching), self.db_uri))
         elif len(matching) == 1:
             # All right we do have a possible conflict here
             match = matching[0]
@@ -244,11 +249,11 @@ class KoshStoreClass(object):
             match = self.create(metadata=dataset["attributes"])
 
         # now we need to handle associated files
-        for associated in dataset["associated"]:
-            uri = associated.pop("uri")
-            mime_type = associated.pop("mime_type")
-            associated.pop("associated")
-            match.associate(uri, mime_type, metadata=associated)
+        lst = [(x.pop("uri"), x.pop("mime_type"), x.pop("associated"), x)
+               for x in copy.deepcopy(dataset["associated"])]
+        if len(lst) > 0:
+            uris, mime_types, asso, meta = zip(*lst)
+            match.associate(uris, mime_types, metadata=meta, absolute_path=False)
         return match
 
     def reassociate(self, target, source=None, absolute_path=True):

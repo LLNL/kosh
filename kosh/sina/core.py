@@ -404,7 +404,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                         meta["long_sha"] = compute_long_sha(uri)
                     if absolute_path:
                         uri = os.path.abspath(uri)
-                    if not os.path.isdir(uri):
+                    if not os.path.isdir(uri) and "fast_sha" not in meta:
                         meta["fast_sha"] = compute_fast_sha(uri)
                 rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
