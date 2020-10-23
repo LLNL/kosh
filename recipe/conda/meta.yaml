@@ -12,11 +12,14 @@ source:
 build:
   number: 0
   noarch: python
-  script: pip install . 
+  script: {{ PYTHON }} -m pip install . -vv
+  entry_points:
+    - kosh = kosh.cli.driver:main
+
 
  
 requirements:
-  build:
+  host:
     - python
     - llnl-sina
   run:
@@ -26,8 +29,12 @@ requirements:
     - numpy
 
 test:
+  imports:
+    - kosh
   commands:
-    - python -c "import kosh"
+    - pip check
+  requires:
+    - pip
 
 about:
     home:  https://github.com/LLNL/kosh
