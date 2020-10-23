@@ -43,6 +43,7 @@ setup(name="kosh",
       zip_safe=False,
       install_requires=[
           'sina', 
+          'networkx',
       ],
       )
 Popen(("scripts/render_logos.py",)).communicate()
