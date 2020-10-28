@@ -9,7 +9,7 @@ conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip net
 conda activate kosh
 git clone https://github.com/LLNL/kosh
 cd kosh
-pip install -e .
+pip install .
 ```
 
 ### If you want the image loader you will need
@@ -62,5 +62,5 @@ conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython
 conda activate kosh
 git clone https://github.com/LLNL/kosh
 cd kosh
-pip install -e .
+pip install .
 ```

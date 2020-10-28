@@ -44,6 +44,7 @@ setup(name="kosh",
       packages=find_packages(),
       scripts=["scripts/init_sina.py",
                "scripts/kosh",
+               "scripts/sbang",
                ],
       zip_safe=False,
       install_requires=[

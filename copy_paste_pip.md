@@ -12,7 +12,7 @@ source ${KOSH_PATH}/bin/activate
 pip install h5py numpy sqlalchemy six pip networkx llnl-sina
 git clone https://github.com/LLNL/kosh
 cd kosh
-pip install -e .
+pip install .
 ```
 
 ### If you want the image loader you will need
@@ -68,5 +68,5 @@ source ${KOSH_PATH}/bin/activate
 pip install h5py numpy sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets scikit-learn llnl-sina
 git clone https://github.com/LLNL/kosh
 cd kosh
-pip install -e .
+pip install .
 ```
