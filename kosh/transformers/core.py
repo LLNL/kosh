@@ -83,8 +83,8 @@ class KoshTransformer(object):
         and output signature is also generated from the input args (w/o the cache_dir)
         :param cache_dir: directory to save cachd files
         :type cache_dir: str
-        :param cache: do we use cache?
-        :type cache: bool
+        :param cache: do we use cache? 0: no, 1:yes, 2:yes but clobber if exists
+        :type cache: int
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
@@ -141,13 +141,19 @@ class KoshTransformer(object):
             use_signature = self.update_signature(input, format).hexdigest()
         else:
             use_signature = signature
+
+        cache_file = os.path.join(self.cache_dir, use_signature)
+        if self.cache == 2 and os.path.exists(cache_file):
+            # User wants to clobber cahce
+            os.remove(cache_file)
+
         try:
             result = self.load(use_signature)
         except Exception:
             if signature is None:
                 signature = self.update_signature(input, format).hexdigest()
             result = self.transform(input, format)
-            if self.cache:  # Ok user wants to cache results
+            if self.cache > 0:  # Ok user wants to cache results
                 if not os.path.exists(self.cache_dir):
                     os.makedirs(self.cache_dir)
                 self.save(signature, result)
