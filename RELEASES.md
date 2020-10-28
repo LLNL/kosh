@@ -17,6 +17,7 @@
 * Respects user passed loader.
 * Can search for attribute presence (no need to specify a value).
 * Datasets have new `searchable_source_attributes` to list attributes that can be used to filter sources associated with this dataset.
+* Uses sbang to allow executble to work in envirnoments with very long paths.
 
 ## 1.0 Release
 
