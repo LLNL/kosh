@@ -1,7 +1,32 @@
 # Release Notes
 
+* [1.1](#1.1)
+* [1.0](#1.0)
 * [0.9](#0.9)
 * [0.8](#0.8)
+
+## 1.1 Release
+
+* New loader: `json` files.
+* Transformers `cache` option now accepts `2` as a value allowing to clobber exisiting cache files.
+* New script wrapper object allows you to drive existing command line based scripts using Kosh objects.
+* Dataset export/import optimized, `import_dataset` now accepts dataset objects.
+* Logos are automaticalled generated to reflect version.
+* Warning raised if trying to associate already associated source: metadata will not be automatically updated on source.
+* `list_features` cache issue cleaned up.
+* Respects user passed loader.
+* Can search for attribute presence (no need to specify a value).
+* Datasets have new `searchable_source_attributes` to list attributes that can be used to filter sources associated with this dataset.
+* Uses sbang to allow executble to work in envirnoments with very long paths.
+
+## 1.0 Release
+
+* Transformers are now available. These allow for post processing when extracting features.
+* Transformers allow for cache
+* Kosh can now move, copy or tar files tied to (a) store(s) and update store(s) appropriately.
+* Documentation cleanup, logo added.
+* `list_features` operation is now cached for speed improvements
+* ***lock** capability improved to allow for multiple users accessing the store at same time.
 
 ## 0.9 Release
 
