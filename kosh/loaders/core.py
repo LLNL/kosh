@@ -82,7 +82,7 @@ class KoshLoader(object):
         """Updated the signature based to a set of args and kargs
         :param *args: as many arguments as you want
         :type *args: list
-        :param **kargs: key=value style argmunets
+        :param **kargs: key=value style arguments
         :type **kargs: dict
         :return: updated signature
         :rtype: str

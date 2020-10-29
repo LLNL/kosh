@@ -8,16 +8,16 @@
 ## 1.1 Release
 
 * New loader: `json` files.
-* Transformers `cache` option now accepts `2` as a value allowing to clobber exisiting cache files.
+* Transformers `cache` option now accepts `2` as a value allowing to clobber existing cache files.
 * New script wrapper object allows you to drive existing command line based scripts using Kosh objects.
 * Dataset export/import optimized, `import_dataset` now accepts dataset objects.
-* Logos are automaticalled generated to reflect version.
+* Logos are automatically generated to reflect version.
 * Warning raised if trying to associate already associated source: metadata will not be automatically updated on source.
 * `list_features` cache issue cleaned up.
 * Respects user passed loader.
 * Can search for attribute presence (no need to specify a value).
 * Datasets have new `searchable_source_attributes` to list attributes that can be used to filter sources associated with this dataset.
-* Uses sbang to allow executble to work in envirnoments with very long paths.
+* Uses sbang to allow executable to work in environments with very long paths.
 
 ## 1.0 Release
 

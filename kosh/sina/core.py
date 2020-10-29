@@ -816,7 +816,7 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         :param feature: feature to retrieve
         :type feature: str
-        :param format: prefered format, defaults to None means pick for me
+        :param format: preferred format, defaults to None means pick for me
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format

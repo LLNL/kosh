@@ -31,10 +31,10 @@ class KoshScriptWrapper(object):
                        the kosh feed_attribute as arguments
         :type feed_attribute: function
         :param feed_pos: index of the feed object fed to use to do the mapping
-                          -1 means as long as an feed object matches this will be used
-                             and will override any value already set.
-                          None means as an feed object match that name it used and
-                             the search is over.
+                         -1 means as long as a feed object matches it will be used
+                         and will override any value already set.
+                         None means as soon as a feed object match that name
+                         it will be used and the search is over.
         :type feed_pos: int or None
         """
         prefix = ""
