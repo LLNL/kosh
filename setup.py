@@ -15,20 +15,6 @@ try:
 except Exception:
     pass
 
-try:
-    # Let's make sure sina is installed
-    import sina
-except ImportError:
-    raise RuntimeError("Please install Sina from: https://github.com/LLNL/Sina")
-
-try:
-    # Let's make sure the correct sina is installed
-    import sina.datastores.sql as sina_sql
-except ImportError:
-    raise RuntimeError("You appear to have Sina installed but it seems to be another Sina."
-                       "\nKosh requires LLNL's version of Sina"
-                       "\nPlease install Sina from: https://github.com/LLNL/Sina")
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
