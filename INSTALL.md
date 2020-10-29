@@ -18,7 +18,7 @@ Copy/paste from [here](copy_paste_pip.md)
 #### Conda
 
 ```
-conda create -n kosh -c conda-forge "python<3.8" networkx
+conda create -n kosh -c conda-forge "python<3.8" networkx numpy llnl-sina
 ```
 
 #### Virtual Envirnoment
@@ -27,22 +27,13 @@ conda create -n kosh -c conda-forge "python<3.8" networkx
 python -m virtualenv kosh
 ```
 
-### Sina (LLNL's)
-
-We use Sina to manage/store metadata, make sure you look at the casandra section if you plan on using cassandra.
-
-Sina is on LLNL's github [here](https://github.com/LLNL/Sina)
-
-Sina. For details see [Sina's Readme](https://lc.llnl.gov/workflow/docs/sina/readme.html)
-
-
 #### Conda
 
 ```
-conda install -n kosh -c conda-forge tox flake8 mock jsonschema SQLAlchemy
+conda install -n kosh -c conda-forge tox flake8 mock jsonschema SQLAlchemy llnl-sina
 ```
 
-For cassandra also add:
+For Cassandra support also add:
 
 ```
 conda install -n kosh -c conda-forge cython cassandra-driver
@@ -52,7 +43,7 @@ conda install -n kosh -c conda-forge cython cassandra-driver
 
 
 ```
-pip install tox flake8 mock jsonschema SQLAlchemy
+pip install tox flake8 mock jsonschema SQLAlchemy llnl-sina
 ```
 
 For cassandra also add:
@@ -91,5 +82,5 @@ pip install pytest-xdist pytest-cov
 Register your Python env via Jupyter:
 
 ```bash
-python -m ipykernel install --user --name sonar-custom --display-name "Kosh Environment"
+python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 ```

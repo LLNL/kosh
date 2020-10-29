@@ -26,6 +26,7 @@ class TestFlake8(unittest.TestCase):
         print()
         print()
         cmd = "flake8 --show-source --statistics " +\
+              "--exclude scripts/kosh_commands.py, scripts/kosh, scripts/init_sina.py " +\
               "--max-line-length=120 {} scripts {} ".format(code_pth, test_pth)
         P = Popen(shlex.split(cmd),
                   stdout=PIPE,
