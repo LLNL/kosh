@@ -575,7 +575,8 @@ class KoshSinaLoader(KoshLoader):
 class KoshSinaStore(KoshStoreClass):
     """Sina-based implementation of Kosh store"""
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
-                 keyspace=None, sync=True, dataset_record_type="dataset", verbose=True):
+                 keyspace=None, sync=True, dataset_record_type="dataset",
+                 verbose=True, use_lock_file=False):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -591,10 +592,14 @@ class KoshSinaStore(KoshStoreClass):
         :param dataset_record_type: Kosh element type is "dataset" this can change the default
                                     This is usefull if reading in other sina db
         :type dataset_record_type: str
+        :param verbose: verbose message
+        :type verbose: bool
+        :param use_lock_file: If you receive sqlite threads access error, turning this on might help
+        :type use_lock_file: bool
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        KoshStoreClass.__init__(self, sync, verbose)
+        KoshStoreClass.__init__(self, sync, verbose, use_lock_file)
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
