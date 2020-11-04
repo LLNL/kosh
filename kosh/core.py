@@ -32,13 +32,16 @@ class KoshStoreClass(object):
     """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync, verbose=True):
+    def __init__(self, sync, verbose=True, use_lock_file=False):
         """Constructor
         :param sync: Does this store constantly sync with db
         :type sync: bool
         :param verbose: Print warning messages and such
         :type verbose: bool
+        :param use_lock_file: If you receive sqlite threads access error, turning this on might help
+        :type use_lock_file: bool
         """
+        self.use_lock_file = use_lock_file
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
@@ -146,6 +149,8 @@ class KoshStoreClass(object):
 
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
+        if not self.use_lock_file:
+            return
         locked = False
         while not locked:
             try:
@@ -157,6 +162,8 @@ class KoshStoreClass(object):
 
     def unlock(self):
         """Unlocks the store so other can access it"""
+        if not self.use_lock_file:
+            return
         fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
         self.lock_file.close()
         # Wrapping this in a try/except
@@ -169,6 +176,8 @@ class KoshStoreClass(object):
 
     def __del__(self):
         """delete the KoshStore object"""
+        if not self.use_lock_file:
+            return
         name = self.lock_file.name
         self.lock_file.close()
         if os.path.exists(name):
