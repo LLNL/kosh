@@ -1,5 +1,5 @@
 include:
   - project: ASCAML/kosh_aml_files
-    ref: pipenvs_usr_workspace
+    ref: develop
     file: gitlab-ci.yml
   
