@@ -141,7 +141,7 @@ class HDF5Loader(KoshLoader):
             info["type"] = feature.dtype
             if hasattr(feature, "dims"):
                 dims = []
-                for d in feature.dims.keys():
+                for d in feature.dims:
                     specs = {}
                     specs["name"] = d.label
                     try:

@@ -6,6 +6,7 @@ from kosh.utils import compute_fast_sha, compute_long_sha
 import warnings
 import time
 import sina.datastores.sql as sina_sql
+import sina.utils
 import pickle
 import os
 import grp
@@ -13,6 +14,10 @@ try:
     basestring
 except NameError:
     basestring = str
+from sina import get_version
+
+
+sina_version = float(".".join(get_version().split(".")[:2]))
 
 
 class KoshSinaObject(object):
@@ -296,7 +301,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
         self.__dict__["__record_handler__"] = store.__record_handler__
-        self.__dict__["__features__"] = None
+        self.__dict__["__features__"] = {None: {}}
         if record is None:
             record = self.get_record()
         try:
@@ -345,8 +350,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        if self.__dict__["__features__"] is not None:
-            self.__dict__["__features__"] = None
+        self.__dict__["__features__"][None] = {}
+        self.__dict__["__features__"][kosh_id] = {}
 
     def associate(self, uri, mime_type, metadata={}, id_only=True, long_sha=False, absolute_path=True):
         """associates a uri/mime_type with this dataset
@@ -399,13 +404,26 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                         meta["long_sha"] = compute_long_sha(uri)
                     if absolute_path:
                         uri = os.path.abspath(uri)
-                    if not os.path.isdir(uri):
+                    if not os.path.isdir(uri) and "fast_sha" not in meta:
                         meta["fast_sha"] = compute_fast_sha(uri)
                 rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
+                # We need to check if the uri was already associated somewhere
+                tmp_uris = self.__store__.search(kosh_type="file", uri=uri, ids_only=True)
+                if len(tmp_uris) == 0:
+                    Id = uuid.uuid4().hex
+                    rec_obj = Record(id=Id, type="file")
+                else:
+                    rec_obj = self.__store__.get_record(tmp_uris[0])
+                    Id = rec_obj.id
+                    existing_mime = rec_obj["data"]["mime_type"]["value"]
+                    mime_type = mime_types[i]
+                    if existing_mime != mime_types[i]:
+                        rec["files"][uri]["mime_type"] = existing_mime
+                        raise TypeError("file {} is already associated with another dataset with mimetype"
+                                        " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
                 rec.add_file(uri, mime_types[i])
-                Id = uuid.uuid4().hex
+
                 rec["files"][uri]["kosh_id"] = Id
-                rec_obj = Record(id=Id, type="file")
                 meta["uri"] = uri
                 meta["mime_type"] = mime_types[i]
                 meta["associated"] = [self.__id__, ]
@@ -417,17 +435,20 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     rec_obj["user_defined"]["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
                 new_recs.append(rec_obj)
+            except TypeError as err:
+                raise(err)
             except Exception:
                 # file already in there
                 # Let's get the matching id
-                existing_mime = rec["files"][uri]["mimetype"]
-                if existing_mime != mime_type:
-                    raise ValueError("file {} is already associated with this dataset with mimetype"
-                                     " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
+                if rec_obj["data"]["mime_type"]["value"] != mime_types[i]:
+                    raise TypeError("file {} is already associated with this dataset with mimetype"
+                                    " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_type))
                 else:
                     Id = rec["files"][uri]["kosh_id"]
-                    if len(metadatas[i]) == 0:
-                        warnings.warn("uri {} was already associated, metadata will stay unchanged".format(uri))
+                    if len(metadatas[i]) != 0:
+                        warnings.warn(
+                            "uri {} was already associated, metadata will "
+                            "stay unchanged\nEdit object (id={}) directly to update attributes.".format(uri, Id))
             kosh_file_ids.append(Id)
 
         if self.__store__.__sync__:
@@ -442,8 +463,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        if self.__dict__["__features__"] is not None:
-            self.__dict__["__features__"] = None
+        self.__dict__["__features__"][None] = {}
 
         if id_only:
             if single_element:
@@ -453,6 +473,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
         kosh_files = []
         for Id in kosh_file_ids:
+            self.__dict__["__features__"][Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
                                        koshType="file",
                                        store=self.__store__,
@@ -486,7 +507,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
         for att in atts:
-            sina_kargs[att] = DataRange(min=-9.e999999)
+            sina_kargs[att] = sina.utils.exists()
         sina_kargs.update(keys)
 
         inter_recs = self._associated_data_
@@ -554,7 +575,8 @@ class KoshSinaLoader(KoshLoader):
 class KoshSinaStore(KoshStoreClass):
     """Sina-based implementation of Kosh store"""
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
-                 keyspace=None, sync=True, dataset_record_type="dataset", verbose=True):
+                 keyspace=None, sync=True, dataset_record_type="dataset",
+                 verbose=True, use_lock_file=False):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -570,10 +592,14 @@ class KoshSinaStore(KoshStoreClass):
         :param dataset_record_type: Kosh element type is "dataset" this can change the default
                                     This is usefull if reading in other sina db
         :type dataset_record_type: str
+        :param verbose: verbose message
+        :type verbose: bool
+        :param use_lock_file: If you receive sqlite threads access error, turning this on might help
+        :type use_lock_file: bool
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        KoshStoreClass.__init__(self, sync, verbose)
+        KoshStoreClass.__init__(self, sync, verbose, use_lock_file)
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
@@ -614,8 +640,10 @@ class KoshSinaStore(KoshStoreClass):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
-
-        mem = sina_sql.DAOFactory(db_path=":memory:")
+        if sina_version < 1.9:
+            mem = sina_sql.DAOFactory(db_path=":memory:")
+        else:
+            mem = sina_sql.DAOFactory(db_path=None)
         self._added_unsync_handler = mem.create_record_dao()
 
     def close(self):
@@ -793,7 +821,7 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         :param feature: feature to retrieve
         :type feature: str
-        :param format: prefered format, defaults to None means pick for me
+        :param format: preferred format, defaults to None means pick for me
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format
@@ -831,11 +859,8 @@ class KoshSinaStore(KoshStoreClass):
             self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
-        # Until fix in sina
-        if len(atts) != 0:
-            raise NotImplementedError("Need key/value at the moment")
-        # for att in atts:
-        #     sina_kargs[att] = DataRange(min=-9.e999999)
+        for att in atts:
+            sina_kargs[att] = sina.utils.exists()
         search_type = keys.pop("kosh_type", self._dataset_record_type)
         sina_kargs.update(keys)
         ds_filter = list(self.__record_handler__.get_all_of_type(

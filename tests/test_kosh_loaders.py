@@ -2,9 +2,56 @@ import os
 from koshbase import KoshTest
 import kosh
 import h5py
+import json
+import random
+
+
+class SecondHDF5Loader(kosh.loaders.HDF5Loader):
+    types = {"hdf5": ["numpy", ]}
+
+    def extract(self):
+        if not isinstance(self.feature, list):
+            features = [self.feature, ]
+        else:
+            features = self.feature
+
+        out = []
+        h5 = h5py.File(self.obj.uri, "r")
+        for feature in features:
+            out.append(h5[feature][:] * 2.)
+        if isinstance(self.feature, str):
+            out = out[0]
+        h5.close()
+        return out
 
 
 class KoshTestLoaders(KoshTest):
+    def test_load_jsons(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        name = "kosh_random_json_{}".format(random.randint(0, 23434434))
+        with open(name, "w") as f:
+            json.dump([1, 2, 3, 4], f)
+
+        ds.associate(name, "json")
+        lst = ds.get("content")
+        self.assertEqual(lst, [1, 2, 3, 4])
+        with open(name, "w") as f:
+            json.dump("testme", f)
+        st = ds.get("content")
+        self.assertEqual(st, "testme")
+        with open(name, "w") as f:
+            json.dump({"A": "a", "B": "b", "C": "c"}, f)
+        self.assertEqual(ds.list_features(), ["A", "B", "C", "content"])
+        ct = ds.get("content")
+        self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
+        ct = ds.get("A")
+        self.assertEqual(ct, "a")
+        ct = ds.get(["B", "A"])
+        self.assertEqual(ct, ["b", "a"])
+        ct = ds.get(["B", "A"], format="dict", group=True)
+        self.assertEqual(ct, {"B": "b", "A": "a"})
+
     def test_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
@@ -60,13 +107,30 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(sorted(ds.list_features(use_cache=False))[::-1],
                          ['image_@_{}/tests/baselines/images/brain_398.ascii.pgm'.format(os.getcwd()),
                           'image_@_{}/share/icons/png/Kosh_Logo_Blue.png'.format(
-                              os.getcwd())])  # URI is now added to feature to deambiguous them
+                              os.getcwd())])  # URI is now added to feature to disambiguate them
         info = ds.describe_feature(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
         self.assertEqual(data.shape[:-1], info["size"][::-1])
+
+    def test_force_loader(self):
+        store, kosh_db = self.connect()
+        ds = store.create(metadata={"key1": 1, "key2": "A"})
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+
+        # get data via regular loader
+        original = ds.get("node/metrics_1")[:]
+
+        # now let's register the new loader
+        store.add_loader(SecondHDF5Loader)
+        new = ds.get("node/metrics_1", loader=SecondHDF5Loader)
+
+        diff = new - original*2.
+
+        self.assertEqual(diff.max(), 0.)
 
     def test_hdf5(self):
         store, kosh_db = self.connect()

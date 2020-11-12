@@ -27,4 +27,4 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
         a, b = numpy.polyfit(numpy.arange(
             len(search_times) - 5), numpy.array(search_times[5:]), 1)
         print("A, B:", a, b)
-        self.assertLessEqual(b, .17)
+        self.assertLessEqual(b, .18)

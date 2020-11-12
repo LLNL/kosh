@@ -1,4 +1,5 @@
 from .core import KoshLoader, KoshFileLoader  # noqa
+from .jsons import JSONLoader  # noqa
 try:
     from .pil import PILLoader  # noqa
 except ImportError:

@@ -15,19 +15,8 @@ try:
 except Exception:
     pass
 
-try:
-    # Let's make sure sina is installed
-    import sina
-except ImportError:
-    raise RuntimeError("Please install Sina from: https://github.com/LLNL/Sina")
-
-try:
-    # Let's make sure the correct sina is installed
-    import sina.datastores.sql as sina_sql
-except ImportError:
-    raise RuntimeError("You appear to have Sina installed but it seems to be another Sina."
-                       "\nKosh requires LLNL's version of Sina"
-                       "\nPlease install Sina from: https://github.com/LLNL/Sina")
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(name="kosh",
       version=version,
@@ -35,13 +24,24 @@ setup(name="kosh",
       url="https://github.com/LLNL/Kosh",
       author="Charles Doutriaux",
       author_email="doutriaux1@llnl.gov",
+      long_description=long_description,
+      long_description_content_type="text/markdown",
       license="MIT",
       packages=find_packages(),
       scripts=["scripts/init_sina.py",
                "scripts/kosh",
+               "scripts/sbang",
                ],
       zip_safe=False,
       install_requires=[
-          'sina', 
+          'llnl-sina', 
+          'networkx',
+          'numpy',
+      ],
+      classifiers=[
+          "Programming Language :: Python",
+          "License :: OSI Approved :: MIT License",
+          "Operating System :: OS Independent",
       ],
       )
+Popen(("scripts/render_logos.py",)).communicate()
