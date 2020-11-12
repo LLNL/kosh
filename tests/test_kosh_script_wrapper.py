@@ -159,7 +159,7 @@ class KoshTestScriptWrapper(KoshTest):
         self.assertTrue("C:CO" in o.decode())
         self.assertTrue("['OOO1', '-1']" in o.decode())
 
-        # Finally let s overwrite a named and an optinoal param
+        # Finally let s overwrite a named and an optional param
         o, e = wrapper(ds3, param1="NEW_P1", opt2="OVER2")
         self.assertTrue("P1:NEW_P1" in o.decode())
         self.assertTrue("P2:5" in o.decode())
@@ -210,7 +210,7 @@ class KoshTestScriptWrapper(KoshTest):
         self.assertTrue("['OOO1', '-1']" in o.decode())
         self.assertTrue("Run:d3" in o.decode())
 
-        # Finally let s overwrite a named and an optinoal param
+        # Finally let s overwrite a named and an optional param
         o, e = wrapper(ds3, param1="NEW_P1", opt2="OVER2", r="d4")
         self.assertTrue("P1:NEW_P1" in o.decode())
         self.assertTrue("P2:5" in o.decode())
@@ -237,7 +237,7 @@ class KoshTestScriptWrapper(KoshTest):
         self.assertTrue("P1:2" in o.decode())
         self.assertTrue("P2:1" in o.decode())
 
-        # Ok by default as soon as an object match it will kep it
+        # Ok by default as soon as an object match it will keep it
         wrapper = kosh.utils.KoshScriptWrapper(
             "python tests/baselines/scripts/dummy.py")
         wrapper.add_argument("--param1")
