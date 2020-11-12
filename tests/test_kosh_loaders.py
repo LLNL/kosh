@@ -107,7 +107,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(sorted(ds.list_features(use_cache=False))[::-1],
                          ['image_@_{}/tests/baselines/images/brain_398.ascii.pgm'.format(os.getcwd()),
                           'image_@_{}/share/icons/png/Kosh_Logo_Blue.png'.format(
-                              os.getcwd())])  # URI is now added to feature to deambiguous them
+                              os.getcwd())])  # URI is now added to feature to disambiguate them
         info = ds.describe_feature(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
         self.assertEqual(info["size"], (1035, 403))

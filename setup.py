@@ -18,9 +18,6 @@ except Exception:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
-
 setup(name="kosh",
       version=version,
       description="Machine Learning Data Store",
