@@ -82,7 +82,7 @@ class KoshLoader(object):
         """Updated the signature based to a set of args and kargs
         :param *args: as many arguments as you want
         :type *args: list
-        :param **kargs: key=value style argmunets
+        :param **kargs: key=value style arguments
         :type **kargs: dict
         :return: updated signature
         :rtype: str
@@ -218,7 +218,7 @@ class KoshLoader(object):
         raise NotImplementedError("describe_feature method not implemented")
 
     def preprocess(self):
-        """preprocess sets things up for te extract function
+        """preprocess sets things up for the extract function
 
         This should be preceeded by a call to 'get' which stored its args
         in self._user_passed_parameters

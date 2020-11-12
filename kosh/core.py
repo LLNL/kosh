@@ -8,6 +8,7 @@ import os
 import kosh
 import time
 import fcntl
+import copy
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -20,6 +21,7 @@ try:
     from .loaders import UltraLoader
 except ImportError:
     pass
+from .loaders import JSONLoader
 
 
 class KoshAgent(object):
@@ -30,16 +32,20 @@ class KoshStoreClass(object):
     """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync, verbose=True):
+    def __init__(self, sync, verbose=True, use_lock_file=False):
         """Constructor
         :param sync: Does this store constantly sync with db
         :type sync: bool
         :param verbose: Print warning messages and such
         :type verbose: bool
+        :param use_lock_file: If you receive sqlite threads access error, turning this on might help
+        :type use_lock_file: bool
         """
+        self.use_lock_file = use_lock_file
         self.loaders = {}
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
+        self.add_loader(JSONLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
@@ -143,6 +149,8 @@ class KoshStoreClass(object):
 
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
+        if not self.use_lock_file:
+            return
         locked = False
         while not locked:
             try:
@@ -154,6 +162,8 @@ class KoshStoreClass(object):
 
     def unlock(self):
         """Unlocks the store so other can access it"""
+        if not self.use_lock_file:
+            return
         fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
         self.lock_file.close()
         # Wrapping this in a try/except
@@ -166,6 +176,8 @@ class KoshStoreClass(object):
 
     def __del__(self):
         """delete the KoshStore object"""
+        if not self.use_lock_file:
+            return
         name = self.lock_file.name
         self.lock_file.close()
         if os.path.exists(name):
@@ -206,11 +218,13 @@ class KoshStoreClass(object):
 
     def import_dataset(self, dataset, match_attributes=["name", ]):
         """import a dataset that was exported from another store
-        :param dataset: Dataset object exported by another store
-        :type dataset: json
+        :param dataset: Dataset object exported by another store, or a dataset
+        :type dataset: json or kosh.KoshDataset
         :return: dataset
         :rtype: KoshSinaDataset
         """
+        if isinstance(dataset, KoshDataset):
+            dataset = dataset.export()
         min_ver = dataset["minimum_kosh_version"]
         if min_ver is not None and kosh.__version__ < min_ver:
             raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
@@ -224,8 +238,10 @@ class KoshStoreClass(object):
         matching = self.search(**match_dict)
 
         if len(matching) > 1:
-            raise ValueError("dataset {} matches multiple datasets store {} please change matching_attributes".format(
-                dataset.__id__, self.db_uri))
+            raise ValueError("dataset criterias: {} matches multiple ({}) "
+                             "datasets in store {}, try changing 'matching_attributes' when calling"
+                             " this function".format(
+                                 match_dict, len(matching), self.db_uri))
         elif len(matching) == 1:
             # All right we do have a possible conflict here
             match = matching[0]
@@ -242,11 +258,11 @@ class KoshStoreClass(object):
             match = self.create(metadata=dataset["attributes"])
 
         # now we need to handle associated files
-        for associated in dataset["associated"]:
-            uri = associated.pop("uri")
-            mime_type = associated.pop("mime_type")
-            associated.pop("associated")
-            match.associate(uri, mime_type, metadata=associated)
+        lst = [(x.pop("uri"), x.pop("mime_type"), x.pop("associated"), x)
+               for x in copy.deepcopy(dataset["associated"])]
+        if len(lst) > 0:
+            uris, mime_types, asso, meta = zip(*lst)
+            match.associate(uris, mime_types, metadata=meta, absolute_path=False)
         return match
 
     def reassociate(self, target, source=None, absolute_path=True):
@@ -421,8 +437,8 @@ class KoshDataset(object):
         :return: list of features available
         :rtype: list
         """
-        if use_cache and self.__dict__["__features__"] is not None:
-            return self.__dict__["__features__"]
+        if use_cache and self.__dict__["__features__"].get(Id, {}).get(loader, None) is not None:
+            return self.__dict__["__features__"][Id][loader]
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
         if saved_sync:
@@ -461,7 +477,9 @@ class KoshDataset(object):
         else:
             ld, _ = self.__store__._find_loader(Id)
             features = ld.list_features(*args, **kargs)
-        self.__dict__["__features__"] = features
+        features_id = self.__dict__["__features__"].get(Id, {})
+        features_id[loader] = features
+        self.__dict__["__features__"][Id] = features_id
         if saved_sync:
             # we need to restore sync mode
             self.__store__.__sync__dict__ = backup
@@ -537,7 +555,14 @@ class KoshDataset(object):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
-                    ld, _ = self.__store__._find_loader(a)
+                    a_obj = self.__store__._load(a)
+                    if loader is None:
+                        ld, _ = self.__store__._find_loader(a)
+                    else:
+                        if a_obj.mime_type in loader.types:
+                            ld = loader(a_obj)
+                        else:
+                            continue
                     if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
                             feature_ is None or\
                             (feature_[:-len(ld.obj.uri)-3] in ld.list_features() and
@@ -579,7 +604,12 @@ class KoshDataset(object):
             for Id in possible_ids:
                 tmp = None
                 try:
-                    ld, mime_type = self.__store__._find_loader(Id)
+                    if loader is None:
+                        ld, mime_type = self.__store__._find_loader(Id)
+                    else:
+                        a_obj = self.__store__._load(Id)
+                        ld = loader(a_obj)
+                        mime_type = a_obj.mime_type
                     # Ensures there is a possible path to format
                     get_path(mime_type, ld, transformers, format)
                     possible_formats += ld.known_load_formats(ld.obj.mime_type)
@@ -674,3 +704,13 @@ class KoshDataset(object):
         """If dataset has a schema then make sure all attributes pass the schema"""
         if self.schema is not None:
             self.schema.validate(self)
+
+    def searchable_source_attributes(self):
+        """Returns all the attributes of associated sources
+        :return: List of all attributes you can use to search sources in the dataset
+        :rtype: set
+        """
+        searchable = set()
+        for source in self.search():
+            searchable = searchable.union(source.listattributes())
+        return searchable

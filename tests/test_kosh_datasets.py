@@ -78,12 +78,9 @@ KOSH DATASET
         store.create(metadata={"key1": 4, "key3": "d", "key2": "D"})
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key1")), 4)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key2")), 3)
-        with self.assertRaises(NotImplementedError):
-            self.assertEqual(len(store.search("key3")), 2)
+        self.assertEqual(len(store.search("key1")), 4)
+        self.assertEqual(len(store.search("key2")), 3)
+        self.assertEqual(len(store.search("key3")), 2)
         # Remove this when above passes outside of exceptions
         from sina.utils import DataRange
         self.assertEqual(len(store.search(key1=DataRange(min=-1.e40))), 4)
@@ -94,6 +91,7 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = store.search()
         self.assertEqual(len(all_ds), 4)
+        # Search for attribute that exists
         os.remove(kosh_db)
 
     def test_associate(self):
@@ -113,12 +111,19 @@ KOSH DATASET
             absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
         # adding again does not create additional entry
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             ds.associate(
                 "tests/baselines/node_extracts2",
                 "something_else",
                 absolute_path=False)
         self.assertEqual(len(ds.search()), 1)
+        # Associating with another dataset does not create another obj in db
+        n_files = len(store.search(kosh_type="file", ids_only=True))
+        ds_2 = store.create("multi")
+        ds_2.associate("tests/baselines/node_extracts2", "something", absolute_path=False)
+        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        self.assertEqual(n_files, n_files_2)
+
         f = ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5",
@@ -138,21 +143,34 @@ KOSH DATASET
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(mime_type="type_12")), 1)
         self.assertEqual(len(ds.search(name="13")), 1)
+        self.assertEqual(len(ds.search("name")), 200)
 
         # Ok list completion tests
         ds = store.create()
-        ds.associate([str(i) for i in range(200)],
+        ds.associate([str(i+300) for i in range(200)],
                      metadata=[{"name": str(i)} for i in range(200)],
                      mime_type="a_mime_type")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(mime_type="a_mime_type")), 200)
 
         ds = store.create()
-        ds.associate([str(i) for i in range(200)], metadata={
+        ds.associate([str(i+600) for i in range(200)], metadata={
                      "name": "my name"}, mime_type="stuff")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(name="my name")), 200)
 
+        # Make sure you cannot assoicate with different type
+        ds.associate("some_uri", "some_mime_type")
+        with self.assertRaises(TypeError):
+            ds.associate("some_uri", "some_other_mime_type")
+        with self.assertRaises(TypeError):
+            ds_2.associate("some_uri", "some_other_mime_type")
+
+        # make sure dissociate fully removes obj from store
+        n_files = len(store.search(kosh_type="file", ids_only=True))
+        ds.dissociate("some_uri")  # shouldn't be anywhere now
+        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        self.assertEqual(n_files - 1, n_files_2)
         os.remove(kosh_db)
 
     def test_search(self):
@@ -290,4 +308,61 @@ KOSH DATASET
         self.assertEqual(len(features), 1)
         self.assertGreaterEqual(end - start, 1.)
 
+        os.remove(db_uri)
+
+    def test_list_features(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds.associate(
+            "tests/baselines/images/LLNLiconWHITE.png", "png")
+
+        self.assertEqual(sorted(ds.list_features()), ['cycles',
+                                                      'direction',
+                                                      'elements',
+                                                      'image',
+                                                      'node/metrics_0',
+                                                      'node/metrics_1',
+                                                      'node/metrics_10',
+                                                      'node/metrics_11',
+                                                      'node/metrics_12',
+                                                      'node/metrics_2',
+                                                      'node/metrics_3',
+                                                      'node/metrics_4',
+                                                      'node/metrics_5',
+                                                      'node/metrics_6',
+                                                      'node/metrics_7',
+                                                      'node/metrics_8',
+                                                      'node/metrics_9',
+                                                      'zone/metrics_0',
+                                                      'zone/metrics_1',
+                                                      'zone/metrics_2',
+                                                      'zone/metrics_3',
+                                                      'zone/metrics_4'])
+
+        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="hdf5", ids_only=True)[0])),
+                         ['cycles',
+                          'direction',
+                          'elements',
+                          'node/metrics_0',
+                          'node/metrics_1',
+                          'node/metrics_10',
+                          'node/metrics_11',
+                          'node/metrics_12',
+                          'node/metrics_2',
+                          'node/metrics_3',
+                          'node/metrics_4',
+                          'node/metrics_5',
+                          'node/metrics_6',
+                          'node/metrics_7',
+                          'node/metrics_8',
+                          'node/metrics_9',
+                          'zone/metrics_0',
+                          'zone/metrics_1',
+                          'zone/metrics_2',
+                          'zone/metrics_3',
+                          'zone/metrics_4'])
+        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="png", ids_only=True)[0])),
+                         ["image", ])
         os.remove(db_uri)

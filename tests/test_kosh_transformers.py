@@ -138,6 +138,16 @@ class TestKoshTransformers(koshbase.KoshTest):
                     1, cache_dir="kosh_cache", cache=True)])
         # Should have showed an extra 1 sec
         self.assertLess(time.time() - start, 1.)
+
+        # Now let's clobber a cache file which means increase time
+        start = time.time()
+        ds.get(
+            "numbers", format="numpy", transformers=[
+                Ints2Np(), SlowDowner(
+                    2, cache_dir="kosh_cache", cache=True), Even(), SlowDowner(
+                    1, cache_dir="kosh_cache", cache=2)])
+        self.assertGreater(time.time() - start, 1.)
+
         if os.path.exists("kosh_cache"):
             shutil.rmtree("kosh_cache")
         os.remove(db_uri)

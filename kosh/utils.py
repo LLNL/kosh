@@ -5,6 +5,7 @@ import sys
 import kosh
 import hashlib
 import numpy
+from .wrapper import KoshScriptWrapper  # noqa
 
 
 def compute_fast_sha(uri, n_samples=10):
@@ -33,7 +34,8 @@ def compute_fast_sha(uri, n_samples=10):
         size = stats.st_size
         sha = hashlib.sha256("{}".format(size).encode())
         # Create list of start read
-        positions = [int(max(x, 0)) for x in numpy.linspace(0, size-2048, n_samples+2)]
+        positions = [int(max(x, 0))
+                     for x in numpy.linspace(0, size - 2048, n_samples + 2)]
         prev = -1
         for pos in positions:
             # Small file will have multiple times the same bit to read
@@ -67,7 +69,8 @@ def compute_long_sha(uri, buff_size=65536):
     return sha.hexdigest()
 
 
-def create_new_db(name, engine='sina', db='sql', token="", keyspace=None, cluster=None):
+def create_new_db(name, engine='sina', db='sql',
+                  token="", keyspace=None, cluster=None):
     """create_new_db creates a new Kosh database, adds a single user
 
     :param name: name of database
@@ -90,16 +93,16 @@ def create_new_db(name, engine='sina', db='sql', token="", keyspace=None, cluste
         name += ".sql"
     if engine == "sina":
         cmd = "{}/init_sina.py --user={} --sina={} --sina_db={}".format(
-            sys.prefix+"/bin",
+            sys.prefix + "/bin",
             user,
             db,
             name)
     elif engine == 'cassandra':
         if keyspace is None:
-            keyspace = user+"_k"
+            keyspace = user + "_k"
         cmd = "{}/init_cassandra.py --user={} --token={}" \
             "--keyspace={} --tables_root={} --cluster={}".format(
-                sys.prefix+"/bin",
+                sys.prefix + "/bin",
                 user,
                 token,
                 keyspace,

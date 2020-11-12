@@ -1,5 +1,5 @@
 include:
   - project: ASCAML/kosh_aml_files
-    ref: master
+    ref: develop
     file: gitlab-ci.yml
   

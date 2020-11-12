@@ -5,15 +5,11 @@
 ### Just kosh and hdf5 loaders
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip networkx
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six pip networkx llnl-sina
 conda activate kosh
-git clone https://github.com/LLNL/Sina
-cd sina/python
-pip install -e .
-cd ../..
 git clone https://github.com/LLNL/kosh
 cd kosh
-python setup.py install
+pip install .
 ```
 
 ### If you want the image loader you will need
@@ -62,13 +58,9 @@ python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 This will let you build the documentation
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels scikit-learn
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels scikit-learn llnl-sina
 conda activate kosh
-git clone https://github.com/LLNL/sina
-cd sina/python
-pip install -e .
-cd ../..
 git clone https://github.com/LLNL/kosh
 cd kosh
-python setup.py install
+pip install .
 ```
