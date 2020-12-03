@@ -5,3 +5,8 @@ try:
 except NameError:
     # no skl...
     pass
+try:
+    from .sidre import SidreFeatureMetrics  # noqa
+except NameError:
+    # no conduit
+    pass

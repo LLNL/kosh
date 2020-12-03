@@ -12,5 +12,6 @@ Jupyter Notebooks
    jupyter/Example_05a_Transformers
    jupyter/Example_05b_Transformers-SKL
    jupyter/Example_Command_Line_Kosh
+   jupyter/Example_Sidre
    jupyter/Example_Custom_Loader
    jupyter/Example_MNIST
