@@ -67,6 +67,9 @@ def get_path(input_type, loader, transformers, output_format):
             transformers,
             output_format)
     pth = nx.shortest_path(G, (input_type, loader), (output_format, None))
+    # Sets parents
+    for i, node in enumerate(pth[1:-1]):
+        node[1].parent = pth[i][1]
     return pth
 
 
