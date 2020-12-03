@@ -21,6 +21,10 @@ try:
     from .loaders import UltraLoader
 except ImportError:
     pass
+try:
+    from .loaders import SidreMeshBlueprintFieldLoader
+except ImportError:
+    pass
 from .loaders import JSONLoader
 
 
@@ -64,6 +68,12 @@ class KoshStoreClass(object):
         except Exception:  # no pydv?
             if verbose:
                 warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                              " Pass verbose=False when creating the store to turn this message off")
+        try:
+            self.add_loader(SidreMeshBlueprintFieldLoader)
+        except Exception:  # no conduit?
+            if verbose:
+                warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
                               " Pass verbose=False when creating the store to turn this message off")
         self.__sync__ = sync
         self.__sync__dict__ = {}

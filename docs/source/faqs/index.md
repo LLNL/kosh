@@ -88,6 +88,7 @@ Currently Kosh comes with the following loaders
 | PILLoader | Load images that PIL can read | png, pil, tif, tiff, gif, image | numpy, raw binary | pillow
 | UltraLoader | Loads ultra files | ultra | numpy | pydv
 | JSONLoader | Loads in json files | json | any, dict, list, str | json
+| SidreMeshBlueprintFieldLoader | Loads sidre Mesh Blueprint fields | numpy, sidre/path | conduit
 
 
 

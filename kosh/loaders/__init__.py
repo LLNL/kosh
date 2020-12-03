@@ -13,3 +13,7 @@ try:
     from .UltraLoader import UltraLoader  # noqa
 except ImportError:
     pass  # we do not have pydv
+try:
+    from .sidre import SidreMeshBlueprintFieldLoader  # noqa
+except ImportError as err:
+    pass  # we do not have conduit
