@@ -524,7 +524,8 @@ class KoshDataset(object):
             loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
-    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
+
+    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], io_graph=False, *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
@@ -539,6 +540,8 @@ class KoshDataset(object):
         :type group: bool
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
+        :param io_graph: return the io_graph rather than the data itself
+        :type io_graph: bool
         :raises RuntimeException: could not get feature
         :raises RuntimeError: object id not associated with dataset
         :return: [description]
@@ -548,7 +551,8 @@ class KoshDataset(object):
             out = []
             for feat in self.list_features():
                 out.append(self.get(Id=None, feature=feat, format=format,
-                                    loader=loader, transformers=transformers, *args, **kargs))
+                                    loader=loader, transformers=transformers,
+                                    io_graph=io_graph, *args, **kargs))
             return out
         # Need to make sure transformers are a list
         if not isinstance(transformers, (list, tuple)):
@@ -635,7 +639,9 @@ class KoshDataset(object):
                     if len(final_features) == 1:
                         final_features = final_features[0]
                     tmp = ld.get(final_features, format,
-                                 transformers=transformers, *args, **kargs)
+                                 transformers=transformers,
+                                 io_graph=io_graph,
+                                 *args, **kargs)
                     if not isinstance(final_features, list) or not isinstance(tmp, list):
                         out += [tmp, ]
                     else:

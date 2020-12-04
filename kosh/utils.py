@@ -5,7 +5,44 @@ import sys
 import kosh
 import hashlib
 import numpy
+import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
+try:
+    import matplotlib.pyplot as plt 
+    has_mpl = True
+except ImportError:
+    has_mpl = False
+
+def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True):
+    """Draws the graph and if provided an output format, draws the shortest path to it
+    :param G: networkx graph
+    :type G: networkx.Graph
+    :param output_format: draw shortest path to this format
+    :type output_format: str or None
+    :param png_name: name of png file to output the graph to
+    :type png_name: str
+    :param clear: clear matpltolib figure after saving
+    :type clear: bool
+    """
+    lbls_dict = G.labels_dict
+    nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
+    pos=nx.get_node_attributes(G,'pos')
+    labels = nx.get_edge_attributes(G,'weight')
+    for k in labels:
+        labels[k] = "{:.3g}".format(labels[k])
+    print("LBELS:", labels)
+    nx.draw_networkx_edge_labels(G,nx.planar_layout(G),edge_labels=labels)
+    if output_format is not None:
+        pth = nx.shortest_path(G, next(nx.topological_sort(G)), (output_format, None), weight="weight")
+        # build edges
+        edges = []
+        for i in range(len(pth)-1):
+            edges.append((pth[i], pth[i+1]))
+        nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
+    plt.show()
+    plt.savefig(png_name)
+    if clear:
+        plt.clf()
 
 
 def compute_fast_sha(uri, n_samples=10):

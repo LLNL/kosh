@@ -96,7 +96,8 @@ class KoshLoader(object):
         return signature
 
     def get(self, feature, format=None, transformers=[],
-            use_cache=True, cache_file_only=False, cache_dir=None, **kargs):
+            use_cache=True, cache_file_only=False, cache_dir=None,
+            io_graph=False, **kargs):
         """get extract a feature
         *args and **kargs will be stored on loader object
         format and feature are stored on the object for extraction by extraction functions
@@ -124,6 +125,8 @@ class KoshLoader(object):
         :type cache_file_only: bool
         :param cache_dir: where do we cache the result?
         :type cache_dir: str
+        :param io_graph: return the io_graph rather than the data itself
+        :type io_graph: bool
         :return: extracted feature
         :rtype: ???
         """
@@ -131,7 +134,9 @@ class KoshLoader(object):
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
         # first let's get the execution path
-        path = get_path(self.obj.mime_type, self, transformers, format)
+        G, path = get_path(self.obj.mime_type, self, transformers, format)
+        if io_graph:
+            return G
         frmt = path[1][0]
         if frmt is None:
             frmt = self.types[self.obj.mime_type][0]

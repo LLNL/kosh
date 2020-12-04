@@ -4,12 +4,12 @@ import hashlib
 import networkx as nx
 import os
 import pickle
-
+import random
 
 kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
 
 
-def populate(G, node, output_formats, next_nodes, final_format=None):
+def populate(G, node, output_formats, next_nodes, final_format=None, depth=1, lbls_dict={}):
     """Populates networkx
     :param G: networkx Graph to populate
     :type G: nx.Graph
@@ -23,16 +23,30 @@ def populate(G, node, output_formats, next_nodes, final_format=None):
     :type final_format: str
     :return: Nothing but the graph passed is updated
     """
+    #output_formats += ["graph", ]
     for format in output_formats:
-        if format in next_nodes[0].types:
+        if format in list(next_nodes[0].types):
             this_node = (format, next_nodes[0])
-            G.add_edge(node, this_node)
+            lbls_dict[this_node] = "{}: {}".format(depth, format)
+            weight = 1.
+            if this_node[0] == node[0]:
+                weight /= 2.  # Gives more weight for i/o of same format
+            if this_node[0] == final_format:
+                weight /= 3.  # Gives more weight if format matches output_format
+            G.add_edge(node, this_node, weight=weight)
             if len(next_nodes) > 1:
                 populate(
-                    G, this_node, next_nodes[0].types[format], next_nodes[1:], final_format)
+                    G, this_node, next_nodes[0].types[format], next_nodes[1:], final_format, depth=depth+1, lbls_dict=lbls_dict)
             else:
-                if final_format in next_nodes[0].types[format] or final_format is None:
-                    G.add_edge(this_node, (final_format, None))
+                for final_fmt in next_nodes[0].types[format]:
+                    weight = 1.
+                    if this_node[0] == final_fmt:
+                        weight /= 2.
+                    if final_fmt == final_format:
+                        weight /= 3.
+                    final_node = (final_fmt, None) 
+                    G.add_edge(this_node, final_node, weight=weight)
+                    lbls_dict[final_node] = "end : {}".format(final_fmt)
 
 
 def get_path(input_type, loader, transformers, output_format):
@@ -52,25 +66,49 @@ def get_path(input_type, loader, transformers, output_format):
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
-    G = nx.Graph()
-    start_node = (input_type, loader)
+    G = nx.DiGraph()
+    start_node = (input_type, loader) # so each graph is unique
     G.add_node(start_node)
+    lbls_dict = {start_node: "start: {}".format(input_type)}
     if len(transformers) == 0:
         # No transformer
-        if output_format in loader.types[input_type] or output_format is None:
-            G.add_edge(start_node, (output_format, None))
+        for out_format in loader.types[input_type]:
+            node = (out_format, None)
+            G.add_edge(start_node, node)
+            lbls_dict[node] = "end: {}".format(out_format)
     else:
         populate(
             G,
             start_node,
             loader.types[input_type],
             transformers,
-            output_format)
-    pth = nx.shortest_path(G, (input_type, loader), (output_format, None))
+            output_format,
+            lbls_dict=lbls_dict)
+
+    G.labels_dict = lbls_dict
+
+    if output_format is None:
+        if len(transformers) == 0:
+            output_format = loader.types[input_type][0]
+            pth = nx.shortest_path(G, start_node, (output_format, None), weight="weight")
+        else:
+            pth = None
+            for last_in_type in transformers[-1].types:
+                if pth is not None:
+                    break
+                for out_format in transformers[-1].types[last_in_type]:
+                    try:
+                        pth = nx.shortest_path(G, start_node, (out_format, None), weight="weight")
+                        break
+                    except Exception:
+                        pass
+    else:
+        pth = nx.shortest_path(G, start_node, (output_format, None), weight="weight")
+    
     # Sets parents
     for i, node in enumerate(pth[1:-1]):
         node[1].parent = pth[i][1]
-    return pth
+    return G, pth
 
 
 class KoshTransformer(object):
