@@ -95,6 +95,30 @@ class KoshLoader(object):
             signature.update(repr(kargs[kw]).encode())
         return signature
 
+    def get_io_graph(self, feature, transformers=[]):
+        """create io graph to extract a feature
+
+        :param feature: desired feature
+        :type feature: str
+        :param format: desired output format
+        :type format: str
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
+        :param use_cache: Try to use cached data if available
+        :type use_cache: bool
+        :param cache_file_only: If True, simply return name of cache_file
+        :type cache_file_only: bool
+        :param cache_dir: where do we cache the result?
+        :type cache_dir: str
+        :param io_graph: return the io_graph rather than the data itself
+        :type io_graph: bool
+        :return: extracted feature
+        :rtype: ???
+        """
+        # first let's get the execution path
+        G, path = get_path(self.obj.mime_type, self, transformers, format=None)
+        return G
+
     def get(self, feature, format=None, transformers=[],
             use_cache=True, cache_file_only=False, cache_dir=None,
             io_graph=False, **kargs):
@@ -127,13 +151,11 @@ class KoshLoader(object):
         :type cache_dir: str
         :param io_graph: return the io_graph rather than the data itself
         :type io_graph: bool
-        :return: extracted feature
-        :rtype: ???
         """
+
         if cache_dir is None:
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
-        # first let's get the execution path
         G, path = get_path(self.obj.mime_type, self, transformers, format)
         if io_graph:
             return G

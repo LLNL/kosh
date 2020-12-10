@@ -2,6 +2,7 @@ from .loaders import KoshLoader  # noqa
 from .core import KoshStore  # noqa
 from .utils import create_new_db  # noqa
 from .schema import KoshSchema  # noqa
+from .operators import KoshOperator  # noqa
 import pkg_resources
 
 try:

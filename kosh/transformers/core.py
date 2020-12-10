@@ -5,11 +5,14 @@ import networkx as nx
 import os
 import pickle
 import random
+import itertools
+import copy
+
 
 kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
 
 
-def populate(G, node, output_formats, next_nodes, final_format=None, depth=1, lbls_dict={}):
+def populate(G, node, output_formats, next_nodes, final_format=None, depth=1):
     """Populates networkx
     :param G: networkx Graph to populate
     :type G: nx.Graph
@@ -26,8 +29,7 @@ def populate(G, node, output_formats, next_nodes, final_format=None, depth=1, lb
     #output_formats += ["graph", ]
     for format in output_formats:
         if format in list(next_nodes[0].types):
-            this_node = (format, next_nodes[0])
-            lbls_dict[this_node] = "{}: {}".format(depth, format)
+            this_node = (format, next_nodes[0], G.seed)
             weight = 1.
             if this_node[0] == node[0]:
                 weight /= 2.  # Gives more weight for i/o of same format
@@ -36,7 +38,7 @@ def populate(G, node, output_formats, next_nodes, final_format=None, depth=1, lb
             G.add_edge(node, this_node, weight=weight)
             if len(next_nodes) > 1:
                 populate(
-                    G, this_node, next_nodes[0].types[format], next_nodes[1:], final_format, depth=depth+1, lbls_dict=lbls_dict)
+                    G, this_node, next_nodes[0].types[format], next_nodes[1:], final_format, depth=depth+1)
             else:
                 for final_fmt in next_nodes[0].types[format]:
                     weight = 1.
@@ -46,7 +48,6 @@ def populate(G, node, output_formats, next_nodes, final_format=None, depth=1, lb
                         weight /= 3.
                     final_node = (final_fmt, None) 
                     G.add_edge(this_node, final_node, weight=weight)
-                    lbls_dict[final_node] = "end : {}".format(final_fmt)
 
 
 def get_path(input_type, loader, transformers, output_format):
@@ -67,25 +68,21 @@ def get_path(input_type, loader, transformers, output_format):
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
     G = nx.DiGraph()
-    start_node = (input_type, loader) # so each graph is unique
+    G.seed = random.random()
+    start_node = (input_type, loader, G.seed) # so each graph is unique
     G.add_node(start_node)
-    lbls_dict = {start_node: "start: {}".format(input_type)}
     if len(transformers) == 0:
         # No transformer
         for out_format in loader.types[input_type]:
             node = (out_format, None)
             G.add_edge(start_node, node)
-            lbls_dict[node] = "end: {}".format(out_format)
     else:
         populate(
             G,
             start_node,
             loader.types[input_type],
             transformers,
-            output_format,
-            lbls_dict=lbls_dict)
-
-    G.labels_dict = lbls_dict
+            output_format)
 
     if output_format is None:
         if len(transformers) == 0:

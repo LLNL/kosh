@@ -13,6 +13,13 @@ try:
 except ImportError:
     has_mpl = False
 
+def gen_labels(G):
+    labels = {}
+    for node in G.nodes():
+        n = len(list(G.predecessors(node)))
+        labels[node] = "{}/{}".format(n, node[0])
+    return labels
+
 def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph
@@ -24,13 +31,12 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     :param clear: clear matpltolib figure after saving
     :type clear: bool
     """
-    lbls_dict = G.labels_dict
+    lbls_dict = gen_labels(G)
     nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
     pos=nx.get_node_attributes(G,'pos')
     labels = nx.get_edge_attributes(G,'weight')
     for k in labels:
         labels[k] = "{:.3g}".format(labels[k])
-    print("LBELS:", labels)
     nx.draw_networkx_edge_labels(G,nx.planar_layout(G),edge_labels=labels)
     if output_format is not None:
         pth = nx.shortest_path(G, next(nx.topological_sort(G)), (output_format, None), weight="weight")
