@@ -1,7 +1,6 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
-from .loaders import KoshLoader, KoshFileLoader, PGMLoader
-from kosh.transformers import get_path
+from .loaders import KoshLoader, KoshFileLoader, PGMLoader, get_graph
 from kosh.utils import compute_fast_sha
 import warnings
 import os
@@ -625,7 +624,7 @@ class KoshDataset(object):
                         ld = loader(a_obj)
                         mime_type = a_obj.mime_type
                     # Ensures there is a possible path to format
-                    get_path(mime_type, ld, transformers, format)
+                    get_graph(mime_type, ld, transformers)
                     possible_formats += ld.known_load_formats(ld.obj.mime_type)
                     # Ok we need to clean the feature names from the uri if associated with it
                     final_features = []

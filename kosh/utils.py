@@ -12,12 +12,41 @@ try:
     has_mpl = True
 except ImportError:
     has_mpl = False
+from kosh.io_graphs import find_network_ends
+
 
 def gen_labels(G):
     labels = {}
-    for node in G.nodes():
-        n = len(list(G.predecessors(node)))
-        labels[node] = "{}/{}".format(n, node[0])
+    cont = True
+    nodes = list(G.nodes())
+    N = len(nodes)
+    while cont:
+        for node in nodes:
+            if G.nodes[node].get("depth", None) is not None:
+                continue
+            pre = list(G.predecessors(node))
+            suc = list(G.successors(node))
+            if len(pre) == 0:
+                G.nodes[node]["depth"] = 0
+            else:
+                for pnode in pre:
+                    if G.nodes[pnode].get("depth", None) is not None:
+                        G.nodes[node]["depth"] = G.nodes[pnode]["depth"] + 1
+            if len(suc) == 0:
+                G.nodes[node]["depth"] = -1
+        total = 0
+        for node in nodes:
+            if G.nodes[node].get("depth", None) is not None:
+                total += 1
+        if total == N:
+            cont = False
+    for node in nodes:
+        depth = G.nodes[node]["depth"]
+        if depth == 0:
+            depth = "start"
+        elif depth == -1:
+            depth = "end"
+        labels[node] = "{}/{}".format(depth, node[0])
     return labels
 
 def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True):
@@ -31,6 +60,10 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     :param clear: clear matpltolib figure after saving
     :type clear: bool
     """
+    nx.draw(G)
+    plt.show()
+    plt.savefig("DRAW_IN_{}.png".format(G.seed))
+    plt.clf()
     lbls_dict = gen_labels(G)
     nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
     pos=nx.get_node_attributes(G,'pos')
@@ -39,12 +72,14 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
         labels[k] = "{:.3g}".format(labels[k])
     nx.draw_networkx_edge_labels(G,nx.planar_layout(G),edge_labels=labels)
     if output_format is not None:
-        pth = nx.shortest_path(G, next(nx.topological_sort(G)), (output_format, None), weight="weight")
-        # build edges
-        edges = []
-        for i in range(len(pth)-1):
-            edges.append((pth[i], pth[i+1]))
-        nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
+        starters = find_network_ends(G, start=True, end=False)
+        for start in starters:
+            pth = nx.shortest_path(G, start, (output_format, None, G.seed), weight="weight")
+            # build edges
+            edges = []
+            for i in range(len(pth)-1):
+                edges.append((pth[i], pth[i+1]))
+            nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
     plt.show()
     plt.savefig(png_name)
     if clear:

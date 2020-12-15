@@ -1,7 +1,46 @@
-from kosh.transformers import get_path, kosh_cache_dir
+from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
+from kosh.io_graphs import KoshIOGraph, populate
+import networkx as nx
+import random
+
+def get_graph(input_type, loader, transformers):
+    """given a loader and its transformer return path to desired format
+    e.g which output format should each transformer pick to be chained to the follwoing one
+    in order to obtain the desired outcome for format
+    :param input_type: input type of first node
+    :type input_type: str
+    :param loader: original loader
+    :type loader: KoshLoader
+    :param transformers: set of transformers to be added after loader exits
+    :type transformers: list of KoshTransformer
+    """
+    if input_type not in loader.types:
+        raise RuntimeError(
+            "loader cannot load mime_type {}".format(input_type))
+    G = nx.DiGraph()
+    G.seed = random.random()
+    start_node = (input_type, loader, G.seed)  # so each graph is unique
+    G.add_node(start_node)
+    if len(transformers) == 0:
+        # No transformer
+        for out_format in loader.types[input_type]:
+            node = (out_format, None, G.seed)
+            G.add_edge(start_node, node)
+    else:
+        populate(
+            G,
+            start_node,
+            loader.types[input_type],
+            transformers)
+    import matplotlib.pyplot as plt
+    nx.draw(G)
+    plt.show()
+    plt.savefig("GETPATH")
+    plt.clf()
+    return G
 
 
 class KoshGenericObjectFromFile(object):
@@ -116,7 +155,7 @@ class KoshLoader(object):
         :rtype: ???
         """
         # first let's get the execution path
-        G, path = get_path(self.obj.mime_type, self, transformers, format=None)
+        G = get_graph(self.obj.mime_type, self, transformers)
         return G
 
     def get(self, feature, format=None, transformers=[],
@@ -156,9 +195,9 @@ class KoshLoader(object):
         if cache_dir is None:
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
-        G, path = get_path(self.obj.mime_type, self, transformers, format)
+        G = get_graph(self.obj.mime_type, self, transformers)
         if io_graph:
-            return G
+            return KoshIOGraph(G)
         frmt = path[1][0]
         if frmt is None:
             frmt = self.types[self.obj.mime_type][0]

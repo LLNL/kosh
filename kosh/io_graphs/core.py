@@ -4,27 +4,93 @@ import kosh
 import random
 
 
-def find_starters(G):
+def populate(G, node, output_formats, next_nodes):
+    """Populates networkx
+    :param G: networkx Graph to populate
+    :type G: nx.Graph
+    :param node: transformer to be chained needs to have dict "types"
+    :type node: object with types attributes as a dictionary
+    :param output_formats: output_format of the first node
+    :type output_formats: list
+    :param next_nodes: next set of transformers to add to graph
+    :type next_nodes: object with types attriubte as a dictionary
+    :return: Nothing but the graph passed is updated
+    """
+    #output_formats += ["graph", ]
+    for format in output_formats:
+        if format in list(next_nodes[0].types):
+            this_node = (format, next_nodes[0], G.seed)
+            G.add_edge(node, this_node)
+            if len(next_nodes) > 1:
+                populate(
+                    G, this_node, next_nodes[0].types[format], next_nodes[1:])
+            else:
+                for final_fmt in next_nodes[0].types[format]:
+                    final_node = (final_fmt, None, G.seed)
+                    G.add_edge(this_node, final_node)
+
+
+
+
+def find_network_ends(G, start=True, end=True):
     starters = []
+    ends = []
+    if not start and not end:
+        raise ValueError("You need to set at least one of start/end to True")
     for node in G.nodes():
-        if len(list(G.predecessors(node))) == 0:
+        if start and len(list(G.predecessors(node))) == 0:
             starters.append(node)
-    return starters
+        if end and len(list(G.successors(node))) == 0:
+            ends.append(node)
+    if start and not end:
+        return starters
+    elif end and not start:
+        return ends
+    else:
+        return starters, ends
+
+
+def apply_weight(G, output_format=None, weight_same=2., weight_output=3.):
+    """Given a graph, lower the weight to edges that end in required format"""
+    for (n1, n2) in G.edges():
+        weight = 1.
+        # Does this edge connect identical formats?
+        if n1[0] == n2[0]:
+            weight /= weight_same
+
+        # Does this edge ends with desired output format?
+        if n2[0] == output_format and output_format is not None:
+            weight /= weight_output
+        G[n1][n2]["weight"] = weight
+
+def get_seed(G, node, end_seed=None):
+    if end_seed is None:
+        end_seed = G.seed
+    if len(list(G.predecessors(node))) == 0:
+        seed = end_seed
+    elif len(list(G.successors(node))) == 0:
+        seed = end_seed
+    else:
+        seed = random.random()
+    return seed
 
 class KoshIOGraph(object):
     types = {}
+
     def __init__(self, *inputs, **kw):
         graphs = []
         self.seed = random.random()
         for i, G in enumerate(inputs):
             if isinstance(G, KoshIOGraph):
                 G = G.io_graph()
+            elif not hasattr(G,"seed"):
+                G.seed = random.random()
             graphs.append(G)
 
         compatible = {}
         for mime in self.types:
             if not isinstance(mime, (list, tuple)):
-                mime_list = [mime,]
+                mime_list = [mime, ]
             else:
                 mime_list = mime
             compatible[mime] = True
@@ -32,33 +98,36 @@ class KoshIOGraph(object):
             kosh.utils.draw_io_graph(G, png_name="ADD_{}.png".format(ig))
             for mime in compatible:
                 if not isinstance(mime, (list, tuple)):
-                    mime_list = [mime,]
+                    mime_list = [mime, ]
                 else:
                     mime_list = mime
                 if i >= len(mime_list):
                     output_format = mime_list[-1]
                 else:
                     output_format = mime_list[i]
-                starters = find_starters(G)
+                starters, ends = find_network_ends(G)
                 for starter in starters:
                     try:
-                        nx.shortest_path(G, starter, (output_format, None))
-                    except Exception:
+                        nx.shortest_path(G, starter, (output_format, None, G.seed))
+                    except Exception as err:
+                        print("ERR:",err)
                         compatible[mime] = False
         new_graph = nx.DiGraph()
-        connect_nodes = []
+        new_graph.seed = random.random()
+
         # Now we need to connect all input graphs via compatible inputs
         is_compatible = True
         for mime in compatible:
             is_compatible *= compatible[mime]
         if not is_compatible:
-            raise ValueError("Could not match your input graph to any known mime type")
+            raise ValueError(
+                "Could not match your input graph to any known mime type")
         for G in graphs:
             new_graph.update(G)
 
         for mime in self.types:
             if not isinstance(mime, (list, tuple)):
-                mime_list = [mime,]
+                mime_list = [mime, ]
             else:
                 mime_list = mime
             if compatible[mime]:
@@ -68,39 +137,75 @@ class KoshIOGraph(object):
                         output_format = mime_list[-1]
                     else:
                         output_format = mime_list[i]
-                for node in G.nodes():
-                    if node == (output_format, None):
-                        new_node = (node[0], self, self.seed)
-                        new_graph.add_edges_from(
-                            itertools.product(
-                                new_graph.predecessors(node),
-                                new_graph.successors(node)
-                            )
-                        )
-                        new_graph.remove_node(node)
-                        for export_type in self.types[mime]:
-                            if not isinstance(export_type, (list, tuple)):
-                                export_type = [export_type,]
-                            for export in export_type:
-                                new_graph.add_edge(new_node, (export, None)) 
+                    print("OK Connecting graph for mime tpye", mime, output_format)
+                    for node in G.nodes():
+                        if node == (output_format, None, G.seed):
+                            new_node = (node[0], self, self.seed)
+                            pred = G.predecessors(node)
+                            for n in pred:
+                                new_graph.add_edge(n, new_node)
+                            new_graph.remove_node(node)
+                            for export_type in self.types[mime]:
+                                if not isinstance(export_type, (list, tuple)):
+                                    export_type = [export_type, ]
+                                for export in export_type:
+                                    new_graph.add_edge(new_node, (export, None))
         self._graph = new_graph
 
-    def io_graph(self):
+
+    def io_graph(self, verbose=False):
         """makes a new graph with unique seed"""
         G = nx.DiGraph()
         G.seed = random.random()
+        if verbose:
+            print("**************************", G.seed)
+            import matplotlib.pyplot as plt
+            nx.draw(self._graph)
+            plt.show()
+            plt.savefig("LOADER_GRAPH_IN_{}.png".format(G.seed))
+            plt.clf()
+        used_nodes = {}
         for (n1, n2) in self._graph.edges():
-            if len(n1) == 3:
-                N1 = n1[0], n1[1], G.seed
+            if n1 in used_nodes:
+                # we already generated a new random number for that node
+                N1 = used_nodes[n1]
             else:
-                N1 = n1
-            if len(n2) == 3:
-                N2 = n2[0], n2[1], G.seed
+                # Never seen that node
+                seed = get_seed(self._graph, n1, G.seed)
+                N1 = n1[0], n1[1], seed
+                used_nodes[n1] = N1
+            if verbose:
+                print("N1:", N1)
+            if n2 in used_nodes:
+                # we already generated a new random number for that node
+                N2 = used_nodes[n2]
             else:
-                N2 = n2
+                # Never seen that node
+                seed = get_seed(self._graph, n2, G.seed)
+                N2 = n2[0], n2[1], seed
+                used_nodes[n2] = N2
+            if verbose:
+                print("N2:", N2)
             G.add_edge(N1, N2)
+            if verbose:
+                print("\t%%%%%%%%")
+        if verbose:
+            nx.draw(G)
+            plt.show()
+            plt.savefig("LOADER_GRAPH_OUT{}.png".format(G.seed))
+            plt.clf()
         return G
 
+    def traverse(self, format=None):
+        G = self.io_graph()
+        # We first need to determine the output_format
+        if format is None:
+            start_nodes = find_network_ends(G)
 
-    def traverse():
-        pass
+        # Ok now let's apply the weights
+        apply_weight(G, output_format=format)
+
+        # And get the shortest path
+        pth = nx.shortest_path(G)
+
+        return G, pth
