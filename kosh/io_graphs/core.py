@@ -95,7 +95,6 @@ class KoshIOGraph(object):
                 mime_list = mime
             compatible[mime] = True
         for ig, G in enumerate(graphs):
-            kosh.utils.draw_io_graph(G, png_name="ADD_{}.png".format(ig))
             for mime in compatible:
                 if not isinstance(mime, (list, tuple)):
                     mime_list = [mime, ]
@@ -137,7 +136,6 @@ class KoshIOGraph(object):
                         output_format = mime_list[-1]
                     else:
                         output_format = mime_list[i]
-                    print("OK Connecting graph for mime tpye", mime, output_format)
                     for node in G.nodes():
                         if node == (output_format, None, G.seed):
                             new_node = (node[0], self, self.seed)
@@ -198,14 +196,67 @@ class KoshIOGraph(object):
 
     def traverse(self, format=None):
         G = self.io_graph()
+        start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
         # We first need to determine the output_format
         if format is None:
-            start_nodes = find_network_ends(G)
+            format = end_nodes[0][0]
+
+        # Which node is our exit node?
+        for end_node in end_nodes:
+            if end_node[0] == format:
+                break
 
         # Ok now let's apply the weights
         apply_weight(G, output_format=format)
 
-        # And get the shortest path
-        pth = nx.shortest_path(G)
+        # And get the shortest path(s)
+        # For each entry path
+        pths = []
+        for start_node in start_nodes:
+            pths.append(nx.shortest_path(G, start_node, end_node))
+        # Ok let's generate the new netwrok with only the paths
+        out = nx.DiGraph()
+        out.seed = G.seed
+        for pth in pths:
+            for i, node in enumerate(pth[:-1]):
+                out.add_edge(node, pth[i+1])
 
-        return G, pth
+        # We can now travel back the pth to obtain
+        # the data.
+        return self._operate(out, pths, format)
+
+    def _operate(self, graph, paths, output_format):
+        starters, end = find_network_ends(graph, start=True, end =True)
+        print("STARTER NODEs:", starters, graph.number_of_nodes())
+        print("END NODE:", end, graph.number_of_nodes())
+        end = end[0]
+        previous = list(graph.predecessors(end))
+        print("REV LEN:", len(previous))
+        if len(previous) == 0:
+            # Ok we are at the start e.g a loader
+            print("***************************************")
+            print(end[1].feature)
+        else:
+            inputs = []
+            for prev in previous:
+                print("\tPrevious:", prev, len(previous))
+                G = nx.DiGraph()
+                pths = []
+                for i, pth in enumerate(paths):
+                    print("PATH: ",i, len(pth), prev, pth)
+                    if prev in pth:
+                        print("ADDING PTH")
+                        pths.append(pth[:-1])
+                        G.add_node(pth[0])
+                        for i, node in enumerate(pth[:-2]): # -2 because I remove the end node
+                            G.add_edge(node, pth[i+1])
+                print("Calling prev _operate")
+                inputs += prev[1]._operate(G, pths, end[0])
+            if hasattr(prev[1], "operate"):
+                return prev[1].operate(*inputs, format=end[0])
+            elif hasattr(prev,"transform"):
+                return prev.transform(*inputs, format=end[0])
+            else:
+                raise RuntimeError("did not know which funct to send inputs to")
+
+

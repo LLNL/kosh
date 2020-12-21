@@ -3,11 +3,12 @@ from abc import ABCMeta, abstractmethod
 import hashlib
 import os
 import pickle
+from ..io_graphs import KoshIOGraph
 
 kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
 
 
-class KoshTransformer(object):
+class KoshTransformer(KoshIOGraph):
     # Defines which input types it can handle
     # and what output it sends back
     __metaclass__ = ABCMeta

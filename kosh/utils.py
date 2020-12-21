@@ -60,10 +60,6 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     :param clear: clear matpltolib figure after saving
     :type clear: bool
     """
-    nx.draw(G)
-    plt.show()
-    plt.savefig("DRAW_IN_{}.png".format(G.seed))
-    plt.clf()
     lbls_dict = gen_labels(G)
     nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
     pos=nx.get_node_attributes(G,'pos')

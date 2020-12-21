@@ -62,7 +62,7 @@ class KoshGenericObjectFromFile(object):
         return self.file_obj.read()
 
 
-class KoshLoader(object):
+class KoshLoader(KoshIOGraph):
     """
     :param types: types is a dictionary on known type that can be loaded
     as key and export format as value, defaults to {"dataset": []}
@@ -195,6 +195,7 @@ class KoshLoader(object):
         if cache_dir is None:
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
+        self.feature = feature
         G = get_graph(self.obj.mime_type, self, transformers)
         if io_graph:
             return KoshIOGraph(G)
@@ -205,7 +206,6 @@ class KoshLoader(object):
             raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
                 self=self, format=format))
         self.format = frmt
-        self.feature = feature
         self._user_passed_parameters = (None, kargs)
         signature = self.update_signature(feature, self.format, **kargs).hexdigest()
         if cache_file_only is True:
