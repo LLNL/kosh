@@ -196,10 +196,13 @@ class KoshLoader(KoshIOGraph):
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
         self.feature = feature
+        self._user_passed_parameters = (None, kargs)
         G = get_graph(self.obj.mime_type, self, transformers)
         if io_graph:
             return KoshIOGraph(G)
+        return KoshIOGraph(G)
         frmt = path[1][0]
+        self.format = frmt
         if frmt is None:
             frmt = self.types[self.obj.mime_type][0]
         if len(self.types) != 0 and frmt not in self.types[self.obj.mime_type]:

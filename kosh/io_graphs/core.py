@@ -66,16 +66,20 @@ def apply_weight(G, output_format=None, weight_same=2., weight_output=3.):
 def get_seed(G, node, end_seed=None):
     if end_seed is None:
         end_seed = G.seed
-    if len(list(G.predecessors(node))) == 0:
-        seed = end_seed
-    elif len(list(G.successors(node))) == 0:
+    #if len(list(G.predecessors(node))) == 0:
+    #    seed = end_seed
+    if len(list(G.successors(node))) == 0:
         seed = end_seed
     else:
         seed = random.random()
+    #seed = random.random()
     return seed
 
 class KoshIOGraph(object):
     types = {}
+
+    def __len__(self):
+        return len(self._graph)
 
     def __init__(self, *inputs, **kw):
         graphs = []
@@ -149,18 +153,31 @@ class KoshIOGraph(object):
                                 for export in export_type:
                                     new_graph.add_edge(new_node, (export, None))
         self._graph = new_graph
+        print("INIT WITH: {} nodes: {}".format(len(new_graph.nodes()), new_graph.nodes()))
 
 
-    def io_graph(self, verbose=False):
-        """makes a new graph with unique seed"""
+    def io_graph(self, seed=None, verbose=False, png_template="LOADER_GRAPH_{}"):
+        """makes a new graph with unique seed
+        Helps networkx differentiate between identical loaders/transformers/operators
+        :param seed: seed to use for new graph
+        :type seed: int
+        :param verbose: verbose generation, also generates a png with the grap representation
+                        Mostly used for debug purposes
+        :type verbose: bool
+        :param png_template: template to use to generate graph png in verbose mode
+                             "_IN"/"_OUT" will be appended and seed will be fed
+        :type png_template: str
+        """
         G = nx.DiGraph()
-        G.seed = random.random()
+        if seed is None:
+            seed = random.random()
+        G.seed = seed
         if verbose:
-            print("**************************", G.seed)
             import matplotlib.pyplot as plt
             nx.draw(self._graph)
             plt.show()
-            plt.savefig("LOADER_GRAPH_IN_{}.png".format(G.seed))
+            png_name = png_template+"_IN.png"
+            plt.savefig(png_name.format(seed))
             plt.clf()
         used_nodes = {}
         for (n1, n2) in self._graph.edges():
@@ -190,13 +207,25 @@ class KoshIOGraph(object):
         if verbose:
             nx.draw(G)
             plt.show()
-            plt.savefig("LOADER_GRAPH_OUT{}.png".format(G.seed))
+            png_name = png_template+"_OUT.png"
+            plt.savefig(png_name.format(seed))
             plt.clf()
         return G
+
+    def __getitem__(self, key):
+        """Very bare bone get item function
+        It is highly recommended to re-implement this.
+        Calls traverse then __getitem__ on the result of traverse
+        :param key: key to access
+        :type key: object (usually int, slice or str)
+        """
+        return self.traverse()[key]
 
     def traverse(self, format=None):
         G = self.io_graph()
         start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
+        print("Nodes:", len(self._graph.nodes()), len(G.nodes()), G.nodes())
+        print("{} start nodes: {}".format(len(start_nodes), start_nodes))
         # We first need to determine the output_format
         if format is None:
             format = end_nodes[0][0]
@@ -226,37 +255,36 @@ class KoshIOGraph(object):
         return self._operate(out, pths, format)
 
     def _operate(self, graph, paths, output_format):
+        import sys
+        sys.stdout.flush()
         starters, end = find_network_ends(graph, start=True, end =True)
-        print("STARTER NODEs:", starters, graph.number_of_nodes())
-        print("END NODE:", end, graph.number_of_nodes())
         end = end[0]
         previous = list(graph.predecessors(end))
-        print("REV LEN:", len(previous))
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
-            print("***************************************")
-            print(end[1].feature)
+            return end[1].extract()
         else:
             inputs = []
             for prev in previous:
-                print("\tPrevious:", prev, len(previous))
                 G = nx.DiGraph()
                 pths = []
                 for i, pth in enumerate(paths):
-                    print("PATH: ",i, len(pth), prev, pth)
                     if prev in pth:
-                        print("ADDING PTH")
                         pths.append(pth[:-1])
                         G.add_node(pth[0])
                         for i, node in enumerate(pth[:-2]): # -2 because I remove the end node
                             G.add_edge(node, pth[i+1])
-                print("Calling prev _operate")
-                inputs += prev[1]._operate(G, pths, end[0])
-            if hasattr(prev[1], "operate"):
-                return prev[1].operate(*inputs, format=end[0])
-            elif hasattr(prev,"transform"):
-                return prev.transform(*inputs, format=end[0])
+                res = prev[1]._operate(G, pths, end[0])
+                inputs.append(res)
+            if hasattr(self, "operate"):
+                return self.operate(*inputs, format=end[0])
+            elif hasattr(self,"transform_"):
+                return self.transform_(*inputs, format=end[0])
+            elif isinstance(self, kosh.io_graphs.core.KoshIOGraph):
+                if len(pths) == 1:
+                    inputs = inputs[0]
+                return inputs
             else:
-                raise RuntimeError("did not know which funct to send inputs to")
+                raise RuntimeError("Did not know which function to send inputs to. Aborting")
 
 

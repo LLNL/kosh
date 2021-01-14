@@ -46,10 +46,16 @@ def gen_labels(G):
             depth = "start"
         elif depth == -1:
             depth = "end"
-        labels[node] = "{}/{}".format(depth, node[0])
+        try:
+            name = node[1].__name__
+        except:
+            name = str(node[1].__class__).split(".")[-1].split("'")[0]
+            if isinstance(node[1], kosh.loaders.core.KoshLoader):
+                name = "{}({})".format(name, node[1].feature)
+        labels[node] = "{}/{}/{}".format(depth, name, node[0])
     return labels
 
-def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True):
+def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=nx.planar_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph
     :type G: networkx.Graph
@@ -59,14 +65,21 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     :type png_name: str
     :param clear: clear matpltolib figure after saving
     :type clear: bool
+    :param layout: A dictionary with nodes as keys and positions as values.
+                   If not specified a planar layout positioning will be computed.
+                   See networkx.drawing.layout for functions that compute node positions.
+    :type layout: dict or function
     """
+    if not isinstance(layout, dict):
+        layout = layout(G)
     lbls_dict = gen_labels(G)
-    nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
+    nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
     pos=nx.get_node_attributes(G,'pos')
     labels = nx.get_edge_attributes(G,'weight')
     for k in labels:
         labels[k] = "{:.3g}".format(labels[k])
-    nx.draw_networkx_edge_labels(G,nx.planar_layout(G),edge_labels=labels)
+    print("LABELS:", labels)
+    nx.draw_networkx_edge_labels(G,layout,edge_labels=labels)
     if output_format is not None:
         starters = find_network_ends(G, start=True, end=False)
         for start in starters:
@@ -75,12 +88,11 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
             edges = []
             for i in range(len(pth)-1):
                 edges.append((pth[i], pth[i+1]))
-            nx.draw(G, pos=nx.planar_layout(G), with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
+            nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
     plt.show()
     plt.savefig(png_name)
     if clear:
         plt.clf()
-
 
 def compute_fast_sha(uri, n_samples=10):
     """Compute a fast 'almost' unique identifier for a given uri
