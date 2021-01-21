@@ -1,7 +1,42 @@
 import networkx as nx
-import itertools
+from kosh import kosh_cache_dir
 import kosh
 import random
+import pickle
+import os
+
+def possible_ends(graph, start_nodes, end_nodes):
+    """Finds all network ends that can be reached by all start nodes
+    :param graph: The full graph
+    :type graph: networkx.DiGraph
+    :param start_nodes: Node to start paths from
+    :type start_nodes: list of nodes
+    :param end_nodes: Node to end paths from
+    :type end_nodes: list of nodes
+    :returns: list of possible end nodes
+    :rtype: list
+    """
+    ok_ends = []  # Matching end nodes for each start
+    for start in start_nodes:
+        ok_ends_this_start = []
+        for end in end_nodes:
+            try:
+                nx.shortest_path(graph, start, end)
+                ok_ends_this_start.append(end)
+            except Exception:  # Can't get to this
+                pass
+        ok_ends.append(ok_ends_this_start)
+    
+    # Ok for each start we know know the ok end nodes
+    # Which ones are common to every start?
+    out = ok_ends[0]
+    for ends in ok_ends[1:]:
+        # now let's remove all end nodes that are not in the other paths
+        for possible_end in out.copy():
+            if possible_end not in out:
+                out.pop(possible_end)
+    # out now contains the possible end nodes
+    return out
 
 
 def populate(G, node, output_formats, next_nodes):
@@ -14,9 +49,8 @@ def populate(G, node, output_formats, next_nodes):
     :type output_formats: list
     :param next_nodes: next set of transformers to add to graph
     :type next_nodes: object with types attriubte as a dictionary
-    :return: Nothing but the graph passed is updated
+    :returns: Nothing but the graph passed is updated
     """
-    #output_formats += ["graph", ]
     for format in output_formats:
         if format in list(next_nodes[0].types):
             this_node = (format, next_nodes[0], G.seed)
@@ -30,9 +64,18 @@ def populate(G, node, output_formats, next_nodes):
                     G.add_edge(this_node, final_node)
 
 
-
-
 def find_network_ends(G, start=True, end=True):
+    """Given a networkx.DiGraph finds start or end nodes or both.
+    :param G: Network of interest
+    :type G: networkx.DiGraph
+    :param start: Are we searching for start nodes?
+    :type start: bool
+    :param end: Are we searching for end nodes?
+    :type end: bool
+    :returns: start and end node lists or just start/end node list
+    :rtype: (tuple of) list
+    :raises ValueError: if neither start or end is True
+    """
     starters = []
     ends = []
     if not start and not end:
@@ -63,17 +106,28 @@ def apply_weight(G, output_format=None, weight_same=2., weight_output=3.):
             weight /= weight_output
         G[n1][n2]["weight"] = weight
 
+
 def get_seed(G, node, end_seed=None):
+    """Assigns a new random seed to a node unless it is an end see in which case
+    We assign the Graph's seed
+    :param G: Parent graph
+    :type G: networkx.Graph
+    :param node: Node of interest (is it and end node?)
+    :type node: a graph node
+    :param end_seed: The seed to assign if the node is an end seed. If Noe is passed then used parent Graph's seed
+    :type seed: int (or None)
+    :return: new seed for the node
+    :rtype: int
+    """
     if end_seed is None:
         end_seed = G.seed
-    #if len(list(G.predecessors(node))) == 0:
-    #    seed = end_seed
     if len(list(G.successors(node))) == 0:
         seed = end_seed
     else:
         seed = random.random()
     #seed = random.random()
     return seed
+
 
 class KoshIOGraph(object):
     types = {}
@@ -84,48 +138,14 @@ class KoshIOGraph(object):
     def __init__(self, *inputs, **kw):
         graphs = []
         self.seed = random.random()
+        new_graph = nx.DiGraph()
+        new_graph.seed = random.random()
         for i, G in enumerate(inputs):
             if isinstance(G, KoshIOGraph):
                 G = G.io_graph()
-            elif not hasattr(G,"seed"):
+            elif not hasattr(G, "seed"):
                 G.seed = random.random()
             graphs.append(G)
-
-        compatible = {}
-        for mime in self.types:
-            if not isinstance(mime, (list, tuple)):
-                mime_list = [mime, ]
-            else:
-                mime_list = mime
-            compatible[mime] = True
-        for ig, G in enumerate(graphs):
-            for mime in compatible:
-                if not isinstance(mime, (list, tuple)):
-                    mime_list = [mime, ]
-                else:
-                    mime_list = mime
-                if i >= len(mime_list):
-                    output_format = mime_list[-1]
-                else:
-                    output_format = mime_list[i]
-                starters, ends = find_network_ends(G)
-                for starter in starters:
-                    try:
-                        nx.shortest_path(G, starter, (output_format, None, G.seed))
-                    except Exception as err:
-                        print("ERR:",err)
-                        compatible[mime] = False
-        new_graph = nx.DiGraph()
-        new_graph.seed = random.random()
-
-        # Now we need to connect all input graphs via compatible inputs
-        is_compatible = True
-        for mime in compatible:
-            is_compatible *= compatible[mime]
-        if not is_compatible:
-            raise ValueError(
-                "Could not match your input graph to any known mime type")
-        for G in graphs:
             new_graph.update(G)
 
         for mime in self.types:
@@ -133,30 +153,29 @@ class KoshIOGraph(object):
                 mime_list = [mime, ]
             else:
                 mime_list = mime
-            if compatible[mime]:
-                # Ok all inputs can be extracted to this thing input type
-                for i, G in enumerate(graphs):
-                    if i >= len(mime_list):
-                        output_format = mime_list[-1]
-                    else:
-                        output_format = mime_list[i]
-                    for node in G.nodes():
-                        if node == (output_format, None, G.seed):
-                            new_node = (node[0], self, self.seed)
-                            pred = G.predecessors(node)
-                            for n in pred:
-                                new_graph.add_edge(n, new_node)
-                            new_graph.remove_node(node)
-                            for export_type in self.types[mime]:
-                                if not isinstance(export_type, (list, tuple)):
-                                    export_type = [export_type, ]
-                                for export in export_type:
-                                    new_graph.add_edge(new_node, (export, None))
+            # Ok all inputs can be extracted to this thing input type
+            for i, G in enumerate(graphs):
+                if i >= len(mime_list):
+                    output_format = mime_list[-1]
+                else:
+                    output_format = mime_list[i]
+                for node in G.nodes():
+                    if node == (output_format, None, G.seed):
+                        new_node = (node[0], self, self.seed)
+                        pred = G.predecessors(node)
+                        for n in pred:
+                            new_graph.add_edge(n, new_node)
+                        new_graph.remove_node(node)
+                        for export_type in self.types[mime]:
+                            if not isinstance(export_type, (list, tuple)):
+                                export_type = [export_type, ]
+                            for export in export_type:
+                                new_graph.add_edge(
+                                    new_node, (export, None))
         self._graph = new_graph
-        print("INIT WITH: {} nodes: {}".format(len(new_graph.nodes()), new_graph.nodes()))
 
-
-    def io_graph(self, seed=None, verbose=False, png_template="LOADER_GRAPH_{}"):
+    def io_graph(self, seed=None, verbose=False,
+                 png_template="LOADER_GRAPH_{}"):
         """makes a new graph with unique seed
         Helps networkx differentiate between identical loaders/transformers/operators
         :param seed: seed to use for new graph
@@ -176,7 +195,7 @@ class KoshIOGraph(object):
             import matplotlib.pyplot as plt
             nx.draw(self._graph)
             plt.show()
-            png_name = png_template+"_IN.png"
+            png_name = png_template + "_IN.png"
             plt.savefig(png_name.format(seed))
             plt.clf()
         used_nodes = {}
@@ -189,8 +208,6 @@ class KoshIOGraph(object):
                 seed = get_seed(self._graph, n1, G.seed)
                 N1 = n1[0], n1[1], seed
                 used_nodes[n1] = N1
-            if verbose:
-                print("N1:", N1)
             if n2 in used_nodes:
                 # we already generated a new random number for that node
                 N2 = used_nodes[n2]
@@ -199,15 +216,11 @@ class KoshIOGraph(object):
                 seed = get_seed(self._graph, n2, G.seed)
                 N2 = n2[0], n2[1], seed
                 used_nodes[n2] = N2
-            if verbose:
-                print("N2:", N2)
             G.add_edge(N1, N2)
-            if verbose:
-                print("\t%%%%%%%%")
         if verbose:
             nx.draw(G)
             plt.show()
-            png_name = png_template+"_OUT.png"
+            png_name = png_template + "_OUT.png"
             plt.savefig(png_name.format(seed))
             plt.clf()
         return G
@@ -221,22 +234,30 @@ class KoshIOGraph(object):
         """
         return self.traverse()[key]
 
-    def traverse(self, format=None):
+            
+
+
+    def traverse(self, format=None, *args, **kargs):
         G = self.io_graph()
         start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
-        print("Nodes:", len(self._graph.nodes()), len(G.nodes()), G.nodes())
-        print("{} start nodes: {}".format(len(start_nodes), start_nodes))
+        # what are the possible end formats
+        possible_end_nodes = possible_ends(G, start_nodes, end_nodes)
+        if len(possible_end_nodes) == 0:
+            raise RuntimeError("This graph cannot be traversed to a single end node from each start. Aborting")
         # We first need to determine the output_format
-        if format is None:
-            format = end_nodes[0][0]
+        if format is None:  # User lets us pick
+            format = possible_end_nodes[0][0]
 
-        # Which node is our exit node?
-        for end_node in end_nodes:
-            if end_node[0] == format:
-                break
+        if format not in [end[0] for end in possible_end_nodes]:
+            raise ValueError("Cannot output in format {}".format(format))
 
         # Ok now let's apply the weights
         apply_weight(G, output_format=format)
+
+        # Which node is our exit node?
+        for end_node in possible_end_nodes:
+            if end_node[0] == format:
+                break
 
         # And get the shortest path(s)
         # For each entry path
@@ -248,21 +269,40 @@ class KoshIOGraph(object):
         out.seed = G.seed
         for pth in pths:
             for i, node in enumerate(pth[:-1]):
-                out.add_edge(node, pth[i+1])
+                out.add_edge(node, pth[i + 1])
 
         # We can now travel back the pth to obtain
         # the data.
-        return self._operate(out, pths, format)
+        return self._operate(out, pths, format, **kargs)
 
-    def _operate(self, graph, paths, output_format):
-        import sys
-        sys.stdout.flush()
-        starters, end = find_network_ends(graph, start=True, end =True)
+    __call__ = traverse
+
+    def _operate(self, graph, paths, output_format, **kargs):
+        """Actuall bells and whistles to actually get the data
+        :param graph: The graph to follow in order to get the data
+        :type graph: KoshIoGraph
+        :param paths: The paths to follow on this graph
+        :type paths: networkx path
+        :param out_format: The desired output_format
+        :type output_format: str
+        :param kargs: key arguments that will be passed to loaders (start of each path)
+        :type kargs: dict
+        :returns: Data
+        """
+        cache_file_only = kargs.pop("cache_file_only", False)
+        use_cache = kargs.pop("use_cache", False)
+        cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
+        starters, end = find_network_ends(graph, start=True, end=True)
         end = end[0]
         previous = list(graph.predecessors(end))
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
-            return end[1].extract()
+            end[1].cache_file_only = cache_file_only
+            end[1].use_cache = use_cache
+            end[1].cache_dir = cache_dir
+            end[1]._user_passed_parameters = (None, kargs)
+            out = end[1].extract_(format=output_format)
+            return out
         else:
             inputs = []
             for prev in previous:
@@ -272,19 +312,82 @@ class KoshIOGraph(object):
                     if prev in pth:
                         pths.append(pth[:-1])
                         G.add_node(pth[0])
-                        for i, node in enumerate(pth[:-2]): # -2 because I remove the end node
-                            G.add_edge(node, pth[i+1])
-                res = prev[1]._operate(G, pths, end[0])
+                        for i, node in enumerate(
+                                pth[:-2]):  # -2 because I remove the end node
+                            G.add_edge(node, pth[i + 1])
+                            # parent stuff for transformers mostly
+                            # Node is format/kosh_obj/seed
+                            pth[i+1][1].parent = node[1]
+                res = prev[1]._operate(G, pths, end[0], **kargs)
                 inputs.append(res)
-            if hasattr(self, "operate"):
-                return self.operate(*inputs, format=end[0])
-            elif hasattr(self,"transform_"):
+            if hasattr(self, "operate_"):
+                return self.operate_(*inputs, format=end[0])
+            elif hasattr(self, "transform_"):
                 return self.transform_(*inputs, format=end[0])
             elif isinstance(self, kosh.io_graphs.core.KoshIOGraph):
                 if len(pths) == 1:
                     inputs = inputs[0]
                 return inputs
             else:
-                raise RuntimeError("Did not know which function to send inputs to. Aborting")
+                raise RuntimeError(
+                    "Did not know which function to send inputs to. Aborting")
 
+    def update_signature(self, *args, **kargs):
+        """Updated the signature based to a set of args and kargs
+        :param *args: as many arguments as you want
+        :type *args: list
+        :param **kargs: key=value style argmunets
+        :type **kargs: dict
+        :return: updated signature
+        :rtype: str
+        """
+        signature = self.signature.copy()
+        for arg in args:
+            signature.update(repr(arg).encode())
+        for kw in kargs:
+            signature.update(repr(kw).encode())
+            signature.update(repr(kargs[kw]).encode())
+        return signature
 
+    def show_cache_file(self, input, format):
+        """Given a set of input and format returns the unique signature used for cache file
+        :param input: set of input passed from loader or previous transformer
+        :type input: object
+        :param format: desired output format
+        :type format: str
+        :return: The unique signature
+        :rtype: str
+        """
+        signature = self.update_signature(input, format).hexdigest()
+        return os.path.join(self.cache_dir, signature)
+
+    def save(self, cache_file, *content):
+        """Pickle some data to a cache file
+        :param cache_file: name of cache file, will be joined with self.cache_dir
+        :type cache_file: str
+        :param content: content to save to cache
+        :type content: object
+        """
+        with open(os.path.join(self.cache_dir, cache_file), "wb") as f:
+            for sv in content:
+                pickle.dump(sv, f)
+
+    def load(self, cache_file):
+        """loads content from cache
+        :param cache_file: name of cache fileA will be joined with self.cache_dir
+        :type cache_file: str
+        :return: unpickled data
+        :rtpye: object
+        """
+        with open(os.path.join(self.cache_dir, cache_file), "rb") as f:
+            cont = True
+            data = []
+            while cont:
+                try:
+                    data.append(pickle.load(f))
+                except Exception:
+                    cont = False
+        if len(data) == 1:
+            return data[0]
+        else:
+            return data

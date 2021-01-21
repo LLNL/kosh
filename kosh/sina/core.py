@@ -814,7 +814,7 @@ class KoshSinaStore(KoshStoreClass):
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
-    def get(self, Id, feature, format=None, loader=None, operators=[], *args, **kargs):
+    def get(self, Id, feature, format=None, loader=None, transformers=[], *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -825,15 +825,15 @@ class KoshSinaStore(KoshStoreClass):
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format
-        :param operators: A list of operators to use after the data is loaded
-        :type operators: kosh.operator.KoshTranformer
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.operator.KoshTransformer
         """
         if loader is None:
             loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 
-        return loader.get(feature, format, operators=[], *args, **kargs)
+        return loader.get(feature, format, transformers=[], *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata

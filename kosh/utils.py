@@ -57,7 +57,7 @@ def gen_labels(G):
 
 def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=nx.planar_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
-    :param G: networkx graph
+    :param G: networkx graph or KoshIOGraph
     :type G: networkx.Graph
     :param output_format: draw shortest path to this format
     :type output_format: str or None
@@ -72,13 +72,15 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     """
     if not isinstance(layout, dict):
         layout = layout(G)
+
+    if isinstance(G, kosh.io_graphs.KoshIOGraph):
+        G = G.io_graph()
     lbls_dict = gen_labels(G)
     nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
     pos=nx.get_node_attributes(G,'pos')
     labels = nx.get_edge_attributes(G,'weight')
     for k in labels:
         labels[k] = "{:.3g}".format(labels[k])
-    print("LABELS:", labels)
     nx.draw_networkx_edge_labels(G,layout,edge_labels=labels)
     if output_format is not None:
         starters = find_network_ends(G, start=True, end=False)

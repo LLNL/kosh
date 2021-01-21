@@ -6,6 +6,7 @@ class MyTrsf(kosh.transformers.KoshTransformer):
     types = {"numpy": ["numpy", ]}
 
     def transform(self, input, format):
+        print("T1")
         return input
 
 
@@ -13,6 +14,7 @@ class MyTrsf2(kosh.transformers.KoshTransformer):
     types = {"numpy": ["numpy", ]}
 
     def transform(self, input, format):
+        print("T2")
         return input
 
 
@@ -20,7 +22,9 @@ class MyTrsf3(kosh.transformers.KoshTransformer):
     types = {"numpy": ["test_stuff", ]}
 
     def transform(self, input, format):
+        print("T3")
         top = self.parent
+        print("TOP:", top)
         while hasattr(top, "parent"):
             top = top.parent
         return top._user_passed_parameters, top.feature, top.format, format
@@ -42,7 +46,8 @@ class KoshTestTransformerParent(KoshTest):
                 MyTrsf(),
                 MyTrsf2(),
                 MyTrsf3()])
+        print("DATA:", data)
         self.assertEqual(data[0], (None, {}))
         self.assertEqual(data[1], "cycles")
         self.assertEqual(data[2], "numpy")
-        self.assertEqual(data[3], None)
+        self.assertEqual(data[3], "numpy")

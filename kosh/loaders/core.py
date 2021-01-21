@@ -6,6 +6,7 @@ from kosh.io_graphs import KoshIOGraph, populate
 import networkx as nx
 import random
 
+
 def get_graph(input_type, loader, transformers):
     """given a loader and its transformer return path to desired format
     e.g which output format should each transformer pick to be chained to the follwoing one
@@ -35,11 +36,6 @@ def get_graph(input_type, loader, transformers):
             start_node,
             loader.types[input_type],
             transformers)
-    import matplotlib.pyplot as plt
-    nx.draw(G)
-    plt.show()
-    plt.savefig("GETPATH")
-    plt.clf()
     return G
 
 
@@ -143,14 +139,6 @@ class KoshLoader(KoshIOGraph):
         :type format: str
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
-        :param use_cache: Try to use cached data if available
-        :type use_cache: bool
-        :param cache_file_only: If True, simply return name of cache_file
-        :type cache_file_only: bool
-        :param cache_dir: where do we cache the result?
-        :type cache_dir: str
-        :param io_graph: return the io_graph rather than the data itself
-        :type io_graph: bool
         :return: extracted feature
         :rtype: ???
         """
@@ -158,24 +146,11 @@ class KoshLoader(KoshIOGraph):
         G = get_graph(self.obj.mime_type, self, transformers)
         return G
 
+
     def get(self, feature, format=None, transformers=[],
             use_cache=True, cache_file_only=False, cache_dir=None,
-            io_graph=False, **kargs):
+            **kargs):
         """get extract a feature
-        *args and **kargs will be stored on loader object
-        format and feature are stored on the object for extraction by extraction functions
-        This function calls first the loader's preprocess function
-        This is followed by an actual data extraction via the 'extract' function
-        Finally 'postprocess' is called on the extracted data
-
-        Reserved keyword:
-        preprocess: function use to preprocess (default to self.preprocess)
-        postprocess: function use to postprocess (default to self.postprocess)
-        batch: to return data as a generator (not necessarily implemented yet)
-        shuffle: to shuffle the data, we recommend True/False (not necessarily implemented yet)
-
-        Hints: clustering and such maybe implemented in pre and postprocess
-
         :param feature: desired feature
         :type feature: str
         :param format: desired output format
@@ -188,62 +163,55 @@ class KoshLoader(KoshIOGraph):
         :type cache_file_only: bool
         :param cache_dir: where do we cache the result?
         :type cache_dir: str
-        :param io_graph: return the io_graph rather than the data itself
-        :type io_graph: bool
+        **kargs will be stored on loader object
+        format and feature are stored on the object for extraction by extraction functions
+        This function calls first the loader's preprocess function
+        This is followed by an actual data extraction via the 'extract' function
+        Finally 'postprocess' is called on the extracted data
+
+        Reserved keyword:
+        preprocess: function use to preprocess (default to self.preprocess)
+        postprocess: function use to postprocess (default to self.postprocess)
         """
 
         if cache_dir is None:
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
+        self.use_cache = use_cache
+        self.cache_file_only = cache_file_only
         self.feature = feature
         self._user_passed_parameters = (None, kargs)
-        G = get_graph(self.obj.mime_type, self, transformers)
-        if io_graph:
-            return KoshIOGraph(G)
-        return KoshIOGraph(G)
-        frmt = path[1][0]
-        self.format = frmt
-        if frmt is None:
-            frmt = self.types[self.obj.mime_type][0]
-        if len(self.types) != 0 and frmt not in self.types[self.obj.mime_type]:
+        G = self.get_io_graph(feature, transformers=transformers)
+        return KoshIOGraph(G).traverse(format=format, **kargs)
+
+
+    def extract_(self, format):
+        if format is None:
+            format = self.types[self.obj.mime_type][0]
+        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
             raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
                 self=self, format=format))
-        self.format = frmt
-        self._user_passed_parameters = (None, kargs)
-        signature = self.update_signature(feature, self.format, **kargs).hexdigest()
-        if cache_file_only is True:
+        self.format = format
+        _, kargs = self._user_passed_parameters
+        signature = self.update_signature(self.feature, format, **kargs).hexdigest()
+        if self.cache_file_only is True:
             # Ok user just wants to know where cache should be (plus/minus extesions)
             return signature
         # Let's generate the signatures for each step of the path.
         # And try to load it
-        signatures = [signature, ]
-        for i, p in enumerate(path[1:-1], start=1):
-            signatures.append(p[1].update_signature(signatures[-1], path[i-1][0]).hexdigest())
-
         cache_success = False
-        if use_cache:
-            for i, p in enumerate(path[-2:0:-1]):
-                try:
-                    data = p[1].load(signatures[len(signatures)-i-1])
-                    cache_success = True
-                    for j, p in enumerate(path[-i-1:-1], start=len(signatures)-i):
-                        try:
-                            data = p[1].transform_(data, path[j+1][0], signature=signatures[j])
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+        if self.use_cache:
+            try:
+                data = p[1].load(signature)
+                cache_success = True
+            except Exception:
+                pass
             if cache_success:
                 return data
 
         kargs.get("preprocess", self.preprocess)()
         data = self.extract()
         data = kargs.get("postprocess", self.postprocess)(data)
-        for i, p in enumerate(path[1:-1], start=1):
-            # Get the transformer and tell it to return it
-            # in format that next transformer wants
-            # the last item is the output it only has the format
-            data = p[1].transform_(data, path[i+1][0], signature=signatures[i])
         return data
 
     def save(self, cache_file, content):

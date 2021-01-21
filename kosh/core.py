@@ -8,6 +8,8 @@ import kosh
 import time
 import fcntl
 import copy
+import networkx as nx
+from .io_graphs import find_network_ends
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -524,34 +526,26 @@ class KoshDataset(object):
         return loader.describe_feature(feature)
 
 
-    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], io_graph=False, *args, **kargs):
+    def get_io_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
-        :param format: desired format after extraction
-        :type format: str
         :param Id: object to read in, defaults to None
         :type Id: str, optional
         :param loader: loader to use to get data,
                        defaults to None means pick for me
         :type loader: kosh.loaders.KoshLoader
-        :param group: group multiple features in one get call, assumes loader can handle this
-        :type group: bool
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
-        :param io_graph: return the io_graph rather than the data itself
-        :type io_graph: bool
-        :raises RuntimeException: could not get feature
-        :raises RuntimeError: object id not associated with dataset
-        :return: [description]
+        :returns: [description]
         :rtype: [type]
         """
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get(Id=None, feature=feat, format=format,
+                out.append(self.get_io_graph(Id=None, feature=feat, format=format,
                                     loader=loader, transformers=transformers,
-                                    io_graph=io_graph, *args, **kargs))
+                                    *args, **kargs))
             return out
         # Need to make sure transformers are a list
         if not isinstance(transformers, (list, tuple)):
@@ -625,8 +619,6 @@ class KoshDataset(object):
                         mime_type = a_obj.mime_type
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
-                    possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                    # Ok we need to clean the feature names from the uri if associated with it
                     final_features = []
                     for feature_ in features:
                         if (feature_[:-len(ld.obj.uri)-3] in ld.list_features()
@@ -637,34 +629,53 @@ class KoshDataset(object):
                             final_features.append(feature_)
                     if len(final_features) == 1:
                         final_features = final_features[0]
-                    tmp = ld.get(final_features, format,
-                                 transformers=transformers,
-                                 io_graph=io_graph,
-                                 *args, **kargs)
-                    if not isinstance(final_features, list) or not isinstance(tmp, list):
-                        out += [tmp, ]
-                    else:
-                        out += tmp
-                    break
-                except Exception as err:  # noqa
-                    error = err
+                    tmp = ld.get_io_graph(final_features,
+                                 transformers=transformers)
+                    
+                    ld.feature = final_features
+                except Exception:
                     import traceback
-                    traceback.print_exc()
-            if tmp is None:  # Failed to load
-                # Ok something went wrong...
-                msg = "could not get feature '{feature}'".format(feature=final_features)
-                msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
-                if len(transformers) != 0:
-                    msg += " with transformers {}".format(transformers)
-                msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
-                if error is not None:
-                    msg += "\nError: {error}".format(error=error)
-                raise Exception(msg)
-
-        if isinstance(feature, list) and group is False:
-            return out
-        else:
+                    traceback.print_tb()
+                out.append(kosh.io_graphs.KoshIOGraph(tmp))
+        if len(out) == 1:
             return out[0]
+        else:
+            return out
+
+    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
+        """get data for a specific feature
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :param format: desired format after extraction
+        :type format: str
+        :param Id: object to read in, defaults to None
+        :type Id: str, optional
+        :param loader: loader to use to get data,
+                       defaults to None means pick for me
+        :type loader: kosh.loaders.KoshLoader
+        :param group: group multiple features in one get call, assumes loader can handle this
+        :type group: bool
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
+        :raises RuntimeException: could not get feature
+        :raises RuntimeError: object id not associated with dataset
+        :returns: [description]
+        :rtype: [type]
+        """
+        G = self.get_io_graph(feature=feature, Id=Id, loader=loader, transformers=transformers, *args, **kargs)
+        if isinstance(G, list):
+            return [g.traverse(format=format, *args, **kargs) for g in G]
+        else:
+            return G.traverse(format=format, *args, **kargs)
+        
+    def __getitem__(self, feature):
+        """Shortcut to access a feautre or list of
+        :param feature: feature(s) to access in dataset
+        :type feature: str or list of str
+        :returns: (list of) access point to feature requested
+        :rtype: (list of) kosh.io_graph.KoshIoGraph
+        """
+        return self.get_io_graph(feature)
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

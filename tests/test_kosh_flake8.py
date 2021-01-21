@@ -26,13 +26,14 @@ class TestFlake8(unittest.TestCase):
         print()
         print()
         cmd = "flake8 --show-source --statistics " +\
-              "--exclude scripts/kosh_commands.py, scripts/kosh, scripts/init_sina.py " +\
+              "--exclude scripts/* " +\
               "--max-line-length=120 {} scripts {} ".format(code_pth, test_pth)
         P = Popen(shlex.split(cmd),
                   stdout=PIPE,
                   stderr=PIPE)
         out, e = P.communicate()
         out = out.decode("utf-8")
+        print(out, e)
         if out != "":
             print(out)
         self.assertEqual(out, "")
