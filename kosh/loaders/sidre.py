@@ -48,7 +48,7 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
                 dom_path += bp_path + "/values"
                 ioh.read(vals, dom_path)
                 npy_array = vals.value()
-                if not res is None:
+                if res is not None:
                     res = numpy.concatenate([res, npy_array])
                 else:
                     res = npy_array

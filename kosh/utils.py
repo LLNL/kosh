@@ -8,7 +8,7 @@ import numpy
 import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
 try:
-    import matplotlib.pyplot as plt 
+    import matplotlib.pyplot as plt
     has_mpl = True
 except ImportError:
     has_mpl = False
@@ -48,12 +48,13 @@ def gen_labels(G):
             depth = "end"
         try:
             name = node[1].__name__
-        except:
+        except BaseException:
             name = str(node[1].__class__).split(".")[-1].split("'")[0]
             if isinstance(node[1], kosh.loaders.core.KoshLoader):
                 name = "{}({})".format(name, node[1].feature)
         labels[node] = "{}/{}/{}".format(depth, name, node[0])
     return labels
+
 
 def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=nx.planar_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
@@ -76,25 +77,33 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     if isinstance(G, kosh.io_graphs.KoshIOGraph):
         G = G.io_graph()
     lbls_dict = gen_labels(G)
-    nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, alpha=.5, node_size=150, edge_color = 'black', style="dashed")
-    pos=nx.get_node_attributes(G,'pos')
-    labels = nx.get_edge_attributes(G,'weight')
+    nx.draw(
+        G,
+        pos=layout,
+        with_labels=True,
+        labels=lbls_dict,
+        alpha=.5,
+        node_size=150,
+        edge_color='black',
+        style="dashed")
+    labels = nx.get_edge_attributes(G, 'weight')
     for k in labels:
         labels[k] = "{:.3g}".format(labels[k])
-    nx.draw_networkx_edge_labels(G,layout,edge_labels=labels)
+    nx.draw_networkx_edge_labels(G, layout, edge_labels=labels)
     if output_format is not None:
         starters = find_network_ends(G, start=True, end=False)
         for start in starters:
             pth = nx.shortest_path(G, start, (output_format, None, G.seed), weight="weight")
             # build edges
             edges = []
-            for i in range(len(pth)-1):
-                edges.append((pth[i], pth[i+1]))
-            nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color = 'red')
+            for i in range(len(pth) - 1):
+                edges.append((pth[i], pth[i + 1]))
+            nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color='red')
     plt.show()
     plt.savefig(png_name)
     if clear:
         plt.clf()
+
 
 def compute_fast_sha(uri, n_samples=10):
     """Compute a fast 'almost' unique identifier for a given uri

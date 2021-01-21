@@ -5,6 +5,7 @@ import os
 from ..io_graphs import KoshIOGraph
 from kosh import kosh_cache_dir
 
+
 class KoshTransformer(KoshIOGraph):
     # Defines which input types it can handle
     # and what output it sends back

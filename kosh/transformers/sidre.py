@@ -1,3 +1,4 @@
+import warnings
 try:
     import conduit
 except ImportError:
@@ -22,7 +23,6 @@ class SidreFeatureMetrics(KoshTransformer):
         ioh, pth = input_
 
         sp0 = pth.split("/fields")[0]
-        dom_pth = sp0 + "state/number_of_domains"
 
         mesh = sp0.split("/")[-1]
         # First let's figure out the number of domains
@@ -75,7 +75,7 @@ class SidreFeatureMetrics(KoshTransformer):
             comm.send(mx, dest=0, tag=4)
             dtype = comm.recv(source=0, tag=5)
 
-        # Histogram from: https://ascent.readthedocs.io/en/latest/Tutorial_CloverLeaf_Demos.html#using-a-python-extract-to-execute-custom-python-analysis
+        # Histogram from: https://ascent.readthedocs.io/en/latest/Tutorial_CloverLeaf_Demos.html
         # compute bins on global extents
         bins = numpy.linspace(mn, mx)
 

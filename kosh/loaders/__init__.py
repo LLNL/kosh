@@ -15,5 +15,5 @@ except ImportError:
     pass  # we do not have pydv
 try:
     from .sidre import SidreMeshBlueprintFieldLoader  # noqa
-except ImportError as err:
+except ImportError:
     pass  # we do not have conduit

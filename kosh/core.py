@@ -8,8 +8,6 @@ import kosh
 import time
 import fcntl
 import copy
-import networkx as nx
-from .io_graphs import find_network_ends
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -165,7 +163,7 @@ class KoshStoreClass(object):
         locked = False
         while not locked:
             try:
-                self.lock_file = open(self.db_uri+".handle", "w")
+                self.lock_file = open(self.db_uri + ".handle", "w")
                 fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 locked = True
             except Exception:
@@ -515,7 +513,7 @@ class KoshDataset(object):
             for a in self._associated_data_:
                 ld, _ = self.__store__._find_loader(a)
                 if feature in ld.list_features(**kargs) or \
-                        (feature[:-len(ld.obj.uri)-3] in ld.list_features()
+                        (feature[:-len(ld.obj.uri) - 3] in ld.list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
                     loader = ld
                     break
@@ -524,7 +522,6 @@ class KoshDataset(object):
         else:
             loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
-
 
     def get_io_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
         """get data for a specific feature
@@ -544,8 +541,8 @@ class KoshDataset(object):
             out = []
             for feat in self.list_features():
                 out.append(self.get_io_graph(Id=None, feature=feat, format=format,
-                                    loader=loader, transformers=transformers,
-                                    *args, **kargs))
+                                             loader=loader, transformers=transformers,
+                                             *args, **kargs))
             return out
         # Need to make sure transformers are a list
         if not isinstance(transformers, (list, tuple)):
@@ -572,7 +569,7 @@ class KoshDataset(object):
                             continue
                     if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
                             feature_ is None or\
-                            (feature_[:-len(ld.obj.uri)-3] in ld.list_features() and
+                            (feature_[:-len(ld.obj.uri) - 3] in ld.list_features() and
                              feature_[-len(ld.obj.uri):] == ld.obj.uri):
                         possible_ids.append(a)
                 if possible_ids == []:  # All failed but could be something about the feature
@@ -606,8 +603,6 @@ class KoshDataset(object):
         out = []
         for id_ in ids:
             features = ids[id_]
-            error = None
-            possible_formats = []
             for Id in possible_ids:
                 tmp = None
                 try:
@@ -621,17 +616,17 @@ class KoshDataset(object):
                     get_graph(mime_type, ld, transformers)
                     final_features = []
                     for feature_ in features:
-                        if (feature_[:-len(ld.obj.uri)-3] in ld.list_features()
+                        if (feature_[:-len(ld.obj.uri) - 3] in ld.list_features()
                                 and feature_[-len(ld.obj.uri):] == ld.obj.uri):
                             final_features.append(
-                                feature_[:-len(ld.obj.uri)-3])
+                                feature_[:-len(ld.obj.uri) - 3])
                         else:
                             final_features.append(feature_)
                     if len(final_features) == 1:
                         final_features = final_features[0]
                     tmp = ld.get_io_graph(final_features,
-                                 transformers=transformers)
-                    
+                                          transformers=transformers)
+
                     ld.feature = final_features
                 except Exception:
                     import traceback
@@ -667,7 +662,7 @@ class KoshDataset(object):
             return [g.traverse(format=format, *args, **kargs) for g in G]
         else:
             return G.traverse(format=format, *args, **kargs)
-        
+
     def __getitem__(self, feature):
         """Shortcut to access a feautre or list of
         :param feature: feature(s) to access in dataset

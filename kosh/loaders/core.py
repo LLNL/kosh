@@ -41,6 +41,7 @@ def get_graph(input_type, loader, transformers):
 
 class KoshGenericObjectFromFile(object):
     """Kosh object pointing to a file"""
+
     def __init__(self, *args, **kwds):
         self.args = args
         self.kwds = kwds
@@ -146,7 +147,6 @@ class KoshLoader(KoshIOGraph):
         G = get_graph(self.obj.mime_type, self, transformers)
         return G
 
-
     def get(self, feature, format=None, transformers=[],
             use_cache=True, cache_file_only=False, cache_dir=None,
             **kargs):
@@ -184,7 +184,6 @@ class KoshLoader(KoshIOGraph):
         G = self.get_io_graph(feature, transformers=transformers)
         return KoshIOGraph(G).traverse(format=format, **kargs)
 
-
     def extract_(self, format):
         if format is None:
             format = self.types[self.obj.mime_type][0]
@@ -202,7 +201,7 @@ class KoshLoader(KoshIOGraph):
         cache_success = False
         if self.use_cache:
             try:
-                data = p[1].load(signature)
+                data = self.load(signature)
                 cache_success = True
             except Exception:
                 pass

@@ -5,6 +5,7 @@ import random
 import pickle
 import os
 
+
 def possible_ends(graph, start_nodes, end_nodes):
     """Finds all network ends that can be reached by all start nodes
     :param graph: The full graph
@@ -26,7 +27,7 @@ def possible_ends(graph, start_nodes, end_nodes):
             except Exception:  # Can't get to this
                 pass
         ok_ends.append(ok_ends_this_start)
-    
+
     # Ok for each start we know know the ok end nodes
     # Which ones are common to every start?
     out = ok_ends[0]
@@ -125,7 +126,6 @@ def get_seed(G, node, end_seed=None):
         seed = end_seed
     else:
         seed = random.random()
-    #seed = random.random()
     return seed
 
 
@@ -234,9 +234,6 @@ class KoshIOGraph(object):
         """
         return self.traverse()[key]
 
-            
-
-
     def traverse(self, format=None, *args, **kargs):
         G = self.io_graph()
         start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
@@ -317,7 +314,7 @@ class KoshIOGraph(object):
                             G.add_edge(node, pth[i + 1])
                             # parent stuff for transformers mostly
                             # Node is format/kosh_obj/seed
-                            pth[i+1][1].parent = node[1]
+                            pth[i + 1][1].parent = node[1]
                 res = prev[1]._operate(G, pths, end[0], **kargs)
                 inputs.append(res)
             if hasattr(self, "operate_"):
