@@ -15,6 +15,12 @@ except ImportError:
 from kosh.io_graphs import find_network_ends
 
 
+try:
+    default_nx_layout = nx.planar_layout
+except AttributeError:  # planar is available from nx version 2.5
+    default_nx_layout = nx.circular_layout
+
+
 def gen_labels(G):
     labels = {}
     cont = True
@@ -56,7 +62,7 @@ def gen_labels(G):
     return labels
 
 
-def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=nx.planar_layout):
+def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=default_nx_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph or KoshIOGraph
     :type G: networkx.Graph
@@ -67,10 +73,10 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     :param clear: clear matpltolib figure after saving
     :type clear: bool
     :param layout: A dictionary with nodes as keys and positions as values.
-                   If not specified a planar layout positioning will be computed.
+                   If not specified a {} layout positioning will be computed.
                    See networkx.drawing.layout for functions that compute node positions.
     :type layout: dict or function
-    """
+    """.format(default_nx_layout.__name__)
     if not isinstance(layout, dict):
         layout = layout(G)
 
