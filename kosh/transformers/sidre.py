@@ -1,9 +1,9 @@
 import warnings
 try:
     import conduit
+    has_conduit = True
 except ImportError:
-    warnings.warn(
-        "Could not import conduit, Condut-based transformers will not be available")
+    has_conduit = False
 from .utils import get_ids_for_rank, comm, rank, size, MPI
 from .core import KoshTransformer
 import numpy
@@ -14,6 +14,12 @@ class SidreFeatureMetrics(KoshTransformer):
     this returns a dictionary of metrics for a feature (sent as input)
     """
     types = {"sidre/path": ["dict"]}
+
+    def __init__(self, *args, **kargs):
+        if not has_conduit:
+            raise RuntimeError(
+                "Could not import conduit, Conduit-based transformers are not available")
+        super(SidreFeatureMetrics, self).__init__(*args, **kargs)
 
     def transform(self, input_, format):
         if rank != 0:

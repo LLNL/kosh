@@ -173,7 +173,7 @@ def compute_long_sha(uri, buff_size=65536):
 
 
 def create_new_db(name, engine='sina', db='sql',
-                  token="", keyspace=None, cluster=None):
+                  token="", keyspace=None, cluster=None, **kargs):
     """create_new_db creates a new Kosh database, adds a single user
 
     :param name: name of database
@@ -188,6 +188,8 @@ def create_new_db(name, engine='sina', db='sql',
     :type keyspace: str, optional
     :param cluster: list of Casandra clusters to use
     :type cluster: list of str
+    :param kargs: Any additional key/value pairs you need to pass to store creation
+    :type kargs: dict
     :return store: An handle to the Kosh store created
     :rtype: KoshStoreClass
     """
@@ -214,4 +216,4 @@ def create_new_db(name, engine='sina', db='sql',
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     if engine == "sina":
-        return kosh.KoshStore(engine="sina", db_uri=name)
+        return kosh.KoshStore(engine="sina", db_uri=name, **kargs)

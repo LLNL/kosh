@@ -27,7 +27,7 @@ class KoshTest(unittest.TestCase):
             if db_uri is None and os.path.exists(kosh_test_sql_file):
                 os.remove(kosh_test_sql_file)
             if db_uri is None:
-                kosh.utils.create_new_db(kosh_test_sql_file[:-4])
+                kosh.utils.create_new_db(kosh_test_sql_file[:-4], verbose=False)
             return kosh_test_sql_file
 
     def connect(self, engine=None, db_uri=None, sync=True,
