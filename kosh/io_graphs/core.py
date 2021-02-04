@@ -172,6 +172,35 @@ class KoshIOGraph(object):
                             for export in export_type:
                                 new_graph.add_edge(
                                     new_node, (export, None))
+        #At this point we need to make sure there is a way out of this
+        if isinstance(self, (kosh.operators.KoshOperator, kosh.transformers.KoshTransformer, kosh.loaders.KoshLoader)):
+            start_nodes, end_nodes = find_network_ends(new_graph, start=True, end=True)
+            out_types = set()
+            for input_type in self.types:
+                for output_type in self.types[input_type]:
+                    out_types.add(output_type)
+            # now let's go from each start node and see if we can go the an end node of an output type
+            got_thru = False
+            for output_type in out_types:
+                for end_node in end_nodes:
+                    if end_node[0] == output_type:
+                        # ok can we go to this?
+                        all_go = True
+                        for start_node in start_nodes:
+                            try:
+                                _ = nx.shortest_path(new_graph, start_node, end_node)
+                            except Exception:
+                                all_go = False
+                                break
+                        if all_go:
+                            got_thru = True
+                            break
+                if got_thru:
+                    break
+
+            if not got_thru:
+                raise RuntimeError("Could not find an output format")
+
         self._graph = new_graph
 
     def io_graph(self, seed=None, verbose=False,
@@ -232,7 +261,7 @@ class KoshIOGraph(object):
         :param key: key to access
         :type key: object (usually int, slice or str)
         """
-        return self.traverse()[key]
+        return self.traverse(__getitem_key__=key)
 
     def traverse(self, format=None, *args, **kargs):
         G = self.io_graph()
@@ -261,7 +290,7 @@ class KoshIOGraph(object):
         pths = []
         for start_node in start_nodes:
             pths.append(nx.shortest_path(G, start_node, end_node))
-        # Ok let's generate the new netwrok with only the paths
+        # Ok let's generate the new network with only the paths
         out = nx.DiGraph()
         out.seed = G.seed
         for pth in pths:
@@ -275,7 +304,7 @@ class KoshIOGraph(object):
     __call__ = traverse
 
     def _operate(self, graph, paths, output_format, **kargs):
-        """Actuall bells and whistles to actually get the data
+        """Actual bells and whistles to actually get the data
         :param graph: The graph to follow in order to get the data
         :type graph: KoshIoGraph
         :param paths: The paths to follow on this graph
@@ -286,22 +315,32 @@ class KoshIOGraph(object):
         :type kargs: dict
         :returns: Data
         """
+        getitem_key = kargs.pop("__getitem_key__", None)
         cache_file_only = kargs.pop("cache_file_only", False)
         use_cache = kargs.pop("use_cache", False)
         cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
         starters, end = find_network_ends(graph, start=True, end=True)
         end = end[0]
         previous = list(graph.predecessors(end))
+        #print("GET IEM KEY:", getitem_key)
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
             end[1].cache_file_only = cache_file_only
             end[1].use_cache = use_cache
             end[1].cache_dir = cache_dir
             end[1]._user_passed_parameters = (None, kargs)
-            out = end[1].extract_(format=output_format)
+            #print("LOADER:", end[1])
+            if getitem_key is not None:
+                if hasattr(end[1], "__getitem__"):
+                    out = end[1][getitem_key]
+                else:
+                    out = end[1].extract_(format=output_format)[getitem_key]
+            else:
+                out = end[1].extract_(format=output_format)
             return out
         else:
-            inputs = []
+            inputs = ()
+            #print("INITIALIZED INPUT FOR", self, inputs)
             for prev in previous:
                 G = nx.DiGraph()
                 pths = []
@@ -315,8 +354,26 @@ class KoshIOGraph(object):
                             # parent stuff for transformers mostly
                             # Node is format/kosh_obj/seed
                             pth[i + 1][1].parent = node[1]
+                #print("self, prev", self, type(self) == kosh.io_graphs.core.KoshIOGraph, prev[1])
+                if hasattr(prev[1], "__getitem_propagate__") and getitem_key is not None:
+                    #print("GOT THE KET PROPAGATE TSTUFF")
+                    new_keys = prev[1].__getitem_propagate__(getitem_key)
+                    kargs["__getitem_key__"] = new_keys
+                elif hasattr(self, "__getitem_propagate__") and getitem_key is not None:
+                    #print("GOT THE KET PROPAGATE TSTUFF from me")
+                    kargs["__getitem_key__"] = getitem_key
+                    new_keys = getitem_key
+                elif type(self) == kosh.io_graphs.core.KoshIOGraph:
+                    #print("KOSH GRAPH")
+                    new_keys = False
+                    kargs["__getitem_key__"] = getitem_key
+                else:
+                    new_keys = None
+                    kargs["__getitem_key__"] = None
                 res = prev[1]._operate(G, pths, end[0], **kargs)
-                inputs.append(res)
+                if new_keys is None and getitem_key is not None:
+                    res = res[getitem_key]
+                inputs += (res,)
             if hasattr(self, "operate_"):
                 return self.operate_(*inputs, format=end[0])
             elif hasattr(self, "transform_"):

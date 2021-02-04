@@ -48,7 +48,7 @@ class KoshOperator(KoshIOGraph):
         signature = kargs.get("signature", None)
 
         if signature is None:
-            use_signature = self.update_signature(input, format).hexdigest()
+            use_signature = self.update_signature(inputs, format).hexdigest()
         else:
             use_signature = signature
 

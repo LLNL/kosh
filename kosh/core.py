@@ -664,7 +664,7 @@ class KoshDataset(object):
             return G.traverse(format=format, *args, **kargs)
 
     def __getitem__(self, feature):
-        """Shortcut to access a feautre or list of
+        """Shortcut to access a feature or list of
         :param feature: feature(s) to access in dataset
         :type feature: str or list of str
         :returns: (list of) access point to feature requested
