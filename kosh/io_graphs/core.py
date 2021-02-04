@@ -33,7 +33,7 @@ def possible_ends(graph, start_nodes, end_nodes):
     out = ok_ends[0]
     for ends in ok_ends[1:]:
         # now let's remove all end nodes that are not in the other paths
-        for possible_end in out.copy():
+        for possible_end in list(out):
             if possible_end not in out:
                 out.pop(possible_end)
     # out now contains the possible end nodes
