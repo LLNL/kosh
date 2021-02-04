@@ -1,4 +1,3 @@
-import warnings
 try:
     import conduit
     has_conduit = True

@@ -7,6 +7,17 @@ import time
 
 
 class KoshTestDataset(KoshTest):
+    def test_getitem_dataset(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5",
+            "hdf5")
+
+        ds["cycles"]
+        with self.assertRaises(ValueError):
+            ds["some_key_not_in_file"]
+
     def test_add_dataset(self):
         store, kosh_db = self.connect()
         # Check it's empy

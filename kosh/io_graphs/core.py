@@ -172,7 +172,7 @@ class KoshIOGraph(object):
                             for export in export_type:
                                 new_graph.add_edge(
                                     new_node, (export, None))
-        #At this point we need to make sure there is a way out of this
+        # At this point we need to make sure there is a way out of this
         if isinstance(self, (kosh.operators.KoshOperator, kosh.transformers.KoshTransformer, kosh.loaders.KoshLoader)):
             start_nodes, end_nodes = find_network_ends(new_graph, start=True, end=True)
             out_types = set()
@@ -322,14 +322,12 @@ class KoshIOGraph(object):
         starters, end = find_network_ends(graph, start=True, end=True)
         end = end[0]
         previous = list(graph.predecessors(end))
-        #print("GET IEM KEY:", getitem_key)
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
             end[1].cache_file_only = cache_file_only
             end[1].use_cache = use_cache
             end[1].cache_dir = cache_dir
             end[1]._user_passed_parameters = (None, kargs)
-            #print("LOADER:", end[1])
             if getitem_key is not None:
                 if hasattr(end[1], "__getitem__"):
                     out = end[1][getitem_key]
@@ -340,7 +338,6 @@ class KoshIOGraph(object):
             return out
         else:
             inputs = ()
-            #print("INITIALIZED INPUT FOR", self, inputs)
             for prev in previous:
                 G = nx.DiGraph()
                 pths = []
@@ -354,17 +351,13 @@ class KoshIOGraph(object):
                             # parent stuff for transformers mostly
                             # Node is format/kosh_obj/seed
                             pth[i + 1][1].parent = node[1]
-                #print("self, prev", self, type(self) == kosh.io_graphs.core.KoshIOGraph, prev[1])
                 if hasattr(prev[1], "__getitem_propagate__") and getitem_key is not None:
-                    #print("GOT THE KET PROPAGATE TSTUFF")
                     new_keys = prev[1].__getitem_propagate__(getitem_key)
                     kargs["__getitem_key__"] = new_keys
                 elif hasattr(self, "__getitem_propagate__") and getitem_key is not None:
-                    #print("GOT THE KET PROPAGATE TSTUFF from me")
                     kargs["__getitem_key__"] = getitem_key
                     new_keys = getitem_key
                 elif type(self) == kosh.io_graphs.core.KoshIOGraph:
-                    #print("KOSH GRAPH")
                     new_keys = False
                     kargs["__getitem_key__"] = getitem_key
                 else:

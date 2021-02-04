@@ -1,6 +1,5 @@
 # Kosh transformer for scikit learn models
 from .core import KoshTransformer
-import warnings
 import numpy
 try:
     import sklearn.cluster

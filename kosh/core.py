@@ -35,7 +35,7 @@ class KoshStoreClass(object):
     """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync, verbose=True, use_lock_file=False):
+    def __init__(self, sync, verbose=False, use_lock_file=False):
         """Constructor
         :param sync: Does this store constantly sync with db
         :type sync: bool
@@ -317,7 +317,7 @@ class KoshStoreClass(object):
                 pass
 
 
-def KoshStore(db_uri=None, engine="sina", sync=True, verbose=True, *args, **kargs):
+def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param db_uri: URI to access backend database
@@ -573,7 +573,7 @@ class KoshDataset(object):
                              feature_[-len(ld.obj.uri):] == ld.obj.uri):
                         possible_ids.append(a)
                 if possible_ids == []:  # All failed but could be something about the feature
-                    possible_ids = self._associated_data_[:1]
+                    raise ValueError("Cannot find feature {} in dataset".format(feature_))
             elif Id not in self._associated_data_:
                 raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
             else:
@@ -632,6 +632,7 @@ class KoshDataset(object):
                     import traceback
                     traceback.print_tb()
                 out.append(kosh.io_graphs.KoshIOGraph(tmp))
+
         if len(out) == 1:
             return out[0]
         else:

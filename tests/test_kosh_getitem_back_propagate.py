@@ -4,10 +4,11 @@ import os
 from koshbase import KoshTest
 
 
-length = 100000000000000000000000000000000000000000000000000000
 class MyLoader(kosh.KoshLoader):
-    types = {"test":["numpy",]}
+    types = {"test": ["numpy", ]}
+
     def __getitem__(self, key):
+        length = int(os.path.basename(self.obj.uri))
         if isinstance(key, int):
             if 0 <= key < length:
                 return numpy.array(key)
@@ -16,100 +17,166 @@ class MyLoader(kosh.KoshLoader):
             else:
                 raise ValueError("Index {} is out of range".format(key))
         elif isinstance(key, slice):
-            if 0 <= key.start < length:
-                start = key.start
-            elif -length < key.start < 0:
-                start = length + key.start
-            if 0 <= key.stop < length:
-                stop = key.stop
-            elif -length < key.stop < 0:
-                stop = length + key.stop
-
-            if key.step is not None:
-                return numpy.arange(start, stop, key.step)
-            else:
-                return numpy.arange(start, stop)
+            start = key.start
+            stop = key.stop
+            step = key.step
+            if start is None:
+                start = 0
+            if step is None:
+                step = 1
+            if stop is None:
+                stop = length
+            if -length < start < 0:
+                start += length
+            if -length < stop < 0:
+                stop += length
+            return numpy.arange(start, stop, step, dtype=numpy.float64)
         else:
             raise ValueError("Invalid key value: {}".format(key))
 
     def extract(self):
+        length = int(os.path.basename(self.obj.uri))
         return numpy.arange(length)
 
     def list_features(self):
-        return ["test",]
+        return ["test", ]
+
 
 class Flip(kosh.transformers.KoshTransformer):
-    types = {"numpy": ["numpy",]}
+    types = {"numpy": ["numpy", ]}
+
     def transform(self, input, format):
         if isinstance(input, numpy.int64):
             return input
         else:
             return input[::-1]
 
+
 class Flip2(Flip):
-    types = {"numpy": ["numpy",]}
+    types = {"numpy": ["numpy", ]}
+
     def __getitem_propagate__(self, key):
         if isinstance(key, int):
             return -1 - key
         elif isinstance(key, slice):
-            return slice(-key.stop, -key.start, key.step)
+            if key.stop is None:
+                start = 0
+            else:
+                start = -key.stop
+            if key.start is None:
+                stop = None
+            else:
+                stop = -key.start
+            return slice(start, stop, key.step)
         else:
             return None
 
+
 class ADD(kosh.KoshOperator):
-    types = {"numpy":["numpy",]}
+
+    types = {"numpy": ["numpy", ]}
+
     def operate(self, *inputs, **kargs):
         out = inputs[0]
         for input_ in inputs[1:]:
             out += input_
         return out
+
     def __getitem_propagate__(self, key):
         return key
+
+
 class KoshTestBackPropagate(KoshTest):
     def testGetItemKosh(self):
         store, db_uri = self.connect()
         store.add_loader(MyLoader)
         dataset = store.create()
+        length = 1000
+        dataset.associate(str(length), "test")
         feature = dataset["test"]
-        with self.assertRaises(Exception) as err:
-            print("Error:", err)
-            print(feature())
+        self.assertTrue(numpy.allclose(feature(), numpy.arange(length)))
+        self.assertTrue(numpy.allclose(feature[:3], [0, 1, 2]))
+        self.assertTrue(numpy.allclose(
+            feature[-3:], [length - 3., length - 2., length - 1.]))
         os.remove(db_uri)
 
-    def tstGetItemKosh(self):
+    def testGetItemOutofMemoryKosh(self):
         store, db_uri = self.connect()
         store.add_loader(MyLoader)
         dataset = store.create()
+        length = 1000000000000000000000000000
+        dataset.associate(str(length), "test")
         feature = dataset["test"]
+        with self.assertRaises(ValueError):
+            feature()
+        self.assertTrue(numpy.allclose(feature[:3], [0, 1, 2]))
+        self.assertTrue(numpy.allclose(
+            feature[-3:], [length - 3., length - 2., length - 1.]))
         os.remove(db_uri)
 
+    def testGetItemKoshTransformerNoPropagate(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        dataset = store.create()
+        length = 1000000
+        dataset.associate(str(length), "test")
+        feature = dataset.get_io_graph("test", transformers=[Flip(), ])
+        self.assertTrue(numpy.allclose(feature(), numpy.arange(length)[::-1]))
+        # Transformer does not propagate,   hence extract is called in full
+        # And then the subset is applyied and sent to transformer.
+        # Here that means 0,1,2,3,4 will be flipped, not the last 4!
+        self.assertFalse(numpy.allclose(feature[:5], feature()[:5]))
+        os.remove(db_uri)
 
-"""
-print(feature[7])
-print(feature[4:7])
+    def testGetItemKoshTransformerNoPropagateOutofMemory(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        dataset = store.create()
+        length = 1000000000000000000000
+        dataset.associate(str(length), "test")
+        feature = dataset.get_io_graph("test", transformers=[Flip(), ])
+        # Transformer does not propagate,   hence extract is called in full
+        # And then the subset is applyied and sent to transformer.
+        # here the full call leads to memory issues
+        with self.assertRaises(ValueError):
+            feature[:5]
+        os.remove(db_uri)
 
-feature2 = dataset.get_io_graph("test", transformers=[Flip(),])
-try:
-    print(feature2())
-except:
-    print("still can't load full")
-try:
-    print(feature2[3:7])
-except:
-    print("but now can't load a slice")
-feature3 = dataset.get_io_graph("test", transformers=[Flip2(),])
+    def testGetItemKoshTransformerPropagate(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        dataset = store.create()
+        length = 100
+        dataset.associate(str(length), "test")
+        feature = dataset.get_io_graph("test", transformers=[Flip2(), ])
+        # Transformer does propagate
+        self.assertTrue(numpy.allclose(
+            feature[:5], [length - 1., length - 2., length - 3., length - 4., length - 5.]))
+        os.remove(db_uri)
 
-#print(feature3[3:7])
-#print(feature[3:7])
+    def testGetItemKoshTransformerPropagateDoubePass(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        dataset = store.create()
+        length = 1000000000000000000000
+        dataset.associate(str(length), "test")
+        # Flip twice so essentially do nothing
+        feature = dataset.get_io_graph("test", transformers=[Flip2(), Flip2()])
+        # Transformer does propagate
+        self.assertTrue(numpy.allclose(feature[:5], [0., 1., 2., 3., 4.]))
+        os.remove(db_uri)
 
-#feature5 = dataset.get_io_graph("numbers", transformers=[Flip2(), Flip2()])
-#print(feature5[3:7])
+    def testGetItemKoshOperatorPropagate(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        dataset = store.create()
+        length = 1000
+        dataset.associate(str(length), "test")
+        feature = dataset.get_io_graph("test", transformers=[Flip2(), ])
+        # Flip twice so essnetially do nothing
+        feature2 = dataset.get_io_graph(
+            "test", transformers=[Flip2(), Flip2()])
 
-feature5 = dataset.get_io_graph("test", transformers=[Flip3(),])
-A = ADD(feature, feature3)
-print("******************************************************")
-print("******************************************************")
-print("******************************************************")
-print("******************************************************")
-print(A[3:7])
-"""
+        A = ADD(feature, feature2)
+        self.assertTrue(numpy.allclose(A[:3], [float(length) - 1, ] * 3))
+        os.remove(db_uri)
