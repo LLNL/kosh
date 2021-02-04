@@ -72,8 +72,8 @@ class KoshTestBackPropagate(KoshTest):
         dataset = store.create()
         feature = dataset["test"]
         with self.assertRaises(Exception) as err:
+            print("Error:", err)
             print(feature())
-        print(err)
         os.remove(db_uri)
 
     def tstGetItemKosh(self):
