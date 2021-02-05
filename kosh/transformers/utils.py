@@ -18,6 +18,7 @@ except ImportError:
             return 0
     comm = Comm()
     hasMPI = False
+    MPI = False
 
 rank = comm.Get_rank()
 size = comm.Get_size()

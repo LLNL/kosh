@@ -65,7 +65,6 @@ class HDF5Loader(KoshLoader):
         :return: data
         """
         args, kargs = self._user_passed_parameters
-        print("H5 KEYS:", kargs)
         f = h5py.File(self.obj.uri, "r")
         features = self.feature
         if not isinstance(features, list):

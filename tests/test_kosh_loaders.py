@@ -51,6 +51,8 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(ct, ["b", "a"])
         ct = ds.get(["B", "A"], format="dict", group=True)
         self.assertEqual(ct, {"B": "b", "A": "a"})
+        os.remove(name)
+        os.remove(kosh_db)
 
     def test_loader(self):
         store, kosh_db = self.connect()
@@ -114,6 +116,7 @@ class KoshTestLoaders(KoshTest):
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
         self.assertEqual(data.shape[:-1], info["size"][::-1])
+        os.remove(kosh_db)
 
     def test_force_loader(self):
         store, kosh_db = self.connect()
@@ -131,6 +134,7 @@ class KoshTestLoaders(KoshTest):
         diff = new - original*2.
 
         self.assertEqual(diff.max(), 0.)
+        os.remove(kosh_db)
 
     def test_hdf5(self):
         store, kosh_db = self.connect()
