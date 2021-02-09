@@ -93,7 +93,7 @@ def find_network_ends(G, start=True, end=True):
             for index, enode in enumerate(list(ends)):
                 pred = preds[-1]
                 pred_end = list(G.predecessors(enode))[-1]
-                if pred[1] == pred_end[1]:
+                if pred[:1] == pred_end[:1]:
                     end_types = pred[1].types[pred[0]]
                     enode_index = end_types.index(enode[0])
                     node_index = end_types.index(node[0])
