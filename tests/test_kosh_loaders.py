@@ -47,7 +47,9 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
         ct = ds.get("A")
         self.assertEqual(ct, "a")
+        print("*******")
         ct = ds.get(["B", "A"])
+        print("*******")
         self.assertEqual(ct, ["b", "a"])
         ct = ds.get(["B", "A"], format="dict", group=True)
         self.assertEqual(ct, {"B": "b", "A": "a"})
@@ -115,6 +117,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
+        print("DATA IS:", data)
         self.assertEqual(data.shape[:-1], info["size"][::-1])
         os.remove(kosh_db)
 

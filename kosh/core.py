@@ -658,10 +658,13 @@ class KoshDataset(object):
         :returns: [description]
         :rtype: [type]
         """
+        print("USER SKED FMT:", format)
         G = self.get_io_graph(feature=feature, Id=Id, loader=loader, transformers=transformers, *args, **kargs)
         if isinstance(G, list):
+            print("TRV FMT:", format)
             return [g.traverse(format=format, *args, **kargs) for g in G]
         else:
+            print("TRV2 FMT:", format)
             return G.traverse(format=format, *args, **kargs)
 
     def __getitem__(self, feature):

@@ -85,7 +85,24 @@ def find_network_ends(G, start=True, end=True):
         if start and len(list(G.predecessors(node))) == 0:
             starters.append(node)
         if end and len(list(G.successors(node))) == 0:
-            ends.append(node)
+            # Py2 seems to be returning these in random order
+            # let's try to order this in consistent fashion
+            # with predecessor's types order
+            preds = list(G.predecessors(node))
+            inserted = False
+            for index, enode in enumerate(list(ends)):
+                pred = preds[-1]
+                pred_end = list(G.predecessors(enode))[-1]
+                if pred[1] == pred_end[1]:
+                    end_types = pred[1].types[pred[0]]
+                    enode_index = end_types.index(enode[0])
+                    node_index = end_types.index(node[0])
+                    if node_index < enode_index:
+                        ends.insert(index, node)
+                        inserted = True
+                        break
+            if not inserted:
+                ends.append(node)
     if start and not end:
         return starters
     elif end and not start:
