@@ -15,3 +15,4 @@ Jupyter Notebooks
    jupyter/Example_Sidre
    jupyter/Example_Custom_Loader
    jupyter/Example_MNIST
+   jupyter/Example_Advanced_Data_Slicing
