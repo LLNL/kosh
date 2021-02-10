@@ -332,7 +332,7 @@ class KoshIOGraph(object):
         :type kargs: dict
         :returns: Data
         """
-        getitem_key = kargs.pop("__getitem_key__", None)
+        getitem_key = kargs.pop("__getitem_key__", slice(None, None, None))
         cache_file_only = kargs.pop("cache_file_only", False)
         use_cache = kargs.pop("use_cache", False)
         cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
@@ -345,8 +345,8 @@ class KoshIOGraph(object):
             end[1].use_cache = use_cache
             end[1].cache_dir = cache_dir
             end[1]._user_passed_parameters = (None, kargs)
-            if getitem_key is not None:
-                if hasattr(end[1], "__getitem__"):
+            if getitem_key != slice(None, None, None):
+                if "__getitem__" in end[1].__class__.__dict__:
                     out = end[1][getitem_key]
                 else:
                     out = end[1].extract_(format=output_format)[getitem_key]
@@ -368,10 +368,10 @@ class KoshIOGraph(object):
                             # parent stuff for transformers mostly
                             # Node is format/kosh_obj/seed
                             pth[i + 1][1].parent = node[1]
-                if hasattr(prev[1], "__getitem_propagate__") and getitem_key is not None:
+                if hasattr(prev[1], "__getitem_propagate__") and getitem_key != slice(None, None, None):
                     new_keys = prev[1].__getitem_propagate__(getitem_key)
                     kargs["__getitem_key__"] = new_keys
-                elif hasattr(self, "__getitem_propagate__") and getitem_key is not None:
+                elif hasattr(self, "__getitem_propagate__") and getitem_key != slice(None, None, None):
                     kargs["__getitem_key__"] = getitem_key
                     new_keys = getitem_key
                 elif type(self) == kosh.io_graphs.core.KoshIOGraph:
@@ -379,7 +379,7 @@ class KoshIOGraph(object):
                     kargs["__getitem_key__"] = getitem_key
                 else:
                     new_keys = None
-                    kargs["__getitem_key__"] = None
+                    kargs["__getitem_key__"] = slice(None, None, None)
                 res = prev[1]._operate(G, pths, end[0], **kargs)
                 if new_keys is None and getitem_key is not None:
                     res = res[getitem_key]

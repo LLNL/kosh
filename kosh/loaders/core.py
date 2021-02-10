@@ -182,7 +182,6 @@ class KoshLoader(KoshIOGraph):
         self.feature = feature
         self._user_passed_parameters = (None, kargs)
         G = self.get_io_graph(feature, transformers=transformers)
-        print("GET ASKING FOR FOMAT:", format)
         return KoshIOGraph(G).traverse(format=format, **kargs)
 
     def extract_(self, format):
