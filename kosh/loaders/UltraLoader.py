@@ -1,7 +1,16 @@
 # Ultra files loader contributed by Josh Kallman 5/6/2020
 from .core import KoshLoader
 import sys
+import os
 sys.path.append("/usr/gapps/pydv/current")  # noqa
+# pydv import matplotlib.pyplot
+# on some systems with no X forwarding this causes
+# an uncatchable error.
+# Setting the matplotlib backend to a windowless
+# backend fixes this.
+if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
+    import matplotlib
+    matplotlib.use("agg", force=True)
 try:
     import pydvpy as pydvif
 except ImportError:
