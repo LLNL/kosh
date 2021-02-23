@@ -57,6 +57,7 @@ class KoshTestOperators(KoshTest):
         # Now with the transformer we should be good
         A = ADD(nb, nb)
 
+        print(A[:])
         self.assertEqual(numpy.allclose(
             A[:], numpy.array([2, 4, 6, 8, 10, 12])), 1)
         os.remove(db_uri)

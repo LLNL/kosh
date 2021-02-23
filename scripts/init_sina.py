@@ -1,3 +1,4 @@
+#!/usr/bin/env sbang
 #!/usr/bin/env python
 # This creates a new sina-base databse with users
 from sina.model import Record
@@ -30,7 +31,6 @@ parser.add_argument(
     "--sina_db",
     help="type of sina datastore",
     default="sina.sql")
-
 args = parser.parse_args()
 
 if args.sina == "sql":

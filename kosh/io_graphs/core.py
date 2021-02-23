@@ -339,6 +339,7 @@ class KoshIOGraph(object):
         starters, end = find_network_ends(graph, start=True, end=True)
         end = end[0]
         previous = list(graph.predecessors(end))
+        print("PREVIOUS:", previous)
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
             end[1].cache_file_only = cache_file_only
@@ -381,13 +382,21 @@ class KoshIOGraph(object):
                     new_keys = None
                     kargs["__getitem_key__"] = slice(None, None, None)
                 res = prev[1]._operate(G, pths, end[0], **kargs)
-                if new_keys is None and getitem_key is not None:
+                if new_keys is None and getitem_key != slice(None, None, None):
                     res = res[getitem_key]
                 inputs += (res,)
             if hasattr(self, "operate_"):
-                return self.operate_(*inputs, format=end[0])
+                print("SEND TO OPERATE:", inputs)
+                out = self.operate_(*inputs, format=end[0])
+                #print("OPERATE:", out, pth)
+                if pth[-1][1] is None:
+                    return out[0]
+                else:
+                    return out
             elif hasattr(self, "transform_"):
-                return self.transform_(*inputs, format=end[0])
+                out = self.transform_(*inputs, format=end[0])
+                print("TRANSFORM GIVES:", out)
+                return out
             elif isinstance(self, kosh.io_graphs.core.KoshIOGraph):
                 if len(pths) == 1:
                     inputs = inputs[0]
