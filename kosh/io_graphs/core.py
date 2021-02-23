@@ -316,16 +316,16 @@ class KoshIOGraph(object):
 
         # We can now travel back the pth to obtain
         # the data.
-        return self._operate(out, pths, format, **kargs)
+        return self._operate(out, end_node, format, **kargs)
 
     __call__ = traverse
 
-    def _operate(self, graph, paths, output_format, **kargs):
+    def _operate(self, graph, node, output_format, **kargs):
         """Actual bells and whistles to actually get the data
         :param graph: The graph to follow in order to get the data
         :type graph: KoshIoGraph
-        :param paths: The paths to follow on this graph
-        :type paths: networkx path
+        :param node: node to process (get inputs and call extract/transform/operate func)
+        :type node: node in the network
         :param out_format: The desired output_format
         :type output_format: str
         :param kargs: key arguments that will be passed to loaders (start of each path)
@@ -337,38 +337,24 @@ class KoshIOGraph(object):
         use_cache = kargs.pop("use_cache", False)
         cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
         starters, end = find_network_ends(graph, start=True, end=True)
-        end = end[0]
-        previous = list(graph.predecessors(end))
-        print("PREVIOUS:", previous)
+        previous = list(graph.predecessors(node))
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
-            end[1].cache_file_only = cache_file_only
-            end[1].use_cache = use_cache
-            end[1].cache_dir = cache_dir
-            end[1]._user_passed_parameters = (None, kargs)
+            node[1].cache_file_only = cache_file_only
+            node[1].use_cache = use_cache
+            node[1].cache_dir = cache_dir
+            node[1]._user_passed_parameters = (None, kargs)
             if getitem_key != slice(None, None, None):
                 if "__getitem__" in end[1].__class__.__dict__:
-                    out = end[1][getitem_key]
+                    out = node[1][getitem_key]
                 else:
-                    out = end[1].extract_(format=output_format)[getitem_key]
+                    out = node[1].extract_(format=output_format)[getitem_key]
             else:
-                out = end[1].extract_(format=output_format)
+                out = node[1].extract_(format=output_format)
             return out
         else:
             inputs = ()
             for prev in previous:
-                G = nx.DiGraph()
-                pths = []
-                for i, pth in enumerate(paths):
-                    if prev in pth:
-                        pths.append(pth[:-1])
-                        G.add_node(pth[0])
-                        for i, node in enumerate(
-                                pth[:-2]):  # -2 because I remove the end node
-                            G.add_edge(node, pth[i + 1])
-                            # parent stuff for transformers mostly
-                            # Node is format/kosh_obj/seed
-                            pth[i + 1][1].parent = node[1]
                 if hasattr(prev[1], "__getitem_propagate__") and getitem_key != slice(None, None, None):
                     new_keys = prev[1].__getitem_propagate__(getitem_key)
                     kargs["__getitem_key__"] = new_keys
@@ -381,25 +367,23 @@ class KoshIOGraph(object):
                 else:
                     new_keys = None
                     kargs["__getitem_key__"] = slice(None, None, None)
-                res = prev[1]._operate(G, pths, end[0], **kargs)
+                res = prev[1]._operate(graph, prev, node[0], **kargs)
                 if new_keys is None and getitem_key != slice(None, None, None):
                     res = res[getitem_key]
                 inputs += (res,)
+            if node == end[0]:
+                # this is the last one, do not call operate on it
+                # we are done
+                return inputs[0]
             if hasattr(self, "operate_"):
-                print("SEND TO OPERATE:", inputs)
-                out = self.operate_(*inputs, format=end[0])
-                #print("OPERATE:", out, pth)
-                if pth[-1][1] is None:
-                    return out[0]
-                else:
-                    return out
+                out = self.operate_(*inputs, format=node[0])
+                return out
             elif hasattr(self, "transform_"):
-                out = self.transform_(*inputs, format=end[0])
-                print("TRANSFORM GIVES:", out)
+                out = self.transform_(*inputs, format=node[0])
                 return out
             elif isinstance(self, kosh.io_graphs.core.KoshIOGraph):
-                if len(pths) == 1:
-                    inputs = inputs[0]
+                #if len(pths) == 1:
+                #    inputs = inputs[0]
                 return inputs
             else:
                 raise RuntimeError(
