@@ -52,7 +52,7 @@ class KoshTestOperators(KoshTest):
         ds = store.create()
         ds.associate("some_file.nb", mime_type="ascii")
 
-        nb = ds.get_io_graph("numbers", transformers=[MyT(), ])
+        nb = ds.get_execution_graph("numbers", transformers=[MyT(), ])
 
         # Now with the transformer we should be good
         A = ADD(nb, nb)
@@ -69,7 +69,7 @@ class KoshTestOperators(KoshTest):
         ds = store.create()
         ds.associate("some_file.nb", mime_type="ascii")
 
-        nb = ds.get_io_graph("numbers", transformers=[MyT(), ])
+        nb = ds.get_execution_graph("numbers", transformers=[MyT(), ])
 
         # Now with the transformer we should be good
         A = ADD(nb, nb)

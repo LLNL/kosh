@@ -523,7 +523,7 @@ class KoshDataset(object):
             loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
-    def get_io_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
+    def get_execution_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
@@ -540,7 +540,7 @@ class KoshDataset(object):
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get_io_graph(Id=None, feature=feat, format=format,
+                out.append(self.get_execution_graph(Id=None, feature=feat, format=format,
                                              loader=loader, transformers=transformers,
                                              *args, **kargs))
             return out
@@ -624,14 +624,14 @@ class KoshDataset(object):
                             final_features.append(feature_)
                     if len(final_features) == 1:
                         final_features = final_features[0]
-                    tmp = ld.get_io_graph(final_features,
+                    tmp = ld.get_execution_graph(final_features,
                                           transformers=transformers)
 
                     ld.feature = final_features
                 except Exception:
                     import traceback
                     traceback.print_tb()
-                out.append(kosh.io_graphs.KoshIOGraph(tmp))
+                out.append(kosh.execution_graphs.KoshIOGraph(tmp))
 
         if len(out) == 1:
             return out[0]
@@ -658,7 +658,7 @@ class KoshDataset(object):
         :returns: [description]
         :rtype: [type]
         """
-        G = self.get_io_graph(feature=feature, Id=Id, loader=loader, transformers=transformers, *args, **kargs)
+        G = self.get_execution_graph(feature=feature, Id=Id, loader=loader, transformers=transformers, *args, **kargs)
         if isinstance(G, list):
             return [g.traverse(format=format, *args, **kargs) for g in G]
         else:
@@ -669,9 +669,9 @@ class KoshDataset(object):
         :param feature: feature(s) to access in dataset
         :type feature: str or list of str
         :returns: (list of) access point to feature requested
-        :rtype: (list of) kosh.io_graph.KoshIoGraph
+        :rtype: (list of) kosh.execution_graph.KoshIoGraph
         """
-        return self.get_io_graph(feature)
+        return self.get_execution_graph(feature)
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

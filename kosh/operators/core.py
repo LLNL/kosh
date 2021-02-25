@@ -1,11 +1,11 @@
-from ..io_graphs import KoshIOGraph
+from ..exec_graphs import KoshExecutionGraph
 from abc import abstractmethod
 import hashlib
 from kosh import kosh_cache_dir
 import os
 
 
-class KoshOperator(KoshIOGraph):
+class KoshOperator(KoshExecutionGraph):
     # TODO something about operator accepting multiple types in (list?)
     # For nowassuming it is type of first input received
     types = {}

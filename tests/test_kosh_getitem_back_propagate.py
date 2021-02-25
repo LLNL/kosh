@@ -55,7 +55,7 @@ class Flip(kosh.transformers.KoshTransformer):
 class Flip2(Flip):
     types = {"numpy": ["numpy", ]}
 
-    def __getitem_propagate__(self, key):
+    def __getitem_propagate__(self, key, input_index):
         if isinstance(key, int):
             return -1 - key
         elif isinstance(key, slice):
@@ -82,7 +82,7 @@ class ADD(kosh.KoshOperator):
             out += input_
         return out
 
-    def __getitem_propagate__(self, key):
+    def __getitem_propagate__(self, key, input_index):
         return key
 
 
@@ -120,7 +120,7 @@ class KoshTestBackPropagate(KoshTest):
         dataset = store.create()
         length = 1000000
         dataset.associate(str(length), "test")
-        feature = dataset.get_io_graph("test", transformers=[Flip(), ])
+        feature = dataset.get_execution_graph("test", transformers=[Flip(), ])
         self.assertTrue(numpy.allclose(feature(), numpy.arange(length)[::-1]))
         # Transformer does not propagate,   hence extract is called in full
         # And then the subset is applyied and sent to transformer.
@@ -134,7 +134,7 @@ class KoshTestBackPropagate(KoshTest):
         dataset = store.create()
         length = 1000000000000000000000
         dataset.associate(str(length), "test")
-        feature = dataset.get_io_graph("test", transformers=[Flip(), ])
+        feature = dataset.get_execution_graph("test", transformers=[Flip(), ])
         # Transformer does not propagate,   hence extract is called in full
         # And then the subset is applyied and sent to transformer.
         # here the full call leads to memory issues
@@ -148,7 +148,7 @@ class KoshTestBackPropagate(KoshTest):
         dataset = store.create()
         length = 100
         dataset.associate(str(length), "test")
-        feature = dataset.get_io_graph("test", transformers=[Flip2(), ])
+        feature = dataset.get_execution_graph("test", transformers=[Flip2(), ])
         # Transformer does propagate
         self.assertTrue(numpy.allclose(
             feature[:5], [length - 1., length - 2., length - 3., length - 4., length - 5.]))
@@ -161,7 +161,7 @@ class KoshTestBackPropagate(KoshTest):
         length = 1000000000000000000000
         dataset.associate(str(length), "test")
         # Flip twice so essentially do nothing
-        feature = dataset.get_io_graph("test", transformers=[Flip2(), Flip2()])
+        feature = dataset.get_execution_graph("test", transformers=[Flip2(), Flip2()])
         # Transformer does propagate
         self.assertTrue(numpy.allclose(feature[:5], [0., 1., 2., 3., 4.]))
         os.remove(db_uri)
@@ -172,11 +172,20 @@ class KoshTestBackPropagate(KoshTest):
         dataset = store.create()
         length = 1000
         dataset.associate(str(length), "test")
-        feature = dataset.get_io_graph("test", transformers=[Flip2(), ])
+        feature = dataset.get_execution_graph("test", transformers=[Flip2(), ])
         # Flip twice so essnetially do nothing
-        feature2 = dataset.get_io_graph(
+        feature2 = dataset.get_execution_graph(
             "test", transformers=[Flip2(), Flip2()])
 
         A = ADD(feature, feature2)
         self.assertTrue(numpy.allclose(A[:3], [float(length) - 1, ] * 3))
         os.remove(db_uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestBackPropagate()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

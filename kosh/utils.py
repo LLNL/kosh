@@ -12,7 +12,7 @@ try:
     has_mpl = True
 except ImportError:
     has_mpl = False
-from kosh.io_graphs import find_network_ends
+from kosh.exec_graphs import find_network_ends
 
 
 try:
@@ -62,9 +62,9 @@ def gen_labels(G):
     return labels
 
 
-def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=True, layout=default_nx_layout):
+def draw_execution_graph(G, output_format=None, png_name="kosh_execution_graph.png", clear=True, layout=default_nx_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
-    :param G: networkx graph or KoshIOGraph
+    :param G: networkx graph or KoshExecutionGraph
     :type G: networkx.Graph
     :param output_format: draw shortest path to this format
     :type output_format: str or None
@@ -80,8 +80,8 @@ def draw_io_graph(G, output_format=None, png_name="kosh_io_graph.png", clear=Tru
     if not isinstance(layout, dict):
         layout = layout(G)
 
-    if isinstance(G, kosh.io_graphs.KoshIOGraph):
-        G = G.io_graph()
+    if isinstance(G, kosh.execution_graphs.KoshExecutionGraph):
+        G = G.execution_graph()
     lbls_dict = gen_labels(G)
     nx.draw(
         G,

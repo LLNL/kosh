@@ -2,11 +2,11 @@
 from abc import ABCMeta, abstractmethod
 import hashlib
 import os
-from ..io_graphs import KoshIOGraph
+from ..exec_graphs import KoshExecutionGraph
 from kosh import kosh_cache_dir
 
 
-class KoshTransformer(KoshIOGraph):
+class KoshTransformer(KoshExecutionGraph):
     # Defines which input types it can handle
     # and what output it sends back
     __metaclass__ = ABCMeta

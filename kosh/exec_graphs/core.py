@@ -146,7 +146,7 @@ def get_seed(G, node, end_seed=None):
     return seed
 
 
-class KoshIOGraph(object):
+class KoshExecutionGraph(object):
     types = {}
 
     def __len__(self):
@@ -158,8 +158,8 @@ class KoshIOGraph(object):
         new_graph = nx.DiGraph()
         new_graph.seed = random.random()
         for i, G in enumerate(inputs):
-            if isinstance(G, KoshIOGraph):
-                G = G.io_graph()
+            if isinstance(G, KoshExecutionGraph):
+                G = G.execution_graph()
             elif not hasattr(G, "seed"):
                 G.seed = random.random()
             graphs.append(G)
@@ -220,7 +220,7 @@ class KoshIOGraph(object):
 
         self._graph = new_graph
 
-    def io_graph(self, seed=None, verbose=False,
+    def execution_graph(self, seed=None, verbose=False,
                  png_template="LOADER_GRAPH_{}"):
         """makes a new graph with unique seed
         Helps networkx differentiate between identical loaders/transformers/operators
@@ -281,7 +281,7 @@ class KoshIOGraph(object):
         return self.traverse(__getitem_key__=key)
 
     def traverse(self, format=None, *args, **kargs):
-        G = self.io_graph()
+        G = self.execution_graph()
         start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
         # what are the possible end formats
         possible_end_nodes = possible_ends(G, start_nodes, end_nodes)
@@ -312,6 +312,8 @@ class KoshIOGraph(object):
         out.seed = G.seed
         for pth in pths:
             for i, node in enumerate(pth[:-1]):
+                if pth[i+1][1] is not None:
+                    pth[i+1][1].parent = node[1]
                 out.add_edge(node, pth[i + 1])
 
         # We can now travel back the pth to obtain
@@ -345,7 +347,7 @@ class KoshIOGraph(object):
             node[1].cache_dir = cache_dir
             node[1]._user_passed_parameters = (None, kargs)
             if getitem_key != slice(None, None, None):
-                if "__getitem__" in end[1].__class__.__dict__:
+                if "__getitem__" in node[1].__class__.__dict__:
                     out = node[1][getitem_key]
                 else:
                     out = node[1].extract_(format=output_format)[getitem_key]
@@ -354,22 +356,25 @@ class KoshIOGraph(object):
             return out
         else:
             inputs = ()
-            for prev in previous:
-                if hasattr(prev[1], "__getitem_propagate__") and getitem_key != slice(None, None, None):
-                    new_keys = prev[1].__getitem_propagate__(getitem_key)
-                    kargs["__getitem_key__"] = new_keys
-                elif hasattr(self, "__getitem_propagate__") and getitem_key != slice(None, None, None):
-                    kargs["__getitem_key__"] = getitem_key
-                    new_keys = getitem_key
-                elif type(self) == kosh.io_graphs.core.KoshIOGraph:
+            for input_index, prev in enumerate(previous):
+                kargs2 = kargs.copy()
+                do_res = True
+                if hasattr(node[1], "__getitem_propagate__") and getitem_key != slice(None, None, None):
+                    new_keys = node[1].__getitem_propagate__(getitem_key, input_index=input_index)
+                    kargs2["__getitem_key__"] = new_keys
+                    if new_keys is None:
+                        res = getattr(node[1], "index_result", None)
+                        do_res = False
+                elif type(self) == kosh.execution_graphs.core.KoshExecutionGraph or node == end[0]:
                     new_keys = False
-                    kargs["__getitem_key__"] = getitem_key
+                    kargs2["__getitem_key__"] = getitem_key
                 else:
                     new_keys = None
-                    kargs["__getitem_key__"] = slice(None, None, None)
-                res = prev[1]._operate(graph, prev, node[0], **kargs)
-                if new_keys is None and getitem_key != slice(None, None, None):
-                    res = res[getitem_key]
+                    kargs2["__getitem_key__"] = slice(None, None, None)
+                if do_res:
+                    res = prev[1]._operate(graph, prev, node[0], **kargs2)
+                    if new_keys is None and getitem_key != slice(None, None, None):
+                        res = res[getitem_key]
                 inputs += (res,)
             if node == end[0]:
                 # this is the last one, do not call operate on it
@@ -381,9 +386,7 @@ class KoshIOGraph(object):
             elif hasattr(self, "transform_"):
                 out = self.transform_(*inputs, format=node[0])
                 return out
-            elif isinstance(self, kosh.io_graphs.core.KoshIOGraph):
-                #if len(pths) == 1:
-                #    inputs = inputs[0]
+            elif isinstance(self, kosh.execution_graphs.core.KoshExecutionGraph):
                 return inputs
             else:
                 raise RuntimeError(

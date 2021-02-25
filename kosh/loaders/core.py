@@ -2,7 +2,7 @@ from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
-from kosh.io_graphs import KoshIOGraph, populate
+from kosh.exec_graphs import KoshExecutionGraph, populate
 import networkx as nx
 import random
 
@@ -59,7 +59,7 @@ class KoshGenericObjectFromFile(object):
         return self.file_obj.read()
 
 
-class KoshLoader(KoshIOGraph):
+class KoshLoader(KoshExecutionGraph):
     """
     :param types: types is a dictionary on known type that can be loaded
     as key and export format as value, defaults to {"dataset": []}
@@ -131,7 +131,7 @@ class KoshLoader(KoshIOGraph):
             signature.update(repr(kargs[kw]).encode())
         return signature
 
-    def get_io_graph(self, feature, transformers=[]):
+    def get_execution_graph(self, feature, transformers=[]):
         """create io graph to extract a feature
 
         :param feature: desired feature
@@ -182,7 +182,7 @@ class KoshLoader(KoshIOGraph):
         self.feature = feature
         self._user_passed_parameters = (None, kargs)
         G = self.get_io_graph(feature, transformers=transformers)
-        return KoshIOGraph(G).traverse(format=format, **kargs)
+        return KoshExecutionGraph(G).traverse(format=format, **kargs)
 
     def extract_(self, format):
         if format is None:
