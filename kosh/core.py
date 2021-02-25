@@ -631,7 +631,7 @@ class KoshDataset(object):
                 except Exception:
                     import traceback
                     traceback.print_tb()
-                out.append(kosh.execution_graphs.KoshIOGraph(tmp))
+                out.append(kosh.exec_graphs.KoshExecutionGraph(tmp))
 
         if len(out) == 1:
             return out[0]
