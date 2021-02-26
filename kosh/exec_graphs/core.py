@@ -221,7 +221,7 @@ class KoshExecutionGraph(object):
         self._graph = new_graph
 
     def execution_graph(self, seed=None, verbose=False,
-                 png_template="LOADER_GRAPH_{}"):
+                        png_template="LOADER_GRAPH_{}"):
         """makes a new graph with unique seed
         Helps networkx differentiate between identical loaders/transformers/operators
         :param seed: seed to use for new graph

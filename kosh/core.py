@@ -540,9 +540,12 @@ class KoshDataset(object):
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get_execution_graph(Id=None, feature=feat, format=format,
-                                             loader=loader, transformers=transformers,
-                                             *args, **kargs))
+                out.append(self.get_execution_graph(Id=None,
+                                                    feature=feat,
+                                                    format=format,
+                                                    loader=loader,
+                                                    transformers=transformers,
+                                                    *args, **kargs))
             return out
         # Need to make sure transformers are a list
         if not isinstance(transformers, (list, tuple)):
@@ -625,7 +628,7 @@ class KoshDataset(object):
                     if len(final_features) == 1:
                         final_features = final_features[0]
                     tmp = ld.get_execution_graph(final_features,
-                                          transformers=transformers)
+                                                 transformers=transformers)
 
                     ld.feature = final_features
                 except Exception:

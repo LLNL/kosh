@@ -62,7 +62,11 @@ def gen_labels(G):
     return labels
 
 
-def draw_execution_graph(G, output_format=None, png_name="kosh_execution_graph.png", clear=True, layout=default_nx_layout):
+def draw_execution_graph(G,
+                         output_format=None,
+                         png_name="kosh_execution_graph.png",
+                         clear=True,
+                         layout=default_nx_layout):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph or KoshExecutionGraph
     :type G: networkx.Graph
@@ -80,7 +84,7 @@ def draw_execution_graph(G, output_format=None, png_name="kosh_execution_graph.p
     if not isinstance(layout, dict):
         layout = layout(G)
 
-    if isinstance(G, kosh.execution_graphs.KoshExecutionGraph):
+    if isinstance(G, kosh.exec_graphs.KoshExecutionGraph):
         G = G.execution_graph()
     lbls_dict = gen_labels(G)
     nx.draw(
