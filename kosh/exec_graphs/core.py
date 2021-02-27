@@ -37,7 +37,6 @@ def possible_ends(graph, start_nodes, end_nodes):
             if possible_end not in out:
                 out.pop(possible_end)
     # out now contains the possible end nodes
-    #return [x[:2] for x in out]
     return out
 
 
@@ -291,27 +290,9 @@ class KoshExecutionGraph(object):
 
     def traverse(self, format=None, *args, **kargs):
         G = self._graph
-        start_nodes, end_nodes = self.start_nodes, self.end_nodes
-        #print(start_nodes[:2], start_nodes[-2:])
-        #G = self.execution_graph()
-        #start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
-        #print(start_nodes[:2], start_nodes[-2:])
-        """
-        print(start_nodes[:2], start_nodes[-2:])
-        # what are the possible end formats
-        starts_no_seed = [x[:2] for x in start_nodes]
-        ends_no_seed = [x[:2] for x in end_nodes]
-        print(len(starts_no_seed), len(ends_no_seed))
-        if (starts_no_seed, ends_no_seed) not in self.possible_end_nodes:
-            self.possible_end_nodes.append(possible_ends(G, start_nodes, end_nodes))
-            index = -1
-        else:
-            index = self.possible_end_nodes.index((starts_no_seed, ends_no_seed))
-        possible_end_nodes = [x + (G.seed,) for x in self.possible_end_nodes[index]]
-        """
-        # possible_end_nodes = possible_ends(G, start_nodes, end_nodes)
+        start_nodes, _ = self.start_nodes, self.end_nodes
+
         possible_end_nodes = self.possible_end_nodes
-    
 
         if len(possible_end_nodes) == 0:
             raise RuntimeError("This graph cannot be traversed to a single end node from each start. Aborting")

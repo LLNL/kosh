@@ -780,7 +780,8 @@ class KoshSinaStore(KoshStoreClass):
             return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
+                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
+                    obj), record["data"]["mime_type"]["value"]
                 return self._cached_loaders[Id]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
