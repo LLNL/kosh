@@ -147,6 +147,8 @@ class KoshStoreClass(object):
         :return: None
         :rtype: None
         """
+        # We add a loader we need to clear the cache
+        self._cached_loaders = {}
         for k in loader.types:
             if k in self.loaders:
                 self.loaders[k].append(loader)
@@ -464,9 +466,11 @@ class KoshDataset(object):
                 if loader is None:
                     ld, _ = self.__store__._find_loader(associated)
                 else:
-                    ld = loader(self.__store__._load(associated))
+                    if associated not in self.__store__._cached_loaders:
+                        self.__store__._cached_loaders[associated] = loader(self.__store__._load(associated))
+                    ld = self.__store__._cached_loaders[associated]
                 loaders.append(ld)
-                features += ld.list_features(*args, **kargs)
+                features += ld._list_features(*args, use_cache=use_cache, **kargs)
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
@@ -474,7 +478,7 @@ class KoshDataset(object):
                 for index, associated in enumerate(associated_data):
                     obj = self.__store__._load(associated)
                     ld = loaders[index]
-                    these_features = ld.list_features(*args, **kargs)
+                    these_features = ld._list_features(*args, use_cache=use_cache, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
                             ided_features.append("{feature}_@_{obj.uri}".format(feature=feature, obj=obj))
@@ -485,7 +489,7 @@ class KoshDataset(object):
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             ld, _ = self.__store__._find_loader(Id)
-            features = ld.list_features(*args, **kargs)
+            features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
         self.__dict__["__features__"][Id] = features_id
@@ -512,8 +516,8 @@ class KoshDataset(object):
         if Id is None:
             for a in self._associated_data_:
                 ld, _ = self.__store__._find_loader(a)
-                if feature in ld.list_features(**kargs) or \
-                        (feature[:-len(ld.obj.uri) - 3] in ld.list_features()
+                if feature in ld._list_features(**kargs) or \
+                        (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
                     loader = ld
                     break
@@ -570,9 +574,9 @@ class KoshDataset(object):
                             ld = loader(a_obj)
                         else:
                             continue
-                    if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
+                    if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
                             feature_ is None or\
-                            (feature_[:-len(ld.obj.uri) - 3] in ld.list_features() and
+                            (feature_[:-len(ld.obj.uri) - 3] in ld._list_features() and
                              feature_[-len(ld.obj.uri):] == ld.obj.uri):
                         possible_ids.append(a)
                 if possible_ids == []:  # All failed but could be something about the feature
@@ -612,14 +616,16 @@ class KoshDataset(object):
                     if loader is None:
                         ld, mime_type = self.__store__._find_loader(Id)
                     else:
-                        a_obj = self.__store__._load(Id)
-                        ld = loader(a_obj)
-                        mime_type = a_obj.mime_type
+                        if Id not in self.__store__._cached_loaders:
+                            a_obj = self.__store__._load(Id)
+                            self.__store__._cached_loaders[Id] = loader(a_obj)
+                            mime_type = a_obj.mime_type
+                        ld = self.__store__._cached_loaders[Id]
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
                     for feature_ in features:
-                        if (feature_[:-len(ld.obj.uri) - 3] in ld.list_features()
+                        if (feature_[:-len(ld.obj.uri) - 3] in ld._list_features()
                                 and feature_[-len(ld.obj.uri):] == ld.obj.uri):
                             final_features.append(
                                 feature_[:-len(ld.obj.uri) - 3])
@@ -633,7 +639,7 @@ class KoshDataset(object):
                     ld.feature = final_features
                 except Exception:
                     import traceback
-                    traceback.print_tb()
+                    traceback.print_exc()
                 out.append(kosh.exec_graphs.KoshExecutionGraph(tmp))
 
         if len(out) == 1:

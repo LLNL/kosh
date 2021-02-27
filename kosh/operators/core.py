@@ -22,6 +22,7 @@ class KoshOperator(KoshExecutionGraph):
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
         self.cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
+        self.use_cache = kargs.pop("use_cache", False)
         cache = kargs.pop("cache", False)
         if cache:
             try:
@@ -45,28 +46,32 @@ class KoshOperator(KoshExecutionGraph):
         """
 
         format = kargs["format"]
-        signature = kargs.get("signature", None)
+        if self.cache:
+            signature = kargs.get("signature", None)
 
-        if signature is None:
-            use_signature = self.update_signature(inputs, format).hexdigest()
-        else:
-            use_signature = signature
-
-        cache_file = os.path.join(self.cache_dir, use_signature)
-        if self.cache == 2 and os.path.exists(cache_file):
-            # User wants to clobber cahce
-            os.remove(cache_file)
-
-        try:
-            result = self.load(use_signature)
-        except Exception:
             if signature is None:
-                signature = self.update_signature(inputs, format).hexdigest()
+                use_signature = self.update_signature(inputs, format).hexdigest()
+            else:
+                use_signature = signature
+
+            cache_file = os.path.join(self.cache_dir, use_signature)
+            if self.cache == 2 and os.path.exists(cache_file):
+                # User wants to clobber cahce
+                os.remove(cache_file)
+
+            try:
+                result = self.load(use_signature)
+            except Exception:
+                if signature is None:
+                    signature = self.update_signature(inputs, format).hexdigest()
+                result = self.operate(*inputs, format=format)
+                if self.cache > 0:  # Ok user wants to cache results
+                    if not os.path.exists(self.cache_dir):
+                        os.makedirs(self.cache_dir)
+                    self.save(signature, result)
+        else:
             result = self.operate(*inputs, format=format)
-            if self.cache > 0:  # Ok user wants to cache results
-                if not os.path.exists(self.cache_dir):
-                    os.makedirs(self.cache_dir)
-                self.save(signature, result)
+
         return result
 
     @abstractmethod

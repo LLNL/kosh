@@ -87,6 +87,7 @@ class KoshLoader(KoshExecutionGraph):
             if not open_anything:
                 raise RuntimeError("will not be able to load object of type {mime_type}".format(mime_type=mime_type))
         self.obj = obj
+        self.__listed_features = None
 
     def known_types(self):
         """known_types list types of Kosh objects it can handle
@@ -233,6 +234,16 @@ class KoshLoader(KoshExecutionGraph):
         with open(os.path.join(self.cache_dir, cache_file), "rb") as f:
             data = pickle.load(f)
         return data
+
+    def _list_features(self, *args, use_cache=True, **kargs):
+        """Wrapper on top of list_features to snatch from cache rther than calling everytime"""
+        if self.__listed_features is None or not use_cache:
+            self.__listed_features = self.list_features(*args, **kargs)
+        out = self.__listed_features
+        # Reset
+        if not use_cache:
+            self.__listed_features = None
+        return out
 
     def list_features(self):
         """list_features Given the obj it's loading return a list of features (variables)

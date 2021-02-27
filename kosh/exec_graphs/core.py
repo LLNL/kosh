@@ -37,6 +37,7 @@ def possible_ends(graph, start_nodes, end_nodes):
             if possible_end not in out:
                 out.pop(possible_end)
     # out now contains the possible end nodes
+    #return [x[:2] for x in out]
     return out
 
 
@@ -154,7 +155,9 @@ class KoshExecutionGraph(object):
 
     def __init__(self, *inputs, **kw):
         graphs = []
+        # Get a new seed
         self.seed = random.random()
+        # Create a new merged graph
         new_graph = nx.DiGraph()
         new_graph.seed = random.random()
         for i, G in enumerate(inputs):
@@ -162,6 +165,7 @@ class KoshExecutionGraph(object):
                 G = G.execution_graph()
             elif not hasattr(G, "seed"):
                 G.seed = random.random()
+            # remember all graph we sent in
             graphs.append(G)
             new_graph.update(G)
 
@@ -178,11 +182,13 @@ class KoshExecutionGraph(object):
                     output_format = mime_list[i]
                 for node in G.nodes():
                     if node == (output_format, None, G.seed):
+                        # Connect last node to us
                         new_node = (node[0], self, self.seed)
                         pred = G.predecessors(node)
                         for n in pred:
                             new_graph.add_edge(n, new_node)
                         new_graph.remove_node(node)
+                        # connect new node to export types
                         for export_type in self.types[mime]:
                             if not isinstance(export_type, (list, tuple)):
                                 export_type = [export_type, ]
@@ -219,6 +225,9 @@ class KoshExecutionGraph(object):
                 raise RuntimeError("Could not find an output format")
 
         self._graph = new_graph
+        self.start_nodes, self.end_nodes = find_network_ends(new_graph)
+        self.possible_end_nodes = possible_ends(new_graph, self.start_nodes, self.end_nodes)
+        self.paths = {}
 
     def execution_graph(self, seed=None, verbose=False,
                         png_template="LOADER_GRAPH_{}"):
@@ -281,10 +290,29 @@ class KoshExecutionGraph(object):
         return self.traverse(__getitem_key__=key)
 
     def traverse(self, format=None, *args, **kargs):
-        G = self.execution_graph()
-        start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
+        G = self._graph
+        start_nodes, end_nodes = self.start_nodes, self.end_nodes
+        #print(start_nodes[:2], start_nodes[-2:])
+        #G = self.execution_graph()
+        #start_nodes, end_nodes = find_network_ends(G, start=True, end=True)
+        #print(start_nodes[:2], start_nodes[-2:])
+        """
+        print(start_nodes[:2], start_nodes[-2:])
         # what are the possible end formats
-        possible_end_nodes = possible_ends(G, start_nodes, end_nodes)
+        starts_no_seed = [x[:2] for x in start_nodes]
+        ends_no_seed = [x[:2] for x in end_nodes]
+        print(len(starts_no_seed), len(ends_no_seed))
+        if (starts_no_seed, ends_no_seed) not in self.possible_end_nodes:
+            self.possible_end_nodes.append(possible_ends(G, start_nodes, end_nodes))
+            index = -1
+        else:
+            index = self.possible_end_nodes.index((starts_no_seed, ends_no_seed))
+        possible_end_nodes = [x + (G.seed,) for x in self.possible_end_nodes[index]]
+        """
+        # possible_end_nodes = possible_ends(G, start_nodes, end_nodes)
+        possible_end_nodes = self.possible_end_nodes
+    
+
         if len(possible_end_nodes) == 0:
             raise RuntimeError("This graph cannot be traversed to a single end node from each start. Aborting")
         # We first need to determine the output_format
@@ -294,19 +322,23 @@ class KoshExecutionGraph(object):
         if format not in [end[0] for end in possible_end_nodes]:
             raise ValueError("Cannot output in format {}".format(format))
 
-        # Ok now let's apply the weights
-        apply_weight(G, output_format=format)
-
         # Which node is our exit node?
         for end_node in possible_end_nodes:
             if end_node[0] == format:
                 break
 
-        # And get the shortest path(s)
-        # For each entry path
-        pths = []
-        for start_node in start_nodes:
-            pths.append(nx.shortest_path(G, start_node, end_node))
+        if format not in self.paths:
+            # Ok now let's apply the weights
+            apply_weight(G, output_format=format)
+
+            # And get the shortest path(s)
+            # For each entry path
+            pths = []
+            for start_node in start_nodes:
+                pths.append(nx.shortest_path(G, start_node, end_node))
+            self.paths[format] = pths
+        else:
+            pths = self.paths[format]
         # Ok let's generate the new network with only the paths
         out = nx.DiGraph()
         out.seed = G.seed

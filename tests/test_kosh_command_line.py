@@ -12,6 +12,9 @@ def run_cmd(cmd):
     cmd = shlex.split(cmd)
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
+    if p.returncode != 0:
+        print("OOOOPSY:", o.decode())
+        print("OOOOPSY:", e.decode())
     assert(p.returncode == 0)
     return o.decode(
         "utf-8").strip().split("\n"), e.decode("utf-8").strip().split("\n")

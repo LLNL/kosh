@@ -44,26 +44,29 @@ class KoshTransformer(KoshExecutionGraph):
         :rtype: object
         """
 
-        if signature is None:
-            use_signature = self.update_signature(input, format).hexdigest()
-        else:
-            use_signature = signature
-
-        cache_file = os.path.join(self.cache_dir, use_signature)
-        if self.cache == 2 and os.path.exists(cache_file):
-            # User wants to clobber cahce
-            os.remove(cache_file)
-
-        try:
-            result = self.load(use_signature)
-        except Exception:
+        if self.cache:
             if signature is None:
-                signature = self.update_signature(input, format).hexdigest()
+                use_signature = self.update_signature(input, format).hexdigest()
+            else:
+                use_signature = signature
+
+            cache_file = os.path.join(self.cache_dir, use_signature)
+            if self.cache == 2 and os.path.exists(cache_file):
+                # User wants to clobber cahce
+                os.remove(cache_file)
+
+            try:
+                result = self.load(use_signature)
+            except Exception:
+                if signature is None:
+                    signature = self.update_signature(input, format).hexdigest()
+                result = self.transform(input, format)
+                if self.cache > 0:  # Ok user wants to cache results
+                    if not os.path.exists(self.cache_dir):
+                        os.makedirs(self.cache_dir)
+                    self.save(signature, result)
+        else:
             result = self.transform(input, format)
-            if self.cache > 0:  # Ok user wants to cache results
-                if not os.path.exists(self.cache_dir):
-                    os.makedirs(self.cache_dir)
-                self.save(signature, result)
         return result
 
     @abstractmethod

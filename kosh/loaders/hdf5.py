@@ -129,7 +129,7 @@ class HDF5Loader(KoshLoader):
         :return: dictionary describing the feature
         :rtype: dict
         """
-        features = self.list_features()
+        features = self._list_features()
         if feature not in features:
             raise ValueError("feature {feature} is not available".format(feature=feature))
 

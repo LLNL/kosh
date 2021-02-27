@@ -42,7 +42,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(st, "testme")
         with open(name, "w") as f:
             json.dump({"A": "a", "B": "b", "C": "c"}, f)
-        self.assertEqual(ds.list_features(), ["A", "B", "C", "content"])
+        self.assertEqual(ds.list_features(use_cache=False), ["A", "B", "C", "content"])
         ct = ds.get("content")
         self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
         ct = ds.get("A")

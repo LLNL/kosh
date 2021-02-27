@@ -347,6 +347,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         rec = self.__store__.get_record(kosh_id)
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
+            if kosh_id in self.__store__._cached_loaders:
+                del(self.__store__._cached_loaders[kosh_id])
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -645,6 +647,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             mem = sina_sql.DAOFactory(db_path=None)
         self._added_unsync_handler = mem.create_record_dao()
+        self._cached_loaders = {}
 
     def close(self):
         """closes store and sina related things"""
@@ -769,17 +772,21 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         :return: Kosh loader object and mime_type
         """
+        if Id in self._cached_loaders:
+            return self._cached_loaders[Id]
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] == self._dataset_record_type:
             return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                return self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
+                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
+                return self._cached_loaders[Id]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            return self.loaders[record["type"]][0](obj), record["type"]
+            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj), record["type"]
+            return self._cached_loaders[Id]
         return
 
     def open(self, Id, loader=None, *args, **kargs):

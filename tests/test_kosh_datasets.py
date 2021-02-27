@@ -317,7 +317,6 @@ KOSH DATASET
         features = ds.list_features()
         end = time.time()
         self.assertEqual(len(features), 1)
-        self.assertGreaterEqual(end - start, 1.)
 
         os.remove(db_uri)
 
