@@ -4,6 +4,7 @@ import kosh
 import h5py
 import json
 import random
+import numpy
 
 
 class SecondHDF5Loader(kosh.loaders.HDF5Loader):
@@ -42,7 +43,10 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(st, "testme")
         with open(name, "w") as f:
             json.dump({"A": "a", "B": "b", "C": "c"}, f)
-        self.assertEqual(ds.list_features(use_cache=False), ["A", "B", "C", "content"])
+        self.assertEqual(
+            ds.list_features(
+                use_cache=False), [
+                "A", "B", "C", "content"])
         ct = ds.get("content")
         self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
         ct = ds.get("A")
@@ -134,7 +138,7 @@ class KoshTestLoaders(KoshTest):
         store.add_loader(SecondHDF5Loader)
         new = ds.get("node/metrics_1", loader=SecondHDF5Loader)
 
-        diff = new - original*2.
+        diff = new - original * 2.
 
         self.assertEqual(diff.max(), 0.)
         os.remove(kosh_db)
@@ -176,8 +180,36 @@ class KoshTestLoaders(KoshTest):
                              'metrics_7', 'metrics_8', 'metrics_9', ])
         data = ds.get("node/metrics_1")
         self.assertEqual(data.shape, (2, 18))
-        data = ds["node/metrics_1"][:]
+        self.assertTrue(numpy.allclose(data[:], numpy.array([[60.208866, 91.235115, 25.287159, 52.169613, 50.000668, 13.444662,
+                                                              75.868774, 20.130577, 99.07312, 81.7369, 84.11479, 36.72673,
+                                                              34.91565, 98.78891, 43.68803, 69.298256, 30.138458, 14.655322],
+                                                             [73.76867, 63.415592, 22.013329, 99.66734, 6.058753, 29.229004,
+                                                              70.42513, 23.531456, 96.65522, 71.14644, 38.865566, 65.52718,
+                                                              38.103924, 98.274895, 11.936297, 41.059917, 52.544235, 11.852329]])))
+        data = ds.get("node/metrics_3")
         self.assertEqual(data.shape, (2, 18))
+        self.assertTrue(numpy.allclose(data[:], numpy.array([[4.997373, 3.5991755, 70.214554, 49.85214, 2.4331465,
+                                                              36.47857, 98.310455, 26.719603, 40.37639, 18.485182,
+                                                              61.91034, 3.0241032, 60.081615, 75.43359, 86.26279,
+                                                              13.0893955, 79.91462, 69.50662],
+                                                             [38.42152, 71.49772, 78.77744, 62.538296, 48.02889,
+                                                              52.152515, 68.207306, 12.370132, 94.703545, 84.25535,
+                                                              29.536356, 31.391562, 11.548034, 56.365326, 98.3486,
+                                                              70.53159, 78.71963, 64.26292]])))
+        data = ds["node/metrics_1"]
+        self.assertTrue(numpy.allclose(data[:], numpy.array([[60.208866, 91.235115, 25.287159, 52.169613, 50.000668, 13.444662,
+                                                              75.868774, 20.130577, 99.07312, 81.7369, 84.11479, 36.72673,
+                                                              34.91565, 98.78891, 43.68803, 69.298256, 30.138458, 14.655322],
+                                                             [73.76867, 63.415592, 22.013329, 99.66734, 6.058753, 29.229004,
+                                                              70.42513, 23.531456, 96.65522, 71.14644, 38.865566, 65.52718,
+                                                              38.103924, 98.274895, 11.936297, 41.059917, 52.544235, 11.852329]])))
+        data2 = ds["node/metrics_3"]
+        self.assertTrue(numpy.allclose(data[:], numpy.array([[60.208866, 91.235115, 25.287159, 52.169613, 50.000668, 13.444662,
+                                                              75.868774, 20.130577, 99.07312, 81.7369, 84.11479, 36.72673,
+                                                              34.91565, 98.78891, 43.68803, 69.298256, 30.138458, 14.655322],
+                                                             [73.76867, 63.415592, 22.013329, 99.66734, 6.058753, 29.229004,
+                                                              70.42513, 23.531456, 96.65522, 71.14644, 38.865566, 65.52718,
+                                                              38.103924, 98.274895, 11.936297, 41.059917, 52.544235, 11.852329]])))
         data = ds.get("node/metrics_1", cycles=slice(1, 2), elements=[47, 79])
         self.assertEqual(data.shape, (1, 2))
         ds.associate("tests/baselines/images/brain_398.ascii.pgm", "pgm")

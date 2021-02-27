@@ -621,6 +621,9 @@ class KoshDataset(object):
                             self.__store__._cached_loaders[Id] = loader(a_obj)
                             mime_type = a_obj.mime_type
                         ld = self.__store__._cached_loaders[Id]
+                    # Essentially make a copy
+                    # Because we want to attach the feature to it
+                    ld = ld.__class__(ld.obj)
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
@@ -635,12 +638,13 @@ class KoshDataset(object):
                         final_features = final_features[0]
                     tmp = ld.get_execution_graph(final_features,
                                                  transformers=transformers)
-
                     ld.feature = final_features
+                    ExecGraph = kosh.exec_graphs.KoshExecutionGraph(tmp)
                 except Exception:
                     import traceback
                     traceback.print_exc()
-                out.append(kosh.exec_graphs.KoshExecutionGraph(tmp))
+                    ExecGraph = kosh.exec_graphs.KoshExecutionGraph(tmp)
+                out.append(ExecGraph)
 
         if len(out) == 1:
             return out[0]
