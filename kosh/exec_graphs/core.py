@@ -4,12 +4,13 @@ import kosh
 import random
 import pickle
 import os
+import collections
 
 
 def possible_ends(graph, start_nodes, end_nodes):
     """Finds all network ends that can be reached by all start nodes
     :param graph: The full graph
-    :type graph: networkx.DiGraph
+    :type graph: networkx.OrderedDiGraph
     :param start_nodes: Node to start paths from
     :type start_nodes: list of nodes
     :param end_nodes: Node to end paths from
@@ -66,9 +67,9 @@ def populate(G, node, output_formats, next_nodes):
 
 
 def find_network_ends(G, start=True, end=True):
-    """Given a networkx.DiGraph finds start or end nodes or both.
+    """Given a networkx.OrderedDiGraph finds start or end nodes or both.
     :param G: Network of interest
-    :type G: networkx.DiGraph
+    :type G: networkx.OrderedDiGraph
     :param start: Are we searching for start nodes?
     :type start: bool
     :param end: Are we searching for end nodes?
@@ -157,7 +158,7 @@ class KoshExecutionGraph(object):
         # Get a new seed
         self.seed = random.random()
         # Create a new merged graph
-        new_graph = nx.DiGraph()
+        new_graph = nx.OrderedDiGraph()
         new_graph.seed = random.random()
         for i, G in enumerate(inputs):
             if isinstance(G, KoshExecutionGraph):
@@ -226,7 +227,7 @@ class KoshExecutionGraph(object):
         self._graph = new_graph
         self.start_nodes, self.end_nodes = find_network_ends(new_graph)
         self.possible_end_nodes = possible_ends(new_graph, self.start_nodes, self.end_nodes)
-        self.paths = {}
+        self.paths = collections.OrderedDict()
 
     def execution_graph(self, seed=None, verbose=False,
                         png_template="LOADER_GRAPH_{}"):
@@ -241,7 +242,7 @@ class KoshExecutionGraph(object):
                              "_IN"/"_OUT" will be appended and seed will be fed
         :type png_template: str
         """
-        G = nx.DiGraph()
+        G = nx.OrderedDiGraph()
         if seed is None:
             seed = random.random()
         G.seed = seed
@@ -252,7 +253,7 @@ class KoshExecutionGraph(object):
             png_name = png_template + "_IN.png"
             plt.savefig(png_name.format(seed))
             plt.clf()
-        used_nodes = {}
+        used_nodes = collections.OrderedDict()
         for (n1, n2) in self._graph.edges():
             if n1 in used_nodes:
                 # we already generated a new random number for that node
@@ -321,7 +322,7 @@ class KoshExecutionGraph(object):
         else:
             pths = self.paths[format]
         # Ok let's generate the new network with only the paths
-        out = nx.DiGraph()
+        out = nx.OrderedDiGraph()
         out.seed = G.seed
         for pth in pths:
             for i, node in enumerate(pth[:-1]):

@@ -2,7 +2,7 @@ import os
 import numpy
 import kosh
 from koshbase import KoshTest
-
+import collections
 
 class StringsLoader(kosh.loaders.KoshLoader):
     types = {"ascii": ["numlist", "some_format", "Another_format"]}
@@ -15,14 +15,14 @@ class StringsLoader(kosh.loaders.KoshLoader):
 
 
 class MyT(kosh.transformers.KoshTransformer):
-    types = {"numlist": ["numpy", ], "some_format": ["pandas", ]}
+    types = collections.OrderedDict([("numlist", ["numpy", ]), ("some_format", ["pandas", ])])
 
     def transform(self, input, format):
         return numpy.array(input)
 
 
 class ADD(kosh.operators.KoshOperator):
-    types = {"numpy": ["numpy", "pandas"], "pandas": ["numpy", "pndas"]}
+    types = collections.OrderedDict([("numpy", ["numpy", "pandas"]), ("pandas", ["numpy", "pndas"])])
 
     def operate(self, *inputs, **kargs):
         out = inputs[0]
@@ -75,6 +75,9 @@ class KoshTestOperators(KoshTest):
         A = ADD(nb, nb)
         A2 = ADD(A, nb)
 
+        #print("NB:", nb[:])
+        #print("A:", A[:])
+        #print("A2:", A2[:])
         self.assertEqual(numpy.allclose(
             A2[:], numpy.array([3, 6, 9, 12, 15, 18])), 1)
         os.remove(db_uri)

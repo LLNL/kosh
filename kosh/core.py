@@ -8,6 +8,7 @@ import kosh
 import time
 import fcntl
 import copy
+import collections
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -148,7 +149,7 @@ class KoshStoreClass(object):
         :rtype: None
         """
         # We add a loader we need to clear the cache
-        self._cached_loaders = {}
+        self._cached_loaders = collections.OrderedDict()
         for k in loader.types:
             if k in self.loaders:
                 self.loaders[k].append(loader)

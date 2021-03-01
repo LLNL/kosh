@@ -21,7 +21,7 @@ def get_graph(input_type, loader, transformers):
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
-    G = nx.DiGraph()
+    G = nx.OrderedDiGraph()
     G.seed = random.random()
     start_node = (input_type, loader, G.seed)  # so each graph is unique
     G.add_node(start_node)
