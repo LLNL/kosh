@@ -706,6 +706,7 @@ class KoshSinaStore(KoshStoreClass):
                 # Let's dissociate to remove unused kosh objects as well
                 kosh_obj.dissociate(uri)
         if not self.__sync__:
+            self._added_unsync_handler.delete(Id)
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
                 self.__sync__deleted__[Id] = rec
