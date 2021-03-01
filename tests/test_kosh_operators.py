@@ -4,6 +4,7 @@ import kosh
 from koshbase import KoshTest
 import collections
 
+
 class StringsLoader(kosh.loaders.KoshLoader):
     types = {"ascii": ["numlist", "some_format", "Another_format"]}
 
@@ -75,9 +76,6 @@ class KoshTestOperators(KoshTest):
         A = ADD(nb, nb)
         A2 = ADD(A, nb)
 
-        #print("NB:", nb[:])
-        #print("A:", A[:])
-        #print("A2:", A2[:])
         self.assertEqual(numpy.allclose(
             A2[:], numpy.array([3, 6, 9, 12, 15, 18])), 1)
         os.remove(db_uri)
