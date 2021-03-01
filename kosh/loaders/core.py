@@ -235,8 +235,9 @@ class KoshLoader(KoshExecutionGraph):
             data = pickle.load(f)
         return data
 
-    def _list_features(self, *args, use_cache=True, **kargs):
+    def _list_features(self, *args, **kargs):
         """Wrapper on top of list_features to snatch from cache rther than calling everytime"""
+        use_cache = kargs.pop("use_cache", True)
         if self.__listed_features is None or not use_cache:
             self.__listed_features = self.list_features(*args, **kargs)
         out = self.__listed_features
