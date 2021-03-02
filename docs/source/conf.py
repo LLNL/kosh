@@ -17,7 +17,11 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+## following changes to include AutoStructify to add tables to markdown + sphinx = recommonmark
+## https://github.com/readthedocs/recommonmark/blob/master/docs/conf.py
 import os
+import recommonmark
+from recommonmark.transform import AutoStructify
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
@@ -34,7 +38,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.viewcode',
-    'autoapi.extension',
+    'autoapi.sphinx',
     "recommonmark",
     "nbsphinx"
 ]
@@ -432,3 +436,15 @@ epub_exclude_files = ['search.html']
 # If false, no index is generated.
 #
 # epub_use_index = True
+
+# app setup hook
+def setup(app):
+    app.add_config_value('recommonmark_config', {
+        #'url_resolver': lambda url: github_doc_root + url,
+        'auto_toc_tree_section': 'Contents',
+        'enable_math': False,
+        'enable_inline_math': False,
+        'enable_eval_rst': True,
+        'enable_auto_doc_ref': True,
+    }, True)
+    app.add_transform(AutoStructify)
