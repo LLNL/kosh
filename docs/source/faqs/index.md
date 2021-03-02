@@ -80,34 +80,119 @@ In particular take a closer look at [this notebook](../jupyter/Example_06_Transf
 
 Currently Kosh comes with the following loaders
 
+```eval_rst
 
-| Name | Description | mime_type | out type(s) | Required Python Modules |
-| ---- | ---- | ---- | --- | ---- |
-| HDF5Loader | Loads data from HDF5 format files | hdf5 | numpy | h5py |
-| PGMLoader | Load pgm formatted images (P2 and P5) | pgm | numpy | None
-| PILLoader | Load images that PIL can read | png, pil, tif, tiff, gif, image | numpy, raw binary | pillow
-| UltraLoader | Loads ultra files | ultra | numpy | pydv
-| JSONLoader | Loads in json files | json | any, dict, list, str | json
+.. list-table::
+   :widths: auto
 
-
+   * - Name
+     - Description
+     - mime_type
+     - out type(s)
+     - Required Python Modules
+   * - HDF5Loader
+     - Loads data from HDF5 format files
+     - hdf5
+     - numpy
+     - h5py
+   * - PGMLoader
+     - Load pgm formatted images (P2 and P5)
+     - pgm
+     - numpy
+     - None
+   * - PILLoader
+     - Load images that PIL can read
+     - png, pil, tif, tiff, gif, image
+     - numpy, raw binary
+     - pillow
+   * - UltraLoader
+     - Loads ultra files
+     - ultra
+     - numpy
+     - pydv
+   * - JSONLoader
+     - Loads in json files
+     - json
+     - any, dict, list, str
+     - json
+```
 
 # What transformers come with Kosh by default?
 
 Currently Kosh provides the following transformers
 
+```eval_rst
 
-| Name | Description | input mime_type | output type | Required Python Modules | External Ref
-| ---- | ---- | ---- | --- | ---- | --- |
-| **Generic Numpy** | **Generic Numpy-relatedtransformers** | | | | 
-| KoshSimpleNpCache | Does nothing to the data simply allows to cache | numpy | numpy  | | |
-| Take | mimics numpy's take function | numpy | numpy | |
-| Delta | computes delta between consecutive slice of an array over a specific axis | numpy | numpy | | 
-| Shuffle | shuffles input array over a specific axis | numpy | numpy | | 
-| **SKL** | **SKL-based transformers** | | | | 
-| Splitter | Splits the input into train/test and validation if specified | numpy | numpy | scikit-learn | |
-| StandardScaler | Returns a skl standard scaler | numpy | numpy  | scikit-learn | |
-| DBSCAN | Returns a skl DBSCAN estimator or results from it | numpy | numpy, estimator  | scikit-learn | |
-| KMeans | Returns a skl KMeans estimator or results from it | numpy | numpy, estimator  | scikit-learn | |
+.. list-table::
+   :widths: auto
+
+   * - Name
+     - Description
+     - input mime_type
+     - output type
+     - Required Python Modules
+     - External Ref
+   * - **Generic Numpy**
+     - **Generic Numpy-related transformers**
+     -
+     -
+     -
+     -
+   * - KoshSimpleNpCache
+     - Does nothing to the data simply allows to cache
+     - numpy
+     - numpy
+     -
+     -
+   * - Take
+     - mimics numpy's take function
+     - numpy
+     - numpy
+     -
+     -
+   * - Delta
+     - computes delta between consecutive slice of an array over a specific axis
+     - numpy
+     - numpy
+     -
+     -
+   * - Shuffle
+     - shuffles input array over a specific axis
+     - numpy
+     - numpy
+     -
+     -
+   * - **SKL**
+     - **SKL-based transformers**
+     -
+     -
+     -
+     -
+   * - Splitter
+     - Splits the input into train/test and validation if specified
+     - numpy
+     - numpy
+     - scikit-learn
+     -
+   * - StandardScaler
+     - Returns a skl standard scaler
+     - numpy
+     - numpy
+     - scikit-learn
+     -
+   * - DBSCAN
+     - Returns a skl DBSCAN estimator or results from it
+     - numpy
+     - numpy, estimator
+     - scikit-learn
+     -
+   * - KMeans
+     - Returns a skl KMeans estimator or results from it
+     - numpy
+     - numpy, estimator
+     - scikit-learn
+     -
+```
 
 
 # Cache vs Association?
