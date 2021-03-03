@@ -84,6 +84,7 @@ Currently Kosh comes with the following loaders
 
 .. list-table::
    :widths: auto
+   :header-rows: 1 
 
    * - Name
      - Description
@@ -130,6 +131,7 @@ Currently Kosh provides the following transformers
 
 .. list-table::
    :widths: auto
+   :header-rows: 1 
 
    * - Name
      - Description
@@ -138,7 +140,7 @@ Currently Kosh provides the following transformers
      - Required Python Modules
      - External Ref
    * - **Generic Numpy**
-     - **Generic Numpy-related transformers**
+     - *Generic Numpy-related transformers*
      -
      -
      -
@@ -168,7 +170,7 @@ Currently Kosh provides the following transformers
      -
      -
    * - **SKL**
-     - **SKL-based transformers**
+     - *SKL-based transformers*
      -
      -
      -
