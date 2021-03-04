@@ -72,6 +72,56 @@ class Flip2(Flip):
             return None
 
 
+class VirtualConcatenator(kosh.KoshOperator):
+    types = {"numpy": ["numpy", ]}
+
+    def __init__(self, *inputs, **kargs):
+        # Assume each input is 10 long
+        self.length = len(inputs) * 10
+        super(VirtualConcatenator, self).__init__(*inputs, **kargs)
+
+    def __len__(self):
+        return self.length
+
+    def operate(self, *inputs, **args):
+        out = numpy.array(inputs[0])
+        # This line purpose is to show how the propagate worked
+        print("Received:", inputs)
+        for input_ in inputs[1:]:
+            out = numpy.concatenate((out, numpy.array(input_)))
+        return out
+
+    def __getitem_propagate__(self, key, input_index):
+        """only implementing slices with positive numbers"""
+        start = key.start
+        if start is None:
+            start = 0
+        stop = key.stop
+        if stop is None:
+            stop = self.length
+        start = start - (input_index) * 10
+        if start >= 10:
+            # we start passed this feature
+            # let's tell Kosh to not propagate
+            # And return an empty array
+            self.index_results[input_index] = numpy.array([])
+            return None
+        elif start < 0:
+            start = 0
+        stop = stop - (input_index) * 10
+        if stop < 0:
+            # we end before this starts
+            # let's tell kosh to not propagte
+            # And return an empty array
+            self.index_results[input_index] = numpy.array([])
+            return None
+        elif stop > 10:
+            stop = 10
+
+        # Ok there is some intersection
+        return slice(start, stop, key.step)
+
+
 class ADD(kosh.KoshOperator):
 
     types = {"numpy": ["numpy", ]}
@@ -161,7 +211,8 @@ class KoshTestBackPropagate(KoshTest):
         length = 1000000000000000000000
         dataset.associate(str(length), "test")
         # Flip twice so essentially do nothing
-        feature = dataset.get_execution_graph("test", transformers=[Flip2(), Flip2()])
+        feature = dataset.get_execution_graph(
+            "test", transformers=[Flip2(), Flip2()])
         # Transformer does propagate
         self.assertTrue(numpy.allclose(feature[:5], [0., 1., 2., 3., 4.]))
         os.remove(db_uri)
@@ -179,6 +230,20 @@ class KoshTestBackPropagate(KoshTest):
 
         A = ADD(feature, feature2)
         self.assertTrue(numpy.allclose(A[:3], [float(length) - 1, ] * 3))
+        os.remove(db_uri)
+
+    def testShortcutPropagation(self):
+        store, db_uri = self.connect()
+        store.add_loader(MyLoader)
+        ds = store.create()
+        ds.associate("10", mime_type="test")
+        VC = VirtualConcatenator(*[ds["test"] for x in range(12)])
+        self.assertTrue(numpy.allclose(VC[15:33], [
+                        5., 6., 7., 8., 9., 0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 0., 1., 2.]))
+        self.assertTrue(isinstance(VC.index_results[0], numpy.ndarray))
+        self.assertEqual(len(VC.index_results[0]), 0)
+        with self.assertRaises(KeyError):
+            VC.index_results[1]
         os.remove(db_uri)
 
 

@@ -157,6 +157,8 @@ class KoshExecutionGraph(object):
         graphs = []
         # Get a new seed
         self.seed = random.random()
+        # Set the variable to receive results per index
+        self.index_results = {}
         # Create a new merged graph
         new_graph = nx.OrderedDiGraph()
         new_graph.seed = random.random()
@@ -377,7 +379,7 @@ class KoshExecutionGraph(object):
                     new_keys = node[1].__getitem_propagate__(getitem_key, input_index=input_index)
                     kargs2["__getitem_key__"] = new_keys
                     if new_keys is None:
-                        res = getattr(node[1], "index_result", None)
+                        res = getattr(node[1], "index_results", {}).get(input_index, None)
                         do_res = False
                 elif type(self) == kosh.exec_graphs.core.KoshExecutionGraph or node == end[0]:
                     new_keys = False
