@@ -20,3 +20,12 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(A.longitude, 10.95989)
         self.assertEqual(A.time, "6:21:43 AM")
         # print(A)
+
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

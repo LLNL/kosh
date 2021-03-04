@@ -75,3 +75,12 @@ class KoshTestStore(KoshTest):
 
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)
+
+
+if __name__ == "__main__":
+    A = KoshTestStore()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

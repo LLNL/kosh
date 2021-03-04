@@ -248,3 +248,12 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(h5.mode, "r+")
         h5.close()
         os.remove(kosh_db)
+
+
+if __name__ == "__main__":
+    A = KoshTestLoaders()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

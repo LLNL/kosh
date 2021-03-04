@@ -123,3 +123,12 @@ class KoshTestDataset(KoshTest):
         with self.assertRaises(ValueError):
             self.assertTrue(kosh.schema.validate_value(
                 2, [greater_than_5, float]))
+
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

@@ -246,7 +246,7 @@ class KoshLoader(KoshExecutionGraph):
             self.__listed_features = None
         return out
 
-    def list_features(self):
+    def list_features(self, *args, **kargs):
         """list_features Given the obj it's loading return a list of features (variables)
         it can extract
 

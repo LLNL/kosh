@@ -76,3 +76,14 @@ class KoshTestDataset(KoshTest):
         n4, z4 = numpy.load(npyfile)
         self.assertEqual(n4.shape, (18,))
         self.assertEqual(z4.shape, (18,))
+        os.remove(kosh_db)
+        os.remove(npyfile)
+
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

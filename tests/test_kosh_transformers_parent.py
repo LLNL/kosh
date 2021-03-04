@@ -1,5 +1,6 @@
 from koshbase import KoshTest
 import kosh
+import os
 
 
 class MyTrsf(kosh.transformers.KoshTransformer):
@@ -51,3 +52,13 @@ class KoshTestTransformerParent(KoshTest):
         self.assertEqual(data[1], "cycles")
         self.assertEqual(data[2], "numpy")
         self.assertEqual(data[3], "numpy")
+        os.remove(uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestTransformerParent()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

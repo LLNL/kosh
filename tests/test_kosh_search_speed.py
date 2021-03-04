@@ -1,6 +1,7 @@
 from __future__ import print_function
 import koshbase
 import time
+import os
 import numpy
 
 
@@ -32,3 +33,13 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
         print("A, B:", a, b)
         # Make sure it's pretty much constant
         self.assertLessEqual(a, .001)
+        os.remove(kosh_db)
+
+
+if __name__ == "__main__":
+    A = TestKoshSearchSpeed()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

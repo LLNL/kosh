@@ -624,7 +624,10 @@ class KoshDataset(object):
                         ld = self.__store__._cached_loaders[Id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
+                    # But lets not lose the cached list_features
+                    saved_listed_features = ld.__dict__["_KoshLoader__listed_features"]
                     ld = ld.__class__(ld.obj)
+                    ld.__dict__["_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
