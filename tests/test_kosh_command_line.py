@@ -13,15 +13,12 @@ def run_cmd(cmd, verbose=False):
     cmd = shlex.split(cmd)
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
-<<<<<<< HEAD
     if p.returncode != 0:
         print("OOOOPSY:", o.decode())
         print("OOOOPSY:", e.decode())
-=======
     if verbose:
         print("OUT:", o)
         print("ERR:", e)
->>>>>>> origin/develop
     assert(p.returncode == 0)
     return o.decode(
         "utf-8").strip().split("\n"), e.decode("utf-8").strip().split("\n")
@@ -83,19 +80,8 @@ class KoshTestDataset(KoshTest):
         n4, z4 = numpy.load(npyfile)
         self.assertEqual(n4.shape, (18,))
         self.assertEqual(z4.shape, (18,))
-<<<<<<< HEAD
         os.remove(kosh_db)
         os.remove(npyfile)
-
-
-if __name__ == "__main__":
-    A = KoshTestDataset()
-    for nm in dir(A):
-        if nm[:4] == "test":
-            fn = getattr(A, nm)
-            print(nm, fn)
-            fn()
-=======
 
     def test_dissociate_dead_files(self):
         store, kosh_db = self.connect()
@@ -131,4 +117,12 @@ if __name__ == "__main__":
         self.assertEqual(len(ds.search(mime_type="py")), 1)
         self.assertEqual(len(ds.search(mime_type="md")), 1)
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
->>>>>>> origin/develop
+        os.remove(kosh_db)
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()
