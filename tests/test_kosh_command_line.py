@@ -119,6 +119,7 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
         os.remove(kosh_db)
 
+
 if __name__ == "__main__":
     A = KoshTestDataset()
     for nm in dir(A):
