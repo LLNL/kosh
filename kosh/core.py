@@ -319,6 +319,27 @@ class KoshStoreClass(object):
             except Exception:
                 pass
 
+    def cleanup_files(self, dry_run=False, interactive=False, **dataset_search_keys):
+        """Cleanup the store from references to dead files
+        You can filter associated objects for each dataset by matching py bassing value/values
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        'some_att' with value of 'some_val'
+        returns list of uris to be removed.
+        :param dry_run: Only does a dry_run
+        :type dry_run: bool
+        :param interactive: interactive mode, ask before dissociating
+        :type interactive: bool
+        :returns: list of uris (to be) removed.
+        :rtype: list
+        """
+        missings = []
+        datasets = self.search()
+        for dataset in datasets:
+            missings += dataset.cleanup_files(dry_run=dry_run,
+                                              interactive=interactive, **dataset_search_keys)
+        return missings
+
 
 def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, *args, **kargs):
     """KoshStore return a store based on a specific engine
@@ -383,6 +404,45 @@ class KoshDataset(object):
                     st += "\n\t\t{uri}".format(uri=uri)
                 st += "\n"
         return st
+
+    def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
+        """Cleanup the dataset from references to dead files
+        You can filter associated object by matching py bassing value/values
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        'some_att' with value of 'some_val'
+        returns list of uris to be removed.
+        :param dry_run: Only does a dry_run
+        :type dry_run: bool
+        :param interactive: interactive mode, ask before dissociating
+        :type interactive: bool
+        :returns: list of uris (to be) removed.
+        :rtype: list
+        """
+        print_some = False
+        missings = []
+        for associated in self.search(**search_keys):
+            clean = 'n'
+            if not os.path.exists(associated.uri):  # Ok this is gone
+                missings.append(associated.uri)
+                if not print_some and (interactive or dry_run):
+                    print(self)
+                    print_some = True
+                if dry_run:  # Dry run
+                    clean = 'n'
+                elif interactive:
+                    clean = input("\tDo you want to dissociate {} (mime_type: {})? [Y/n]".format(
+                        associated.uri, associated.mime_type)).strip()
+                    if len(clean) > 0:
+                        clean = clean[0]
+                        clean = clean.lower()
+                    else:
+                        clean = 'y'
+                else:
+                    clean = 'y'
+                if clean == 'y':
+                    self.dissociate(associated.uri)
+        return missings
 
     def _repr_pretty_(self, p, cycle):
         """Pretty display in Ipython"""
