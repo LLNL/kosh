@@ -507,7 +507,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         """
 
         if self._associated_data_ is None:
-            return []
+            yield
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
         for att in atts:
