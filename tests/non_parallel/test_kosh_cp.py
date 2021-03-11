@@ -81,14 +81,14 @@ class KoshTestCp(KoshTest):
         # in case the store were remote we need to reopen them
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
-        ds1 = store1.search(name="test")[0]
-        ds_store2 = store2.search(name="test")
+        ds1 = next(store1.search(name="test"))
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
-        associated = ds_store2[0].search(mime_type="py")[0]
+        associated = next(ds_store2[0].search(mime_type="py"))
         self.assertEqual(associated.uri, dest_name_orig)
-        associated = ds1.search(mime_type="py")[0]
+        associated = next(ds1.search(mime_type="py"))
         self.assertEqual(associated.uri, file_src_orig)
 
         # cleanup file(s)
@@ -148,7 +148,7 @@ class KoshTestCp(KoshTest):
             self.assertTrue(os.path.exists(new_paths[-1]))
 
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.search(mime_type="py")
@@ -156,7 +156,7 @@ class KoshTestCp(KoshTest):
             self.assertTrue(associated.uri in file_src_orig_associate)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store2 = store2.search(name="test")
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
         ds2 = ds_store2[0]
         associated_uris = ds2.search(mime_type="py")
@@ -222,7 +222,7 @@ class KoshTestCp(KoshTest):
         self.assertTrue(os.path.exists(new_paths[-1]))
 
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.search(mime_type="py")
@@ -230,7 +230,7 @@ class KoshTestCp(KoshTest):
             self.assertTrue(associated.uri in file_src_orig_associate)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store2 = store2.search(name="test")
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
         ds2 = ds_store2[0]
         associated_uris = ds2.search(mime_type="py")
@@ -305,7 +305,7 @@ class KoshTestCp(KoshTest):
             # Test datasets are updated
 
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.search(mime_type="testme")
@@ -313,7 +313,7 @@ class KoshTestCp(KoshTest):
             self.assertTrue(associated.uri in file_src_orig_associate)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store2 = store2.search(name="test")
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
         ds2 = ds_store2[0]
         associated_uris = ds2.search(mime_type="py")
@@ -407,7 +407,7 @@ class KoshTestCp(KoshTest):
             # Test datasets are updated
 
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.search(mime_type="testme")
@@ -415,7 +415,7 @@ class KoshTestCp(KoshTest):
             self.assertTrue(associated.uri in file_src_absolute)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store2 = store2.search(name="test")
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
         ds2 = ds_store2[0]
         associated_uris = ds2.search(mime_type="py")
@@ -466,7 +466,7 @@ class KoshTestCp(KoshTest):
         # Test datasets are updated
 
         store1 = kosh.KoshStore(db_uri=db1, dataset_record_type="blah")
-        ds_store1 = store1.search(name="test")
+        ds_store1 = list(store1.search(name="test"))
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.search(mime_type="testme")
@@ -474,7 +474,7 @@ class KoshTestCp(KoshTest):
             self.assertEqual(associated.uri, file_src_orig)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
-        ds_store2 = store2.search(name="test")
+        ds_store2 = list(store2.search(name="test"))
         self.assertEqual(len(ds_store2), 1)
         ds2 = ds_store2[0]
         associated_uris = ds2.search(mime_type="py")

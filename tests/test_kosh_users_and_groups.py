@@ -30,7 +30,7 @@ class TestUsersGroups(koshbase.KoshTest):
 
         store.add_user("kosh_test_user", groups=[grp_name])
 
-        store.__record_handler__.data_query()
+        store.__record_handler__.find_with_data()
 
         os.remove(uri)
 

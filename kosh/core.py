@@ -247,7 +247,7 @@ class KoshStoreClass(object):
         for attribute in match_attributes:
             match_dict[attribute] = dataset["attributes"][attribute]
 
-        matching = self.search(**match_dict)
+        matching = list(self.search(**match_dict))
 
         if len(matching) > 1:
             raise ValueError("dataset criterias: {} matches multiple ({}) "
@@ -305,11 +305,11 @@ class KoshStoreClass(object):
 
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha search all "kosh files" that match this
-        matches = self.search(kosh_type="file", fast_sha=source, ids_only=True)
+        matches = list(self.search(kosh_type="file", fast_sha=source, ids_only=True))
         # Now it could be simply a uri
-        matches += self.search(kosh_type="file", uri=source, ids_only=True)
+        matches += list(self.search(kosh_type="file", uri=source, ids_only=True))
         # And it's quite possible it's a long_sha too
-        matches += self.search(kosh_type="file", long_sha=source, ids_only=True)
+        matches += list(self.search(kosh_type="file", long_sha=source, ids_only=True))
 
         # And now let's do the work
         for match_id in matches:
@@ -789,14 +789,15 @@ class KoshDataset(object):
 
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha
-        matches = self.search(fast_sha=source)
+        matches = list(self.search(fast_sha=source, ids_only=True))
         # Now it could be simply a uri
-        matches += self.search(uri=source)
+        matches += list(self.search(uri=source, ids_only=True))
         # And it's quite possible it's a long_sha too
-        matches += self.search(long_sha=source)
+        matches += list(self.search(long_sha=source, ids_only=True))
 
         # And now let's do the work
-        for match in matches:
+        for match_id in matches:
+            match = self.__store__._load(match_id)
             match.uri = target
 
     def validate(self):

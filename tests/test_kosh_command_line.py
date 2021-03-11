@@ -31,7 +31,7 @@ class KoshTestDataset(KoshTest):
             db_uri="cmd_line.sql", dataset_record_type="obs")
         # Search the all store
         o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs")
-        self.assertEqual(len(o), 10)
+        self.assertEqual(len(o), 27)
         o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1=143.557")
         self.assertEqual(len(o), 1)
         o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1>241.289")
@@ -95,28 +95,28 @@ class KoshTestDataset(KoshTest):
         ds.associate("README.md", "md")  # real
         ds.associate("REEEEDME.mmmmdddd", "md")  # fake one
         verbose = False
-        self.assertEqual(len(ds.search()), 6)
+        self.assertEqual(len(list(ds.search())), 6)
         # first test cleanup python files only
-        self.assertEqual(len(ds.search(mime_type="py")), 2)
+        self.assertEqual(len(list(ds.search(mime_type="py"))), 2)
         # Dry run first
         cmd = "kosh cleanup_files -s '{}' -d blah --dry-run mime_type=py".format(
             kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
         # Let's make sure it's still all here
-        self.assertEqual(len(ds.search()), 6)
-        self.assertEqual(len(ds.search(mime_type="py")), 2)
+        self.assertEqual(len(list(ds.search())), 6)
+        self.assertEqual(len(list(ds.search(mime_type="py"))), 2)
         cmd = "kosh cleanup_files -s '{}' -d blah mime_type=py".format(kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
         # Let's make sure only one py file was removed
-        self.assertEqual(len(ds.search()), 5)
-        self.assertEqual(len(ds.search(mime_type="py")), 1)
+        self.assertEqual(len(list(ds.search())), 5)
+        self.assertEqual(len(list(ds.search(mime_type="py"))), 1)
         # Let's clean it all
         cmd = "kosh cleanup_files -s '{}' -d blah ".format(kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
-        self.assertEqual(len(ds.search()), 3)
-        self.assertEqual(len(ds.search(mime_type="py")), 1)
-        self.assertEqual(len(ds.search(mime_type="md")), 1)
-        self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
+        self.assertEqual(len(list(ds.search())), 3)
+        self.assertEqual(len(list(ds.search(mime_type="py"))), 1)
+        self.assertEqual(len(list(ds.search(mime_type="md"))), 1)
+        self.assertEqual(len(list(ds.search(mime_type="hdf5"))), 1)
         os.remove(kosh_db)
 
 

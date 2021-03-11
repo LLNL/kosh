@@ -5,7 +5,7 @@ from kosh.loaders import KoshLoader
 from kosh.utils import compute_fast_sha, compute_long_sha
 import warnings
 import time
-import sina.datastores.sql as sina_sql
+from sina.datastore import create_datastore
 import sina.utils
 import pickle
 import os
@@ -114,7 +114,7 @@ class KoshSinaObject(object):
         value = record["data"][name]["value"]
         if name == "creator":
             # old records have user id let's fix this
-            if value in self.__store__.__record_handler__.get_all_of_type("user", ids_only=True):
+            if value in self.__store__.__record_handler__.find_with_type("user", ids_only=True):
                 value = self.__store__.get_record(value)["data"]["username"]["value"]
         return value
 
@@ -260,7 +260,7 @@ class KoshSinaObject(object):
             attributes[a] = record["data"][a]["value"]
             if a == "creator":
                 # old records have user id let's fix this
-                if attributes[a] in self.__store__.__record_handler__.get_all_of_type("user", ids_only=True):
+                if attributes[a] in self.__store__.__record_handler__.find_with_type("user", ids_only=True):
                     attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
 
@@ -410,10 +410,12 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                         meta["fast_sha"] = compute_fast_sha(uri)
                 rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
-                tmp_uris = self.__store__.search(kosh_type="file", uri=uri, ids_only=True)
+                tmp_uris = list(self.__store__.search(
+                    kosh_type=self.__store__._sources_type, uri=uri, ids_only=True))
+
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
-                    rec_obj = Record(id=Id, type="file")
+                    rec_obj = Record(id=Id, type=self.__store__._sources_type)
                 else:
                     rec_obj = self.__store__.get_record(tmp_uris[0])
                     Id = rec_obj.id
@@ -421,7 +423,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     mime_type = mime_types[i]
                     if existing_mime != mime_types[i]:
                         rec["files"][uri]["mime_type"] = existing_mime
-                        raise TypeError("file {} is already associated with another dataset with mimetype"
+                        raise TypeError("source {} is already associated with another dataset with mimetype"
                                         " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
                 rec.add_file(uri, mime_types[i])
 
@@ -477,7 +479,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         for Id in kosh_file_ids:
             self.__dict__["__features__"][Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
-                                       koshType="file",
+                                       koshType=self.__store__._sources_type,
                                        store=self.__store__,
                                        metadata=metadata,
                                        record_handler=self.__record_handler__)
@@ -518,20 +520,20 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             if len(sina_kargs) == 0:
                 match = inter_recs
             else:
-                match = list(self.__record_handler__.data_query(**sina_kargs))
+                match = list(self.__record_handler__.find_with_data(**sina_kargs))
             # instantly restrict to associated data
             if not self.__store__.__sync__:
                 if len(sina_kargs) == 0:
                     match_mem = inter_recs
                 else:
-                    match_mem = list(self.__store__._added_unsync_handler.data_query(**sina_kargs))
+                    match_mem = list(self.__store__._added_unsync_handler.find_with_data(**sina_kargs))
                 # if file_uri is not None:
                 #     match_mem = set(match_mem).intersection(file_match)
                 # check that tweaks didn't remove a possible dataset
                 yank = []
                 for m in match:
                     if m in self.__store__.__sync__dict__ and m not in match_mem:
-                        # Ok we chaned something and it's no longer a match
+                        # Ok we changed something and it's no longer a match
                         yank.append(m)
                 for y in yank:
                     match.remove(y)
@@ -545,10 +547,14 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     match = []
             inter_recs = set(match).intersection(set(self._associated_data_))
 
+        # Breaking old way
+        # Now it's a generator
         if ids_only:
-            return list(inter_recs)
+            for rec_id in inter_recs:
+                yield rec_id
         else:
-            return [self.__store__._load(record) for record in inter_recs]
+            for rec_id in inter_recs:
+                yield self.__store__._load(rec_id)
 
 
 class KoshSinaLoader(KoshLoader):
@@ -578,7 +584,7 @@ class KoshSinaStore(KoshStoreClass):
     """Sina-based implementation of Kosh store"""
     def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
-                 verbose=True, use_lock_file=False):
+                 verbose=True, use_lock_file=False, kosh_reserved_record_types=[]):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -598,37 +604,55 @@ class KoshSinaStore(KoshStoreClass):
         :type verbose: bool
         :param use_lock_file: If you receive sqlite threads access error, turning this on might help
         :type use_lock_file: bool
+        :param kosh_reserved_record_types: list of record types that are reserved for Kosh internal
+                                           use, will be ignored when searching store
+        :type kosh_reserved_record_types: list of strings
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
         KoshStoreClass.__init__(self, sync, verbose, use_lock_file)
         self._dataset_record_type = dataset_record_type
+        # TODO
+        # I will need to think of way to
+        # migrate the Kosh db if/when we
+        # decide to change these
+        # and keep it backward compatible
+        # Where to store info in db?
+        # ask @haluska2 if there's anything like this in Sina.
+        self._sources_type = "file"
+        self._users_type = "user"
+        self._groups_type = "group"
+        self._loaders_type = "koshloader"
+        self._kosh_reserved_record_types = kosh_reserved_record_types + \
+            [self._sources_type, self._users_type, self._groups_type, self._loaders_type]
+
         self.db_uri = db_uri
         if db == "sql":
+            import sina.datastores.sql as sina
             if not os.path.exists(db_uri):
                 raise ValueError("Kosh store could not be found at: {}".format(db_uri))
             self.lock()
-            self.__factory = sina_sql.DAOFactory(db_path=os.path.abspath(db_uri))
+            self.__sina_store = create_datastore(database=os.path.abspath(db_uri))
             self.unlock()
-        elif db == 'cass':
-            import sina.datastores.cass as sina
-            self.__factory = sina.DAOFactory(
-                keyspace=keyspace, node_ip_list=db_uri)
+        elif db[:4].lower() == 'cass':
+            import sina.datastores.cass as sina  # noqa
+            self.__sina_store = create_datastore(
+                keyspace=keyspace, database=db_uri, database_type='cassandra')
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
         self.lock()
-        self.__dict__["__record_handler__"] = self.__factory.create_record_dao()
+        self.__dict__["__record_handler__"] = self.__sina_store.records
         self.unlock()
-        users_filter = list(self.__record_handler__.get_all_of_type(
+        users_filter = list(self.__record_handler__.find_with_type(
             "user", ids_only=True))
-        names_filter = list(self.__record_handler__.data_query(username=username))
+        names_filter = list(self.__record_handler__.find_with_data(username=username))
         inter_recs = set(users_filter).intersection(set(names_filter))
         if len(inter_recs) == 0:
             # raise ConnectionRefusedError("Unknown user: {}".format(username))
             # For now just letting anyone log in as anonymous
             warnings.warn("Unknown user, you will be logged as anonymous user")
-            names_filter = self.__record_handler__.data_query(username="anonymous")
+            names_filter = self.__record_handler__.find_with_data(username="anonymous")
             self.__user_id__ = "anonymous"
         elif len(inter_recs) > 1:
             raise SystemError("Internal error, more than one user match!")
@@ -638,20 +662,21 @@ class KoshSinaStore(KoshStoreClass):
         self.add_loader(self.storeLoader)
 
         # Now let's add the loaders in the store
-        for rec_loader in self.__record_handler__.get_all_of_type("koshloader"):
+        for rec_loader in self.__record_handler__.find_with_type("koshloader"):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
         if sina_version < 1.9:
-            mem = sina_sql.DAOFactory(db_path=":memory:")
+            # Ask @haluska2 if that is valid
+            mem = create_datastore(":memory:")
         else:
-            mem = sina_sql.DAOFactory(db_path=None)
-        self._added_unsync_handler = mem.create_record_dao()
+            mem = create_datastore(None)
+        self._added_unsync_handler = mem.records
         self._cached_loaders = {}
 
     def close(self):
         """closes store and sina related things"""
-        self.__factory.close()
+        self.__sina_store.close()
 
     def save_loader(self, loader):
         """Save a loader to the store
@@ -732,7 +757,7 @@ class KoshSinaStore(KoshStoreClass):
         if datasetId is None:
             Id = uuid.uuid4().hex
         else:
-            if datasetId in self.__record_handler__.get_all_of_type(
+            if datasetId in self.__record_handler__.find_with_type(
                     self._dataset_record_type, ids_only=True):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
@@ -870,52 +895,68 @@ class KoshSinaStore(KoshStoreClass):
         ids_only = keys.pop("ids_only", False)
         for att in atts:
             sina_kargs[att] = sina.utils.exists()
-        search_type = keys.pop("kosh_type", self._dataset_record_type)
+        search_type = keys.pop("kosh_type", None)
         sina_kargs.update(keys)
-        ds_filter = list(self.__record_handler__.get_all_of_type(
-            search_type, ids_only=True))
+        if search_type is not None:
+            ds_filter = list(self.__record_handler__.find_with_type(
+                search_type, ids_only=True))
 
+        # We need to get the list of ids to exclude
+        # Should we cache this in async mode?
+        excluded = []
+        for rec_type in self._kosh_reserved_record_types:
+            # Maybe we are searching specifically for one of these types
+            if rec_type != search_type:
+                excluded += self.__record_handler__.find_with_type(rec_type, ids_only=True)
         if not self.__sync__:
-            ds_filter += list(self._added_unsync_handler.get_all_of_type(search_type, ids_only=True))
+            # Need to searh our in memory db as well
+            if search_type is not None:
+                ds_filter += list(self._added_unsync_handler.find_with_type(search_type, ids_only=True))
+            for rec_type in self._kosh_reserved_record_types:
+                excluded += self._added_unsync_handler.find_with_type(rec_type, ids_only=True)
 
-        file_uri = sina_kargs.pop("file", None)
-        if len(sina_kargs) != 0:  # no restriction, all datasets
-            match = set(self.__record_handler__.data_query(**sina_kargs))
-            if not self.__sync__:
-                match_mem = set(self._added_unsync_handler.data_query(**sina_kargs))
-                # check that tweaks didn't remove a possible dataset
-                # print(f"sync: {set(self.__sync__dict__.keys())}")
-                # print(f"mem: {match_mem}")
-                # yank = set(self.__sync__dict__.keys()).difference(match_mem).intersection(match)
-                # print(f"ynk: {yank}")
-                # for m in match:
-                #    if m in self.__sync__dict__ and m not in match_mem:
-                #        # Ok we chaned something and it's no longer a match
-                #        yank.append(m)
-                # print(f"Match: {match}")
-                # for y in yank:
-                #    match.remove(y)
-                match = match.union(match_mem)
-            inter_recs = match.intersection(set(ds_filter))
-            # inter_recs = set(ds_filter)
+        file_uri = sina_kargs.pop(self._sources_type, None)
+        if len(sina_kargs) == 0:
+            match = set(self.__record_handler__.get_all(ids_only=True))
         else:
-            inter_recs = set(ds_filter)
+            match = set(self.__record_handler__.find_with_data(**sina_kargs))
+        if not self.__sync__:
+            if len(sina_kargs) == 0:
+                match_mem = set(self._added_unsync_handler.get_all(ids_only=True))
+            else:
+                match_mem = set(self._added_unsync_handler.find_with_data(**sina_kargs))
+            match = match.union(match_mem)
+        if search_type is None:
+            inter_recs = match
+        else:
+            inter_recs = match.intersection(set(ds_filter))
 
         if file_uri is not None:
-            file_match = list(self.__record_handler__.get_given_document_uri(file_uri, inter_recs, True))
+            file_match = list(self.__record_handler__.find_with_file_uri(file_uri,
+                                                                         accepted_ids_list=inter_recs,
+                                                                         ids_only=True))
             if not self.__sync__:
-                file_match += list(self._added_unsync_handler.get_given_document_uri(file_uri, inter_recs, True))
+                file_match += list(self._added_unsync_handler.find_with_file_uri(file_uri,
+                                                                                 accepted_ids_list=inter_recs,
+                                                                                 ids_only=True))
             inter_recs = set(inter_recs).intersection(file_match)
 
-        if ids_only:
-            out = list(inter_recs)
-        else:
-            out = [self.open(rec) for rec in inter_recs]
+        # Ok now we need to make sure we yank reserved types
+        inter_recs = set(inter_recs).difference(set(excluded))
+
         if mode:
             # we need to restore sync mode
             self.__sync__dict__ = backup
             self.synchronous()
-        return out
+
+        # We used to return a list
+        # Breaking this and making it a generator
+        if ids_only:
+            for rec_id in inter_recs:
+                yield rec_id
+        else:
+            for rec_id in inter_recs:
+                yield self.open(rec_id)
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
@@ -1115,12 +1156,12 @@ class KoshSinaStore(KoshStoreClass):
         :type groups: list
         """
 
-        existing_users = self.__record_handler__.get_all_of_type("user")
+        existing_users = self.__record_handler__.find_with_type(self._users_type)
         users = [rec["data"]["username"]["value"] for rec in existing_users]
         if username not in users:
             # Create user
             uid = uuid.uuid4().hex
-            user = Record(id=uid, type="user")
+            user = Record(id=uid, type=self._users_type)
             user.add_data("username", username)
             self.__record_handler__.insert(user)
             self.add_user_to_group(username, groups)
@@ -1134,7 +1175,7 @@ class KoshSinaStore(KoshStoreClass):
         :type group: str
         """
 
-        existing_groups = self.__record_handler__.get_all_of_type("group")
+        existing_groups = self.__record_handler__.find_with_type(self._groups_type)
         groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
         if group in groups_names:
             raise ValueError("group {} already exist".format(group))
@@ -1146,7 +1187,7 @@ class KoshSinaStore(KoshStoreClass):
 
         # Create group
         uid = uuid.uuid4().hex
-        group_rec = Record(id=uid, type="group")
+        group_rec = Record(id=uid, type=self._groups_type)
         group_rec.add_data("name", group)
         self.__record_handler__.insert(group_rec)
 
@@ -1159,15 +1200,15 @@ class KoshSinaStore(KoshStoreClass):
         :type groups: list
         """
 
-        users_filter = self.__record_handler__.get_all_of_type("user", ids_only=True)
-        names_filter = list(self.__record_handler__.data_query(username=username))
+        users_filter = self.__record_handler__.find_with_type(self._users_type, ids_only=True)
+        names_filter = list(self.__record_handler__.find_with_data(username=username))
         inter_recs = set(users_filter).intersection(set(names_filter))
         if len(inter_recs) == 0:
             raise ValueError("User {} does not exists".format(username))
         user = self.get_record(names_filter[0])
-        user_groups = user["data"].get("groups", {"value": []})["value"]
+        user_groups = user["data"].get(self._groups_type, {"value": []})["value"]
 
-        existing_groups = self.__record_handler__.get_all_of_type("group")
+        existing_groups = self.__record_handler__.find_with_type(self._groups_type)
         groups_names = [rec["data"]["name"]["value"] for rec in existing_groups]
         for group in groups:
             if group not in groups_names:

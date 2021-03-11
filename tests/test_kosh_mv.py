@@ -65,7 +65,7 @@ class KoshTestMv(KoshTest):
         dest_name_orig = os.path.abspath("file_dest.py")
         run_mv([file_src_orig, ], dest_name_orig, [db1, db2])
         for ds in [ds1, ds2]:
-            associated = ds.search(mime_type="py")[0]
+            associated = next(ds.search(mime_type="py"))
             self.assertEqual(associated.uri, dest_name_orig)
         self.assertFalse(self.file_exist(file_src_orig))
         self.assertTrue(self.file_exist(dest_name_orig))
@@ -251,7 +251,7 @@ class KoshTestMv(KoshTest):
                         self.assertEqual(associated.uri, dest)
         # Test that file that was not moved still is there
         self.assertTrue(os.path.exists(file_src_orig[-1]))
-        self.assertGreater(len(ds1.search(uri=file_src_orig_associate[-1])), 0)
+        self.assertGreater(len(list(ds1.search(uri=file_src_orig_associate[-1]))), 0)
 
         # Cleanup files
         shutil.rmtree("dir1")
@@ -286,7 +286,7 @@ class KoshTestMv(KoshTest):
                 file_src_orig))
         self.assertTrue(os.path.exists(dest_path))
 
-        associated = ds1.search(mime_type="py")[0]
+        associated = next(ds1.search(mime_type="py"))
         self.assertEqual(associated.uri, dest_path)
 
         # Cleanup

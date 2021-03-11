@@ -307,7 +307,7 @@ Available commands are:
                 if not args.interactive:  # already printed in interactive
                     print(ds)
                 for uri in missings:
-                    associated = ds.search(uri=uri)
+                    associated = list(ds.search(uri=uri))
                     if len(associated) != 0:
                         print("{} (mime_type={}) is missing".format(
                             associated[0].uri, associated[0].mime_type))
@@ -489,7 +489,7 @@ Available commands are:
         parser.add_argument("--stores", "--store", "-s", required=True,
                             help="Kosh store(s) to use", action="append")
         parser.add_argument("--dataset_record_type", default="dataset",
-                            help="type used by sina db that Kosh will recognize as dataset")
+                            help="record type used by Kosh when adding datasets to Sina database")
         parser.add_argument("-f", "--file", help="tar file", required=True)
         parser.add_argument(
             "--no_absolute_path",
@@ -535,8 +535,8 @@ Available commands are:
                 if not args.no_absolute_path:
                     filename = os.path.abspath(filename)
                 for store in stores:
-                    store_datasets[store.db_uri] += store.search(
-                        file=filename, ids_only=True)
+                    store_datasets[store.db_uri] += list(store.search(
+                        file=filename, ids_only=True))
 
             # Ok now we need to export all the datasets to a file
             # First item is the root from where we ran the command (untar will

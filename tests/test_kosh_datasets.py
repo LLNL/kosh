@@ -22,11 +22,11 @@ class KoshTestDataset(KoshTest):
     def test_add_dataset(self):
         store, kosh_db = self.connect()
         # Check it's empy
-        self.assertEqual(len(store.search()), 0)
+        self.assertEqual(len(list(store.search())), 0)
         # Create dataset
         ds = store.create()
         # Check it's in db
-        all_ds = store.search()
+        all_ds = list(store.search())
         self.assertEqual(len(all_ds), 1)
         self.assertEqual(ds.listattributes(), ["creator", "name"])
         # check error on non-existing attribute
@@ -88,20 +88,20 @@ KOSH DATASET
         store.create(metadata={"key1": 2, "key2": "B"})
         store.create(metadata={"key1": 3, "key3": "c"})
         store.create(metadata={"key1": 4, "key3": "d", "key2": "D"})
-        all_ds = store.search()
+        all_ds = list(store.search())
         self.assertEqual(len(all_ds), 4)
-        self.assertEqual(len(store.search("key1")), 4)
-        self.assertEqual(len(store.search("key2")), 3)
-        self.assertEqual(len(store.search("key3")), 2)
+        self.assertEqual(len(list(store.search("key1"))), 4)
+        self.assertEqual(len(list(store.search("key2"))), 3)
+        self.assertEqual(len(list(store.search("key3"))), 2)
         # Remove this when above passes outside of exceptions
         from sina.utils import DataRange
-        self.assertEqual(len(store.search(key1=DataRange(min=-1.e40))), 4)
-        self.assertEqual(len(store.search(key2=DataRange(min=""))), 3)
-        self.assertEqual(len(store.search(key3=DataRange(min=""))), 2)
-        k1 = store.search(key1=2)
+        self.assertEqual(len(list(store.search(key1=DataRange(min=-1.e40)))), 4)
+        self.assertEqual(len(list(store.search(key2=DataRange(min="")))), 3)
+        self.assertEqual(len(list(store.search(key3=DataRange(min="")))), 2)
+        k1 = list(store.search(key1=2))
         self.assertEqual(len(k1), 1)
         self.assertEqual(k1[0].key1, 2)
-        all_ds = store.search()
+        all_ds = list(store.search())
         self.assertEqual(len(all_ds), 4)
         # Search for attribute that exists
         os.remove(kosh_db)
@@ -110,33 +110,33 @@ KOSH DATASET
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A"})
-        self.assertEqual(len(ds.search()), 0)
+        self.assertEqual(len(list(ds.search())), 0)
         ds.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
-        self.assertEqual(len(ds.search()), 1)
+        self.assertEqual(len(list(ds.search())), 1)
         # Make sure associating again will not create additional data
         ds.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
-        self.assertEqual(len(ds.search()), 1)
+        self.assertEqual(len(list(ds.search())), 1)
         # adding again does not create additional entry
         with self.assertRaises(TypeError):
             ds.associate(
                 "tests/baselines/node_extracts2",
                 "something_else",
                 absolute_path=False)
-        self.assertEqual(len(ds.search()), 1)
+        self.assertEqual(len(list(ds.search())), 1)
         # Associating with another dataset does not create another obj in db
-        n_files = len(store.search(kosh_type="file", ids_only=True))
+        n_files = len(list(store.search(kosh_type="file", ids_only=True)))
         ds_2 = store.create("multi")
         ds_2.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
-        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        n_files_2 = len(list(store.search(kosh_type="file", ids_only=True)))
         self.assertEqual(n_files, n_files_2)
 
         f = ds.associate(
@@ -144,10 +144,10 @@ KOSH DATASET
             "hdf5",
             id_only=False)
         self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
-        self.assertEqual(len(ds.search()), 2)
-        self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
-        self.assertEqual(len(ds.search(mime_type="something")), 1)
-        self.assertEqual(len(ds.search(mime_type="somemimetype")), 0)
+        self.assertEqual(len(list(ds.search())), 2)
+        self.assertEqual(len(list(ds.search(mime_type="hdf5"))), 1)
+        self.assertEqual(len(list(ds.search(mime_type="something"))), 1)
+        self.assertEqual(len(list(ds.search(mime_type="somemimetype"))), 0)
         ds.dissociate("tests/baselines/node_extracts2", absolute_path=False)
         self.assertEqual(len(ds._associated_data_), 1)
         # Now mutliple datasets at once
@@ -156,9 +156,9 @@ KOSH DATASET
                      metadata=[{"name": str(i)} for i in range(200)],
                      mime_type=["type_{}".format(i) for i in range(200)])
         self.assertEqual(len(ds._associated_data_), 200)
-        self.assertEqual(len(ds.search(mime_type="type_12")), 1)
-        self.assertEqual(len(ds.search(name="13")), 1)
-        self.assertEqual(len(ds.search("name")), 200)
+        self.assertEqual(len(list(ds.search(mime_type="type_12"))), 1)
+        self.assertEqual(len(list(ds.search(name="13"))), 1)
+        self.assertEqual(len(list(ds.search("name"))), 200)
 
         # Ok list completion tests
         ds = store.create()
@@ -166,13 +166,13 @@ KOSH DATASET
                      metadata=[{"name": str(i)} for i in range(200)],
                      mime_type="a_mime_type")
         self.assertEqual(len(ds._associated_data_), 200)
-        self.assertEqual(len(ds.search(mime_type="a_mime_type")), 200)
+        self.assertEqual(len(list(ds.search(mime_type="a_mime_type"))), 200)
 
         ds = store.create()
         ds.associate([str(i + 600) for i in range(200)], metadata={
                      "name": "my name"}, mime_type="stuff")
         self.assertEqual(len(ds._associated_data_), 200)
-        self.assertEqual(len(ds.search(name="my name")), 200)
+        self.assertEqual(len(list(ds.search(name="my name"))), 200)
 
         # Make sure you cannot assoicate with different type
         ds.associate("some_uri", "some_mime_type")
@@ -182,9 +182,9 @@ KOSH DATASET
             ds_2.associate("some_uri", "some_other_mime_type")
 
         # make sure dissociate fully removes obj from store
-        n_files = len(store.search(kosh_type="file", ids_only=True))
+        n_files = len(list(store.search(kosh_type="file", ids_only=True)))
         ds.dissociate("some_uri")  # shouldn't be anywhere now
-        n_files_2 = len(store.search(kosh_type="file", ids_only=True))
+        n_files_2 = len(list(store.search(kosh_type="file", ids_only=True)))
         self.assertEqual(n_files - 1, n_files_2)
         os.remove(kosh_db)
 
@@ -199,20 +199,20 @@ KOSH DATASET
         ds2.associate("tests/baselines/node_extracts2", "something")
         ds3.associate("tests/baselines/node_extracts2", "something")
 
-        s = store.search(key2=DataRange("A"))
+        s = list(store.search(key2=DataRange("A")))
         self.assertEqual(len(s), 3)
 
-        s = store.search(
+        s = list(store.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
 
         self.assertEqual(len(ds._associated_data_), 1)
         ds2.dissociate("tests/baselines/node_extracts2")
         self.assertEqual(len(ds2._associated_data_), 0)
-        s = store.search(
+        s = list(store.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 1)
         os.remove(kosh_db)
 
@@ -246,22 +246,22 @@ KOSH DATASET
         ds.dissociate("setup.py")
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
-        self.assertEqual(len(store.search(project="test")), 4)
-        self.assertEqual(len(store.search()), 4)
+        self.assertEqual(len(list(store.search(project="test"))), 4)
+        self.assertEqual(len(list(store.search())), 4)
         store2, kosh_db = self.connect(db_uri=kosh_db)
-        self.assertEqual(len(store2.search()), 4)
+        self.assertEqual(len(list(store2.search())), 4)
         store.delete(ds.__id__)
-        self.assertEqual(len(store.search(project="test")), 3)
-        self.assertEqual(len(store.search()), 3)
-        self.assertEqual(len(store2.search()), 3)
+        self.assertEqual(len(list(store.search(project="test"))), 3)
+        self.assertEqual(len(list(store.search())), 3)
+        self.assertEqual(len(list(store2.search())), 3)
         store2, kosh_db = self.connect(db_uri=kosh_db)
-        self.assertEqual(len(store2.search()), 3)
+        self.assertEqual(len(list(store2.search())), 3)
         # 04b6d302f33d00a5701a42b333c845832a5e6d65
         # sina 8c1b2cc21dc84ad32a6ff03a742ecef70ab89551
         ds_associated = ds2._associated_data_[0]
         _ = store.open(ds_associated)
         store.delete(ds2.__id__)
-        self.assertEqual(len(store.search(project="test")), 2)
+        self.assertEqual(len(list(store.search(project="test"))), 2)
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
         os.remove(kosh_db)
@@ -355,7 +355,7 @@ KOSH DATASET
                                                       'zone/metrics_3',
                                                       'zone/metrics_4'])
 
-        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="hdf5", ids_only=True)[0])),
+        self.assertEqual(sorted(ds.list_features(next(ds.search(mime_type="hdf5", ids_only=True)))),
                          ['cycles',
                           'direction',
                           'elements',
@@ -377,7 +377,7 @@ KOSH DATASET
                           'zone/metrics_2',
                           'zone/metrics_3',
                           'zone/metrics_4'])
-        self.assertEqual(sorted(ds.list_features(ds.search(mime_type="png", ids_only=True)[0])),
+        self.assertEqual(sorted(ds.list_features(next(ds.search(mime_type="png", ids_only=True)))),
                          ["image", ])
         os.remove(db_uri)
 

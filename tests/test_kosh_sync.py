@@ -40,32 +40,32 @@ class KoshTestSync(KoshTest):
         ds2.associate("tests/baselines/node_extracts2", "something")
         ds3.associate("tests/baselines/node_extracts2", "something")
 
-        s = store.search(key2=DataRange("A"))
+        s = list(store.search(key2=DataRange("A")))
         self.assertEqual(len(s), 1)
-        s = store2.search(key2=DataRange("A"))
+        s = list(store2.search(key2=DataRange("A")))
         self.assertEqual(len(s), 3)
 
-        s = store.search(
+        s = list(store.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 1)
-        s = store2.search(
+        s = list(store2.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
         store2.sync()
-        s = store.search(key2=DataRange("A"))
+        s = list(store.search(key2=DataRange("A")))
         self.assertEqual(len(s), 3)
-        s = store2.search(key2=DataRange("A"))
+        s = list(store2.search(key2=DataRange("A")))
         self.assertEqual(len(s), 3)
 
-        s = store.search(
+        s = list(store.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
-        s = store2.search(
+        s = list(store2.search(
             key2=DataRange("A"),
-            file=os.path.abspath("tests/baselines/node_extracts2"))
+            file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
 
         store2.sync()
@@ -78,16 +78,16 @@ class KoshTestSync(KoshTest):
         ds1 = store1.create()
         dsid = ds1.__id__
         # Check it exists on store2
-        self.assertEqual(len(store1.search()), 1)
-        self.assertEqual(len(store2.search()), 1)
+        self.assertEqual(len(list(store1.search())), 1)
+        self.assertEqual(len(list(store2.search())), 1)
         store2.delete(dsid)
         # self.assertEqual(len(store2.search()),0)
         store2.sync()
-        self.assertEqual(len(store1.search()), 0)
+        self.assertEqual(len(list(store1.search())), 0)
         store2, kosh_db = self.connect(db_uri=kosh_db)
         with self.assertRaises(Exception):
             store2.open(dsid)
-        self.assertEqual(len(store2.search()), 0)
+        self.assertEqual(len(list(store2.search())), 0)
         os.remove(kosh_db)
 
     def test_sync_dataset_attributes(self):
