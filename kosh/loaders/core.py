@@ -8,8 +8,8 @@ import random
 
 
 def get_graph(input_type, loader, transformers):
-    """given a loader and its transformer return path to desired format
-    e.g which output format should each transformer pick to be chained to the follwoing one
+    """Given a loader and its transformer return path to desired format
+    e.g which output format should each transformer pick to be chained to the following one
     in order to obtain the desired outcome for format
     :param input_type: input type of first node
     :type input_type: str
@@ -17,6 +17,8 @@ def get_graph(input_type, loader, transformers):
     :type loader: KoshLoader
     :param transformers: set of transformers to be added after loader exits
     :type transformers: list of KoshTransformer
+    :returns: execution graph
+    :rtype: networkx.OrderDiGraph
     """
     if input_type not in loader.types:
         raise RuntimeError(
@@ -90,15 +92,15 @@ class KoshLoader(KoshExecutionGraph):
         self.__listed_features = None
 
     def known_types(self):
-        """known_types list types of Kosh objects it can handle
+        """Lists types of Kosh objects this loader can handle
 
-        :return: list of Kosh type it understands
+        :return: list of Kosh type this loader can handle
         :rtype: list
         """
         return list(self.types.keys())
 
     def known_load_formats(self, atype):
-        """known_load_formats list all the formats it knows how to export to
+        """Lists all the formats this loader knows how to export to for a given type
 
         :param atype: type we wish to to the formats for
         :type format: str
@@ -133,7 +135,7 @@ class KoshLoader(KoshExecutionGraph):
         return signature
 
     def get_execution_graph(self, feature, transformers=[]):
-        """create io graph to extract a feature
+        """Geenrates the execution graph to extract a feature and possibly transform it.
 
         :param feature: desired feature
         :type feature: str
@@ -141,8 +143,8 @@ class KoshLoader(KoshExecutionGraph):
         :type format: str
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
-        :return: extracted feature
-        :rtype: ???
+        :return: execution graph to get to the possibly transformed feature
+        :rtype: networkx.OrderDiGraph
         """
         # first let's get the execution path
         G = get_graph(self.obj.mime_type, self, transformers)
@@ -151,7 +153,7 @@ class KoshLoader(KoshExecutionGraph):
     def get(self, feature, format=None, transformers=[],
             use_cache=True, cache_file_only=False, cache_dir=None,
             **kargs):
-        """get extract a feature
+        """Extracts a feature and possibly transforms it
         :param feature: desired feature
         :type feature: str
         :param format: desired output format
@@ -182,7 +184,7 @@ class KoshLoader(KoshExecutionGraph):
         self.cache_file_only = cache_file_only
         self.feature = feature
         self._user_passed_parameters = (None, kargs)
-        G = self.get_io_graph(feature, transformers=transformers)
+        G = self.get_execution_graph(feature, transformers=transformers)
         return KoshExecutionGraph(G).traverse(format=format, **kargs)
 
     def extract_(self, format):
@@ -215,7 +217,7 @@ class KoshLoader(KoshExecutionGraph):
         return data
 
     def save(self, cache_file, content):
-        """Pickle some data to a cache file
+        """Pickles some data to a cache file
         :param cache_file: name of cache file, will be joined with self.cache_dir
         :type cache_file: str
         :param content: content to save to cache
@@ -225,7 +227,7 @@ class KoshLoader(KoshExecutionGraph):
             pickle.dump(content, f)
 
     def load(self, cache_file):
-        """loads content from cache
+        """Loads content from cache
         :param cache_file: name of cache file, will be joined with self.cache_dir
         :type cache_file: str
         :return: unpickled data
