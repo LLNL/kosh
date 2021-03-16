@@ -1,9 +1,38 @@
 # Release Notes
 
+* [1.2](#1.2)
 * [1.1](#1.1)
 * [1.0](#1.0)
 * [0.9](#0.9)
 * [0.8](#0.8)
+
+## 1.2 Release
+
+### Description
+
+This release is fully backward compatible but introducesnew conceptss.
+Operators are introduced allowing to compose features from one or many sources.
+Feature selection w/o extraction is now possible via the new execution graphs introduced in this release.
+Execution graphs are the recommended way to use Kosh going forward as reflectd in the updated notebooks.
+
+
+### New in this release
+
+* Execution graph concept (select and compose features before executing)
+* operators: Compose multiple features (and their transformers)
+* Conduit's Sidre Meshblueprint field loader added.
+
+### Improvements
+
+* Multiple speed/caching optimizations
+* A cleanup function helps you clean your store from dead files
+* Cleaned up tables in documentation
+* transformers get a `parent` attribute allowing you to access its caller in the `transform` function.
+
+### Bug fixes
+
+* Some edge case where a feature was available to the loader but not listed, Kosh would let the user access it. With this bug fix, the loader's `list_features` must be fixed. The affected groups in HDF5 files. Groups are now listed as actual features.
+* If a loader needs matplotlib, if no X connection was available pydv import of mtplotlib would lead to a seg fault. We now check for a valid backend first (via environment's `DISPLAY` variable)
 
 ## 1.1 Release
 
