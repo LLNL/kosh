@@ -33,7 +33,6 @@ def list_hdf5(dataset):
     nest = list(walk_hdf5(dataset))
     out = []
     for p in nest:
-        #print("P:", p, p.split("***"))
         for d in p.split("***"):
             if len(d) > 0:
                 # Removes leading /
