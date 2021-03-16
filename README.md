@@ -15,7 +15,7 @@ You will need a Python environment with [Sina](https://github.com/LLNL/Sina) and
 Then simply run:
 
 ```
-python setup.py install
+pip install .
 ```
 
 Alternatively  add the path to this repo to your `PYTHONPATH` environment variable, or in your code with:

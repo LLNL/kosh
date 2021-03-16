@@ -1,11 +1,47 @@
-from kosh.transformers import get_path, kosh_cache_dir
+from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
+from kosh.exec_graphs import KoshExecutionGraph, populate
+import networkx as nx
+import random
+
+
+def get_graph(input_type, loader, transformers):
+    """given a loader and its transformer return path to desired format
+    e.g which output format should each transformer pick to be chained to the follwoing one
+    in order to obtain the desired outcome for format
+    :param input_type: input type of first node
+    :type input_type: str
+    :param loader: original loader
+    :type loader: KoshLoader
+    :param transformers: set of transformers to be added after loader exits
+    :type transformers: list of KoshTransformer
+    """
+    if input_type not in loader.types:
+        raise RuntimeError(
+            "loader cannot load mime_type {}".format(input_type))
+    G = nx.OrderedDiGraph()
+    G.seed = random.random()
+    start_node = (input_type, loader, G.seed)  # so each graph is unique
+    G.add_node(start_node)
+    if len(transformers) == 0:
+        # No transformer
+        for out_format in loader.types[input_type]:
+            node = (out_format, None, G.seed)
+            G.add_edge(start_node, node)
+    else:
+        populate(
+            G,
+            start_node,
+            loader.types[input_type],
+            transformers)
+    return G
 
 
 class KoshGenericObjectFromFile(object):
     """Kosh object pointing to a file"""
+
     def __init__(self, *args, **kwds):
         self.args = args
         self.kwds = kwds
@@ -23,7 +59,7 @@ class KoshGenericObjectFromFile(object):
         return self.file_obj.read()
 
 
-class KoshLoader(object):
+class KoshLoader(KoshExecutionGraph):
     """
     :param types: types is a dictionary on known type that can be loaded
     as key and export format as value, defaults to {"dataset": []}
@@ -51,6 +87,7 @@ class KoshLoader(object):
             if not open_anything:
                 raise RuntimeError("will not be able to load object of type {mime_type}".format(mime_type=mime_type))
         self.obj = obj
+        self.__listed_features = None
 
     def known_types(self):
         """known_types list types of Kosh objects it can handle
@@ -95,23 +132,26 @@ class KoshLoader(object):
             signature.update(repr(kargs[kw]).encode())
         return signature
 
+    def get_execution_graph(self, feature, transformers=[]):
+        """create io graph to extract a feature
+
+        :param feature: desired feature
+        :type feature: str
+        :param format: desired output format
+        :type format: str
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
+        :return: extracted feature
+        :rtype: ???
+        """
+        # first let's get the execution path
+        G = get_graph(self.obj.mime_type, self, transformers)
+        return G
+
     def get(self, feature, format=None, transformers=[],
-            use_cache=True, cache_file_only=False, cache_dir=None, **kargs):
+            use_cache=True, cache_file_only=False, cache_dir=None,
+            **kargs):
         """get extract a feature
-        *args and **kargs will be stored on loader object
-        format and feature are stored on the object for extraction by extraction functions
-        This function calls first the loader's preprocess function
-        This is followed by an actual data extraction via the 'extract' function
-        Finally 'postprocess' is called on the extracted data
-
-        Reserved keyword:
-        preprocess: function use to preprocess (default to self.preprocess)
-        postprocess: function use to postprocess (default to self.postprocess)
-        batch: to return data as a generator (not necessarily implemented yet)
-        shuffle: to shuffle the data, we recommend True/False (not necessarily implemented yet)
-
-        Hints: clustering and such maybe implemented in pre and postprocess
-
         :param feature: desired feature
         :type feature: str
         :param format: desired output format
@@ -124,57 +164,54 @@ class KoshLoader(object):
         :type cache_file_only: bool
         :param cache_dir: where do we cache the result?
         :type cache_dir: str
-        :return: extracted feature
-        :rtype: ???
+        **kargs will be stored on loader object
+        format and feature are stored on the object for extraction by extraction functions
+        This function calls first the loader's preprocess function
+        This is followed by an actual data extraction via the 'extract' function
+        Finally 'postprocess' is called on the extracted data
+
+        Reserved keyword:
+        preprocess: function use to preprocess (default to self.preprocess)
+        postprocess: function use to postprocess (default to self.postprocess)
         """
+
         if cache_dir is None:
             cache_dir = kosh_cache_dir
         self.cache_dir = cache_dir
-        # first let's get the execution path
-        path = get_path(self.obj.mime_type, self, transformers, format)
-        frmt = path[1][0]
-        if frmt is None:
-            frmt = self.types[self.obj.mime_type][0]
-        if len(self.types) != 0 and frmt not in self.types[self.obj.mime_type]:
-            raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
-                self=self, format=format))
-        self.format = frmt
+        self.use_cache = use_cache
+        self.cache_file_only = cache_file_only
         self.feature = feature
         self._user_passed_parameters = (None, kargs)
-        signature = self.update_signature(feature, self.format, **kargs).hexdigest()
-        if cache_file_only is True:
+        G = self.get_io_graph(feature, transformers=transformers)
+        return KoshExecutionGraph(G).traverse(format=format, **kargs)
+
+    def extract_(self, format):
+        if format is None:
+            format = self.types[self.obj.mime_type][0]
+        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
+            raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
+                self=self, format=format))
+        self.format = format
+        _, kargs = self._user_passed_parameters
+        signature = self.update_signature(self.feature, format, **kargs).hexdigest()
+        if self.cache_file_only is True:
             # Ok user just wants to know where cache should be (plus/minus extesions)
             return signature
         # Let's generate the signatures for each step of the path.
         # And try to load it
-        signatures = [signature, ]
-        for i, p in enumerate(path[1:-1], start=1):
-            signatures.append(p[1].update_signature(signatures[-1], path[i-1][0]).hexdigest())
-
         cache_success = False
-        if use_cache:
-            for i, p in enumerate(path[-2:0:-1]):
-                try:
-                    data = p[1].load(signatures[len(signatures)-i-1])
-                    cache_success = True
-                    for j, p in enumerate(path[-i-1:-1], start=len(signatures)-i):
-                        try:
-                            data = p[1].transform_(data, path[j+1][0], signature=signatures[j])
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
+        if self.use_cache:
+            try:
+                data = self.load(signature)
+                cache_success = True
+            except Exception:
+                pass
             if cache_success:
                 return data
 
         kargs.get("preprocess", self.preprocess)()
         data = self.extract()
         data = kargs.get("postprocess", self.postprocess)(data)
-        for i, p in enumerate(path[1:-1], start=1):
-            # Get the transformer and tell it to return it
-            # in format that next transformer wants
-            # the last item is the output it only has the format
-            data = p[1].transform_(data, path[i+1][0], signature=signatures[i])
         return data
 
     def save(self, cache_file, content):
@@ -198,7 +235,18 @@ class KoshLoader(object):
             data = pickle.load(f)
         return data
 
-    def list_features(self):
+    def _list_features(self, *args, **kargs):
+        """Wrapper on top of list_features to snatch from cache rther than calling everytime"""
+        use_cache = kargs.pop("use_cache", True)
+        if self.__listed_features is None or not use_cache:
+            self.__listed_features = self.list_features(*args, **kargs)
+        out = self.__listed_features
+        # Reset
+        if not use_cache:
+            self.__listed_features = None
+        return out
+
+    def list_features(self, *args, **kargs):
         """list_features Given the obj it's loading return a list of features (variables)
         it can extract
 

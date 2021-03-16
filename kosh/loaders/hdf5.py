@@ -119,6 +119,13 @@ class HDF5Loader(KoshLoader):
                 if f[:len(group)] == group:
                     feats.append(f[len(group)+1:])
             features = feats
+        # At this point we need to allow to select a group itself
+        feats = set()
+        for feature in features:
+            sp = feature.split("/")
+            for i in range(len(sp)):
+                feats.add("/".join(sp[:i+1]))
+        features = sorted(feats)
         return features
 
     def describe_feature(self, feature):
@@ -129,7 +136,7 @@ class HDF5Loader(KoshLoader):
         :return: dictionary describing the feature
         :rtype: dict
         """
-        features = self.list_features()
+        features = self._list_features()
         if feature not in features:
             raise ValueError("feature {feature} is not available".format(feature=feature))
 
