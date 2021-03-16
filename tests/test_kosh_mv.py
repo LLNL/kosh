@@ -330,3 +330,12 @@ class KoshTestMv(KoshTest):
             os.remove(f)
         # cleanup stores
         os.remove(db1)
+
+
+if __name__ == "__main__":
+    A = KoshTestMv()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

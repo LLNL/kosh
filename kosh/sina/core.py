@@ -347,6 +347,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         rec = self.__store__.get_record(kosh_id)
         if (not hasattr(rec, "associated")) or len(rec.associated) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
+            if kosh_id in self.__store__._cached_loaders:
+                del(self.__store__._cached_loaders[kosh_id])
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -502,6 +504,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :rtype: list
         """
 
+        warnings.warn(
+            "\nIn the next version the search function will return a generator.\n"
+            "You might need to wrap the result in a list.")
+
         if self._associated_data_ is None:
             return []
         sina_kargs = {}
@@ -645,6 +651,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             mem = sina_sql.DAOFactory(db_path=None)
         self._added_unsync_handler = mem.create_record_dao()
+        self._cached_loaders = {}
 
     def close(self):
         """closes store and sina related things"""
@@ -703,6 +710,7 @@ class KoshSinaStore(KoshStoreClass):
                 # Let's dissociate to remove unused kosh objects as well
                 kosh_obj.dissociate(uri)
         if not self.__sync__:
+            self._added_unsync_handler.delete(Id)
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
                 self.__sync__deleted__[Id] = rec
@@ -769,17 +777,22 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         :return: Kosh loader object and mime_type
         """
+        if Id in self._cached_loaders:
+            return self._cached_loaders[Id]
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] == self._dataset_record_type:
             return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                return self.loaders[record["data"]["mime_type"]["value"]][0](obj), record["data"]["mime_type"]["value"]
+                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
+                    obj), record["data"]["mime_type"]["value"]
+                return self._cached_loaders[Id]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            return self.loaders[record["type"]][0](obj), record["type"]
+            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj), record["type"]
+            return self._cached_loaders[Id]
         return
 
     def open(self, Id, loader=None, *args, **kargs):
@@ -814,7 +827,7 @@ class KoshSinaStore(KoshStoreClass):
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
-    def get(self, Id, feature, format=None, loader=None, operators=[], *args, **kargs):
+    def get(self, Id, feature, format=None, loader=None, transformers=[], *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -825,15 +838,15 @@ class KoshSinaStore(KoshStoreClass):
         :type format: str, optional
         :param loader: loader to use, defaults to None means pick for me
         :return: data in requested format
-        :param operators: A list of operators to use after the data is loaded
-        :type operators: kosh.operator.KoshTranformer
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.operator.KoshTransformer
         """
         if loader is None:
             loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 
-        return loader.get(feature, format, operators=[], *args, **kargs)
+        return loader.get(feature, format, transformers=[], *args, **kargs)
 
     def search(self, *atts, **keys):
         """search store for objects matching some metadata
@@ -850,6 +863,11 @@ class KoshSinaStore(KoshStoreClass):
         :return: list of matching objects in store
         :rtype: list
         """
+
+        warnings.warn(
+            "\nIn the next version the search function will return a generator.\n"
+            "You might need to wrap the result in a list.")
+
         mode = self.__sync__
         if mode:
             # we will not update any rec in here, turnin off sync
