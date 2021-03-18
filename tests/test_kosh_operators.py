@@ -25,7 +25,7 @@ class MyT(kosh.transformers.KoshTransformer):
 
 class ADD(kosh.operators.KoshOperator):
     types = collections.OrderedDict(
-        [("numpy", ["numpy", "pandas"]), ("pandas", ["numpy", "pndas"])])
+        [("numpy", ["numpy", "pandas"]), ("pandas", ["numpy", "pandas"])])
 
     def operate(self, *inputs, **kargs):
         out = inputs[0]

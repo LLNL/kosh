@@ -135,7 +135,7 @@ class KoshLoader(KoshExecutionGraph):
         return signature
 
     def get_execution_graph(self, feature, transformers=[]):
-        """Geenrates the execution graph to extract a feature and possibly transform it.
+        """Generates the execution graph to extract a feature and possibly transform it.
 
         :param feature: desired feature
         :type feature: str

@@ -141,7 +141,7 @@ def get_seed(G, node, end_seed=None):
     :type G: networkx.Graph
     :param node: Node of interest (is it and end node?)
     :type node: a graph node
-    :param end_seed: The seed to assign if the node is an end seed. If Noe is passed then used parent Graph's seed
+    :param end_seed: The seed to assign if the node is an end seed. If None is passed then used parent Graph's seed
     :type seed: int (or None)
     :return: new seed for the node
     :rtype: int

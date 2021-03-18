@@ -11,14 +11,14 @@
 ### Description
 
 This release is fully backward compatible but introduces new concepts.
-Operators are introduced allowing to compose features from one or many sources.
-Feature selection w/o extraction is now possible via the new execution graphs introduced in this release.
+Operators are introduced allowing the composition of features from one or many sources.
+Feature selection without extraction is now possible via the new execution graphs introduced in this release.
 Execution graphs are the recommended way to use Kosh going forward, as reflected in the updated notebooks.
 
 
 ### New in this release
 
-* operators: Compose multiple features (and their transformers).
+* Operators: Compose multiple features (and their transformers).
 * Execution graph concept (select and compose features before executing).
 * New Conduit's Sidre Mesh Blueprint field loader.
 
@@ -29,14 +29,14 @@ Execution graphs are the recommended way to use Kosh going forward, as reflected
 ### Improvements
 
 * Multiple speed/caching optimizations.
-* A cleanup function helps you clean your store from dead files.
+* A cleanup function helps you clean your store from files that no longer exist.
 * Cleaned up tables in documentation.
-* transformers get a `parent` attribute, allowing you to access its caller in the `transform` function.
+* Transformers get a `parent` attribute, allowing you to access its caller in the `transform` function.
 
 ### Bug fixes
 
-* In some case where a feature was available from the loader but not listed, Kosh would let the user access it. With this bug fix, the loader's `list_features` must be fixed first in order to access the feature. This bug affected groups in HDF5 files. Groups were now listed but still accessible, HDF5 loader now lists `groups` as actual features.
-* If a loader needed matplotlib and no X connection was available the import of matplotlib would lead to a seg fault. We now check for a valid backend first (via environment's `DISPLAY` variable).
+* In some case where a feature was available from the loader but not listed, Kosh would let the user access it. With this bug fix, the loader's `list_features` must be fixed first in order to access the feature. This bug affected groups in HDF5 files. Groups were not listed but still accessible, HDF5 loader now lists `groups` as actual features.
+* If a loader needed matplotlib and no X connection was available the import of `matplotlib.pyplot` would lead to an uncatchable error. We now check for a valid backend first (via environment's `DISPLAY` variable).
 
 ## 1.1 Release
 
