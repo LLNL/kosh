@@ -52,7 +52,7 @@ class KoshTransformer(KoshExecutionGraph):
 
             cache_file = os.path.join(self.cache_dir, use_signature)
             if self.cache == 2 and os.path.exists(cache_file):
-                # User wants to clobber cahce
+                # User wants to clobber cache
                 os.remove(cache_file)
 
             try:

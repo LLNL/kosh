@@ -7,21 +7,21 @@ import os
 
 class KoshOperator(KoshExecutionGraph):
     # TODO something about operator accepting multiple types in (list?)
-    # For nowassuming it is type of first input received
+    # For now assuming it is type of first input received
     types = {}
 
     def __init__(self,
                  *args, **kargs):
-        """init function will receive the previous step's signature and the cache directory
-        and output signature is also generated from the input args (w/o the cache_dir)
+        """init function
+        output signature is generated from the input args (w/o the cache_dir)
         :param cache_dir: directory to save cached files must be passed as key/value
         :type cache_dir: str
         :param cache: do we use cache? 0: no, 1:yes, 2:yes but clobber if exists must be passed as key/value
         :type cache: int
         """
+        self.cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
-        self.cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
         self.use_cache = kargs.pop("use_cache", False)
         cache = kargs.pop("cache", False)
         if cache:
@@ -56,7 +56,7 @@ class KoshOperator(KoshExecutionGraph):
 
             cache_file = os.path.join(self.cache_dir, use_signature)
             if self.cache == 2 and os.path.exists(cache_file):
-                # User wants to clobber cahce
+                # User wants to clobber cache
                 os.remove(cache_file)
 
             try:
@@ -76,7 +76,8 @@ class KoshOperator(KoshExecutionGraph):
 
     @abstractmethod
     def operate(self, *inputs, **kargs):
-        """The transform function
-        :param input_: result returned by loader or previous transformer
+        """The operating function on the inputs
+        :param inputs: result returned by loader or previous transformer
+        :type inputs: tuple of features/execution graphs
         """
         raise NotImplementedError("the transform function is not implemented")

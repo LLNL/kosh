@@ -22,6 +22,12 @@ except AttributeError:  # planar is available from nx version 2.5
 
 
 def gen_labels(G):
+    """Generates labels to draw on networkx plots of a graph
+    :param G: Network to generate labels from
+    :type G: networkx.OrderedDiGraph
+    :returns: labels for this graph
+    :rtype: dict
+    """
     labels = {}
     cont = True
     nodes = list(G.nodes())
@@ -74,12 +80,14 @@ def draw_execution_graph(G,
     :type output_format: str or None
     :param png_name: name of png file to output the graph to
     :type png_name: str
-    :param clear: clear matpltolib figure after saving
+    :param clear: clear matplotlib figure after saving
     :type clear: bool
     :param layout: A dictionary with nodes as keys and positions as values.
                    If not specified a {} layout positioning will be computed.
                    See networkx.drawing.layout for functions that compute node positions.
     :type layout: dict or function
+    :returns: None but draws the matplotlib plt is updated and possibly saved
+    :rtype: None
     """.format(default_nx_layout.__name__)
     if not isinstance(layout, dict):
         layout = layout(G)

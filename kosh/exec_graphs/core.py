@@ -45,12 +45,12 @@ def populate(G, node, output_formats, next_nodes):
     """Populates networkx
     :param G: networkx Graph to populate
     :type G: nx.Graph
-    :param node: transformer to be chained needs to have dict "types"
+    :param node: transformer to be chained, needs to have dict "types" attribute
     :type node: object with types attributes as a dictionary
     :param output_formats: output_format of the first node
     :type output_formats: list
     :param next_nodes: next set of transformers to add to graph
-    :type next_nodes: object with types attriubte as a dictionary
+    :type next_nodes: object with 'types' attribute as a dictionary
     :returns: Nothing but the graph passed is updated
     """
     for format in output_formats:
@@ -113,7 +113,16 @@ def find_network_ends(G, start=True, end=True):
 
 
 def apply_weight(G, output_format=None, weight_same=2., weight_output=3.):
-    """Given a graph, lower the weight to edges that end in required format"""
+    """Given a graph, lower the weight to edges that end in required format
+    :param output_format: Desired output format, used to lower weight if edge ends in that format
+    :type output_format: str
+    :param weight_same: Weight to use if both end of an edge are the same format
+    :type weight_same: float
+    :param weight_output: Weight to use if end of an edge is the desired output format
+    :type weight_output: float
+    :return: Notne but the input graph is modified
+    :rtype: None
+    """
     for (n1, n2) in G.edges():
         weight = 1.
         # Does this edge connect identical formats?
@@ -127,13 +136,12 @@ def apply_weight(G, output_format=None, weight_same=2., weight_output=3.):
 
 
 def get_seed(G, node, end_seed=None):
-    """Assigns a new random seed to a node unless it is an end see in which case
-    We assign the Graph's seed
+    """Assigns a new random seed to a node unless it is an end_seed, in which case we assign the Graph's seed
     :param G: Parent graph
     :type G: networkx.Graph
     :param node: Node of interest (is it and end node?)
     :type node: a graph node
-    :param end_seed: The seed to assign if the node is an end seed. If Noe is passed then used parent Graph's seed
+    :param end_seed: The seed to assign if the node is an end seed. If None is passed then used parent Graph's seed
     :type seed: int (or None)
     :return: new seed for the node
     :rtype: int
@@ -243,6 +251,8 @@ class KoshExecutionGraph(object):
         :param png_template: template to use to generate graph png in verbose mode
                              "_IN"/"_OUT" will be appended and seed will be fed
         :type png_template: str
+        :return a new graph with new seed
+        :rtype: networkx.OrderedDiGraph
         """
         G = nx.OrderedDiGraph()
         if seed is None:
@@ -292,6 +302,10 @@ class KoshExecutionGraph(object):
         return self.traverse(__getitem_key__=key)
 
     def traverse(self, format=None, *args, **kargs):
+        """Traverse the execution graph and returns data
+        :param format: desired output format
+        :type format: str
+        """
         G = self._graph
         start_nodes, _ = self.start_nodes, self.end_nodes
 
@@ -339,9 +353,9 @@ class KoshExecutionGraph(object):
     __call__ = traverse
 
     def _operate(self, graph, node, output_format, **kargs):
-        """Actual bells and whistles to actually get the data
+        """Actual bells and whistles to get the data
         :param graph: The graph to follow in order to get the data
-        :type graph: KoshIoGraph
+        :type graph: KoshExecutionGraph
         :param node: node to process (get inputs and call extract/transform/operate func)
         :type node: node in the network
         :param out_format: The desired output_format
@@ -438,7 +452,7 @@ class KoshExecutionGraph(object):
         return os.path.join(self.cache_dir, signature)
 
     def save(self, cache_file, *content):
-        """Pickle some data to a cache file
+        """Pickles some data to a cache file
         :param cache_file: name of cache file, will be joined with self.cache_dir
         :type cache_file: str
         :param content: content to save to cache
@@ -449,7 +463,7 @@ class KoshExecutionGraph(object):
                 pickle.dump(sv, f)
 
     def load(self, cache_file):
-        """loads content from cache
+        """Loads content from cache
         :param cache_file: name of cache fileA will be joined with self.cache_dir
         :type cache_file: str
         :return: unpickled data

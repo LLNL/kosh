@@ -224,7 +224,7 @@ class KoshTestBackPropagate(KoshTest):
         length = 1000
         dataset.associate(str(length), "test")
         feature = dataset.get_execution_graph("test", transformers=[Flip2(), ])
-        # Flip twice so essnetially do nothing
+        # Flip twice so essentially do nothing
         feature2 = dataset.get_execution_graph(
             "test", transformers=[Flip2(), Flip2()])
 
