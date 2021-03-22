@@ -18,18 +18,23 @@ except ImportError:
             return 0
     comm = Comm()
     hasMPI = False
+    MPI = False
 
 rank = comm.Get_rank()
 size = comm.Get_size()
 
 
 def get_ids_for_rank(total):
+    rank = comm.Get_rank()
     if isinstance(total, int):
         total = list(range(total))
-    rank = comm.Get_rank()
+    if len(total) == 1:
+        if rank == 0:
+            return total
+        else:
+            return []
     n_per_rank = len(total) // size
     offset = int(rank * n_per_rank)
-
     if rank == (comm.size - 1):
         ids = total[offset: len(total)]
     else:
