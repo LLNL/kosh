@@ -506,6 +506,10 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :rtype: list
         """
 
+        warnings.warn(
+            "\nIn the next version the search function will return a generator.\n"
+            "You might need to wrap the result in a list.")
+
         if self._associated_data_ is None:
             yield
         sina_kargs = {}
@@ -884,6 +888,11 @@ class KoshSinaStore(KoshStoreClass):
         :return: list of matching objects in store
         :rtype: list
         """
+
+        warnings.warn(
+            "\nIn the next version the search function will return a generator.\n"
+            "You might need to wrap the result in a list.")
+
         mode = self.__sync__
         if mode:
             # we will not update any rec in here, turnin off sync

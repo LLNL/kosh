@@ -38,7 +38,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.viewcode',
-    'autoapi.sphinx',
+    'autoapi.extension',
     "recommonmark",
     "nbsphinx"
 ]
@@ -49,6 +49,7 @@ nbsphinx_allow_errors = True
 nbsphinx_execute = 'never'
 
 # AUTOAPI confi
+autoapi_type = "python"
 autoapi_dirs = ['../../kosh']
 
 

@@ -150,12 +150,12 @@ class KoshTestLoaders(KoshTest):
             "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
         features = sorted(ds.list_features())
         self.assertEqual(features,
-                         ['cycles', 'direction', 'elements', 'node/metrics_0',
+                         ['cycles', 'direction', 'elements', 'node', 'node/metrics_0',
                           'node/metrics_1', 'node/metrics_10', 'node/metrics_11',
                           'node/metrics_12', 'node/metrics_2', 'node/metrics_3',
                           'node/metrics_4', 'node/metrics_5', 'node/metrics_6',
                              'node/metrics_7', 'node/metrics_8', 'node/metrics_9',
-                             'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
+                             'zone', 'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
                           'zone/metrics_3', 'zone/metrics_4'])
         features = sorted(
             ds.list_features(

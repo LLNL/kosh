@@ -321,7 +321,7 @@ class KoshStoreClass(object):
 
     def cleanup_files(self, dry_run=False, interactive=False, **dataset_search_keys):
         """Cleanup the store from references to dead files
-        You can filter associated objects for each dataset by matching py bassing value/values
+        You can filter associated objects for each dataset by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
         some_att=some_val will only dissociate non-exisiting files associated and having the attribute
         'some_att' with value of 'some_val'
@@ -407,7 +407,7 @@ class KoshDataset(object):
 
     def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
         """Cleanup the dataset from references to dead files
-        You can filter associated object by matching py bassing value/values
+        You can filter associated objects by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
         some_att=some_val will only dissociate non-exisiting files associated and having the attribute
         'some_att' with value of 'some_val'
@@ -426,7 +426,6 @@ class KoshDataset(object):
             if not os.path.exists(associated.uri):  # Ok this is gone
                 missings.append(associated.uri)
                 if not print_some and (interactive or dry_run):
-                    print(self)
                     print_some = True
                 if dry_run:  # Dry run
                     clean = 'n'

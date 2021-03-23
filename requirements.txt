@@ -1,3 +1,6 @@
 autoapi
 recommonmark
 nbsphinx
+llnl-sina 
+networkx
+numpy
