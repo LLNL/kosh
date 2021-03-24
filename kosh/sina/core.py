@@ -634,10 +634,14 @@ class KoshSinaStore(KoshStoreClass):
         if db == "sql":
             import sina.datastores.sql as sina
             if not os.path.exists(db_uri):
-                raise ValueError("Kosh store could not be found at: {}".format(db_uri))
-            self.lock()
-            self.__sina_store = create_datastore(database=os.path.abspath(db_uri))
-            self.unlock()
+                if ("://" in db_uri and "@" in db_uri) :
+                    self.__sina_store = create_datastore(db_uri)
+                else:
+                    raise ValueError("Kosh store could not be found at: {}".format(db_uri))
+            else:
+                self.lock()
+                self.__sina_store = create_datastore(database=os.path.abspath(db_uri))
+                self.unlock()
         elif db[:4].lower() == 'cass':
             import sina.datastores.cass as sina  # noqa
             self.__sina_store = create_datastore(
