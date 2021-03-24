@@ -88,6 +88,7 @@ class KoshTestSync(KoshTest):
         with self.assertRaises(Exception):
             store2.open(dsid)
         self.assertEqual(len(store2.search()), 0)
+        os.remove(kosh_db)
 
     def test_sync_dataset_attributes(self):
         store1, kosh_db = self.connect(sync=True)
@@ -185,3 +186,12 @@ class KoshTestSync(KoshTest):
         ds2.sync()
         store2.sync()
         os.remove(kosh_db)
+
+
+if __name__ == "__main__":
+    A = KoshTestSync()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

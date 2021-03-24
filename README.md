@@ -10,12 +10,17 @@ Via "loaders" Kosh can open files associated with datasets in a seamless fashion
 
 # Getting Started
 
-You will need a Python environment with [Sina](https://github.com/LLNL/Sina) and networkx installed. 
 
-Then simply run:
+To get the latest public version:
 
+```bash
+pip install kosh
 ```
-python setup.py install
+
+To get the latest stable, from a cloned repo simply run:
+
+```bash
+pip install .
 ```
 
 Alternatively  add the path to this repo to your `PYTHONPATH` environment variable, or in your code with:
@@ -32,10 +37,10 @@ For more details look into the [installation doc](INSTALL.md)
 See [this file](docs/source/users/index.md)
 
 # Getting Involved
-Kosh is in its infancy, and users' questions, comments, and contributions help guide its evolution. We welcome involvement and feedbacks.
+Kosh is user-oriented, and users' questions, comments, and contributions help guide its evolution. We welcome involvement and feedbacks.
 
 # Contact Info
-You can reach our team at aml@llnl.gov.
+You can reach our team at kosh-support@llnl.gov.
 Kosh main developer can be reached at: doutriaux1@llnl.gov
 
 # Contributing

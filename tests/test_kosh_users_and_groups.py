@@ -14,6 +14,7 @@ class TestUsersGroups(koshbase.KoshTest):
 
         with self.assertRaises(ValueError):
             store.add_user("kosh_test")
+        os.remove(uri)
 
     def test_groups(self):
         store, uri = self.connect()
@@ -30,3 +31,14 @@ class TestUsersGroups(koshbase.KoshTest):
         store.add_user("kosh_test_user", groups=[grp_name])
 
         store.__record_handler__.data_query()
+
+        os.remove(uri)
+
+
+if __name__ == "__main__":
+    A = TestUsersGroups()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

@@ -7,6 +7,18 @@ import time
 
 
 class KoshTestDataset(KoshTest):
+    def test_getitem_dataset(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5",
+            "hdf5")
+
+        ds["cycles"]
+        with self.assertRaises(ValueError):
+            ds["some_key_not_in_file"]
+        os.remove(kosh_db)
+
     def test_add_dataset(self):
         store, kosh_db = self.connect()
         # Check it's empy
@@ -120,7 +132,10 @@ KOSH DATASET
         # Associating with another dataset does not create another obj in db
         n_files = len(store.search(kosh_type="file", ids_only=True))
         ds_2 = store.create("multi")
-        ds_2.associate("tests/baselines/node_extracts2", "something", absolute_path=False)
+        ds_2.associate(
+            "tests/baselines/node_extracts2",
+            "something",
+            absolute_path=False)
         n_files_2 = len(store.search(kosh_type="file", ids_only=True))
         self.assertEqual(n_files, n_files_2)
 
@@ -147,14 +162,14 @@ KOSH DATASET
 
         # Ok list completion tests
         ds = store.create()
-        ds.associate([str(i+300) for i in range(200)],
+        ds.associate([str(i + 300) for i in range(200)],
                      metadata=[{"name": str(i)} for i in range(200)],
                      mime_type="a_mime_type")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(mime_type="a_mime_type")), 200)
 
         ds = store.create()
-        ds.associate([str(i+600) for i in range(200)], metadata={
+        ds.associate([str(i + 600) for i in range(200)], metadata={
                      "name": "my name"}, mime_type="stuff")
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(ds.search(name="my name")), 200)
@@ -306,7 +321,6 @@ KOSH DATASET
         features = ds.list_features()
         end = time.time()
         self.assertEqual(len(features), 1)
-        self.assertGreaterEqual(end - start, 1.)
 
         os.remove(db_uri)
 
@@ -322,6 +336,7 @@ KOSH DATASET
                                                       'direction',
                                                       'elements',
                                                       'image',
+                                                      'node',
                                                       'node/metrics_0',
                                                       'node/metrics_1',
                                                       'node/metrics_10',
@@ -335,6 +350,7 @@ KOSH DATASET
                                                       'node/metrics_7',
                                                       'node/metrics_8',
                                                       'node/metrics_9',
+                                                      'zone',
                                                       'zone/metrics_0',
                                                       'zone/metrics_1',
                                                       'zone/metrics_2',
@@ -345,6 +361,7 @@ KOSH DATASET
                          ['cycles',
                           'direction',
                           'elements',
+                          'node',
                           'node/metrics_0',
                           'node/metrics_1',
                           'node/metrics_10',
@@ -358,6 +375,7 @@ KOSH DATASET
                           'node/metrics_7',
                           'node/metrics_8',
                           'node/metrics_9',
+                          'zone',
                           'zone/metrics_0',
                           'zone/metrics_1',
                           'zone/metrics_2',
@@ -366,3 +384,12 @@ KOSH DATASET
         self.assertEqual(sorted(ds.list_features(ds.search(mime_type="png", ids_only=True)[0])),
                          ["image", ])
         os.remove(db_uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

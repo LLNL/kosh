@@ -312,7 +312,11 @@ class KoshTestScriptWrapper(KoshTest):
         # Let's also check that the order in which pos arg are defined matters
         wrapper = kosh.utils.KoshScriptWrapper(
             "python tests/baselines/scripts/dummy.py")
-        wrapper.add_argument("", feed_attribute="opt2", default="O2", feed_pos=-1)
+        wrapper.add_argument(
+            "",
+            feed_attribute="opt2",
+            default="O2",
+            feed_pos=-1)
         wrapper.add_argument("", feed_attribute="opt1", feed_pos=-1)
         ds1.opt1 = "opt1"
         o, e = wrapper.run(ds1, ds2, ds3)
@@ -328,3 +332,12 @@ class KoshTestScriptWrapper(KoshTest):
         # Test for single dash args
         # Cleanup
         os.remove(uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestScriptWrapper()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

@@ -214,3 +214,12 @@ class KoshTestReassociate(KoshTest):
         os.remove(filename1)
         os.remove(filename2)
         os.remove(db_uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestReassociate()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

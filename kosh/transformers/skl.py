@@ -1,14 +1,13 @@
 # Kosh transformer for scikit learn models
 from .core import KoshTransformer
-import warnings
 import numpy
 try:
     import sklearn.cluster
     import sklearn.preprocessing
     import sklearn.model_selection
+    has_skl = True
 except ImportError:
-    warnings.warn(
-        "Could not import sklearn, Scikit Learn-based transformers will not be available")
+    has_skl = False
 
 
 class Splitter(KoshTransformer):
@@ -56,6 +55,10 @@ class Splitter(KoshTransformer):
         :return: initialzed Splitter transformer
         :rtype: Splitter
         """
+
+        if not has_skl:
+            raise RuntimeError(
+                "Could not import sklearn, Scikit Learn-based transformers are not available")
 
         if train_size is None and test_size is None and validation_size is None:
             train_size = .9
@@ -132,6 +135,10 @@ class StandardScaler(KoshTransformer):
 
     def __init__(self, *args, **kargs):
         """SKL-based scaler transformer"""
+        if not has_skl:
+            raise RuntimeError(
+                "Could not import sklearn, Scikit Learn-based transformers are not available")
+
         self.scaler = sklearn.preprocessing.StandardScaler(*args, **kargs)
         super(StandardScaler, self).__init__(*args, **kargs)
 
@@ -179,6 +186,10 @@ class SKL(KoshTransformer):
                  labels, list of ndarray with samples in each class
                         possibly sub-sampled via n_sample/sampling_method
         """
+        if not has_skl:
+            raise RuntimeError(
+                "Could not import sklearn, Scikit Learn-based transformers are not available")
+
         kw = {}
         for arg in ["n_samples", "sampling_method", "random_state"]:
             setattr(self, arg, kargs.pop(arg, None))
@@ -238,6 +249,10 @@ class DBSCAN(SKL):
     types = {"numpy": ["estimator", "numpy"]}
 
     def __init__(self, *args, **kargs):
+        if not has_skl:
+            raise RuntimeError(
+                "Could not import sklearn, Scikit Learn-based transformers are not available")
+
         kargs["skl_class"] = sklearn.cluster.DBSCAN
         super(DBSCAN, self).__init__(**kargs)
 
@@ -254,5 +269,9 @@ class KMeans(SKL):
     types = {"numpy": ["estimator", "numpy"]}
 
     def __init__(self, *args, **kargs):
+        if not has_skl:
+            raise RuntimeError(
+                "Could not import sklearn, Scikit Learn-based transformers are not available")
+
         kargs["skl_class"] = sklearn.cluster.KMeans
         super(KMeans, self).__init__(**kargs)

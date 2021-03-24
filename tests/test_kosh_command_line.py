@@ -7,11 +7,18 @@ from subprocess import Popen, PIPE
 import numpy
 
 
-def run_cmd(cmd):
-    print(cmd)
+def run_cmd(cmd, verbose=False):
+    if verbose:
+        print(cmd)
     cmd = shlex.split(cmd)
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
+    if p.returncode != 0:
+        print("OOOOPSY:", o.decode())
+        print("OOOOPSY:", e.decode())
+    if verbose:
+        print("OUT:", o)
+        print("ERR:", e)
     assert(p.returncode == 0)
     return o.decode(
         "utf-8").strip().split("\n"), e.decode("utf-8").strip().split("\n")
@@ -73,3 +80,50 @@ class KoshTestDataset(KoshTest):
         n4, z4 = numpy.load(npyfile)
         self.assertEqual(n4.shape, (18,))
         self.assertEqual(z4.shape, (18,))
+        os.remove(kosh_db)
+        os.remove(npyfile)
+
+    def test_dissociate_dead_files(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate("setup.py", "py")  # real one
+        ds.associate("blablabla.py", "py")  # dead one
+        ds.associate("blablbla.hdf5", "hdf5")  # dead one
+        # real one
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds.associate("README.md", "md")  # real
+        ds.associate("REEEEDME.mmmmdddd", "md")  # fake one
+        verbose = False
+        self.assertEqual(len(ds.search()), 6)
+        # first test cleanup python files only
+        self.assertEqual(len(ds.search(mime_type="py")), 2)
+        # Dry run first
+        cmd = "kosh cleanup_files -s '{}' -d blah --dry-run mime_type=py".format(
+            kosh_db)
+        o, e = run_cmd(cmd, verbose=verbose)
+        # Let's make sure it's still all here
+        self.assertEqual(len(ds.search()), 6)
+        self.assertEqual(len(ds.search(mime_type="py")), 2)
+        cmd = "kosh cleanup_files -s '{}' -d blah mime_type=py".format(kosh_db)
+        o, e = run_cmd(cmd, verbose=verbose)
+        # Let's make sure only one py file was removed
+        self.assertEqual(len(ds.search()), 5)
+        self.assertEqual(len(ds.search(mime_type="py")), 1)
+        # Let's clean it all
+        cmd = "kosh cleanup_files -s '{}' -d blah ".format(kosh_db)
+        o, e = run_cmd(cmd, verbose=verbose)
+        self.assertEqual(len(ds.search()), 3)
+        self.assertEqual(len(ds.search(mime_type="py")), 1)
+        self.assertEqual(len(ds.search(mime_type="md")), 1)
+        self.assertEqual(len(ds.search(mime_type="hdf5")), 1)
+        os.remove(kosh_db)
+
+
+if __name__ == "__main__":
+    A = KoshTestDataset()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

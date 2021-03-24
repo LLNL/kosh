@@ -1,7 +1,6 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
-from .loaders import KoshLoader, KoshFileLoader, PGMLoader
-from kosh.transformers import get_path
+from .loaders import KoshLoader, KoshFileLoader, PGMLoader, get_graph
 from kosh.utils import compute_fast_sha
 import warnings
 import os
@@ -9,6 +8,7 @@ import kosh
 import time
 import fcntl
 import copy
+import collections
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -19,6 +19,10 @@ except ImportError:
     pass
 try:
     from .loaders import UltraLoader
+except ImportError:
+    pass
+try:
+    from .loaders import SidreMeshBlueprintFieldLoader
 except ImportError:
     pass
 from .loaders import JSONLoader
@@ -32,7 +36,7 @@ class KoshStoreClass(object):
     """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync, verbose=True, use_lock_file=False):
+    def __init__(self, sync, verbose=False, use_lock_file=False):
         """Constructor
         :param sync: Does this store constantly sync with db
         :type sync: bool
@@ -64,6 +68,12 @@ class KoshStoreClass(object):
         except Exception:  # no pydv?
             if verbose:
                 warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                              " Pass verbose=False when creating the store to turn this message off")
+        try:
+            self.add_loader(SidreMeshBlueprintFieldLoader)
+        except Exception:  # no conduit?
+            if verbose:
+                warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
                               " Pass verbose=False when creating the store to turn this message off")
         self.__sync__ = sync
         self.__sync__dict__ = {}
@@ -138,6 +148,8 @@ class KoshStoreClass(object):
         :return: None
         :rtype: None
         """
+        # We add a loader we need to clear the cache
+        self._cached_loaders = collections.OrderedDict()
         for k in loader.types:
             if k in self.loaders:
                 self.loaders[k].append(loader)
@@ -154,7 +166,7 @@ class KoshStoreClass(object):
         locked = False
         while not locked:
             try:
-                self.lock_file = open(self.db_uri+".handle", "w")
+                self.lock_file = open(self.db_uri + ".handle", "w")
                 fcntl.lockf(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 locked = True
             except Exception:
@@ -307,8 +319,29 @@ class KoshStoreClass(object):
             except Exception:
                 pass
 
+    def cleanup_files(self, dry_run=False, interactive=False, **dataset_search_keys):
+        """Cleanup the store from references to dead files
+        You can filter associated objects for each dataset by passing key=values
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        'some_att' with value of 'some_val'
+        returns list of uris to be removed.
+        :param dry_run: Only does a dry_run
+        :type dry_run: bool
+        :param interactive: interactive mode, ask before dissociating
+        :type interactive: bool
+        :returns: list of uris (to be) removed.
+        :rtype: list
+        """
+        missings = []
+        datasets = self.search()
+        for dataset in datasets:
+            missings += dataset.cleanup_files(dry_run=dry_run,
+                                              interactive=interactive, **dataset_search_keys)
+        return missings
 
-def KoshStore(db_uri=None, engine="sina", sync=True, verbose=True, *args, **kargs):
+
+def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, *args, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param db_uri: URI to access backend database
@@ -371,6 +404,44 @@ class KoshDataset(object):
                     st += "\n\t\t{uri}".format(uri=uri)
                 st += "\n"
         return st
+
+    def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
+        """Cleanup the dataset from references to dead files
+        You can filter associated objects by passing key=values
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        'some_att' with value of 'some_val'
+        returns list of uris to be removed.
+        :param dry_run: Only does a dry_run
+        :type dry_run: bool
+        :param interactive: interactive mode, ask before dissociating
+        :type interactive: bool
+        :returns: list of uris (to be) removed.
+        :rtype: list
+        """
+        print_some = False
+        missings = []
+        for associated in self.search(**search_keys):
+            clean = 'n'
+            if not os.path.exists(associated.uri):  # Ok this is gone
+                missings.append(associated.uri)
+                if not print_some and (interactive or dry_run):
+                    print_some = True
+                if dry_run:  # Dry run
+                    clean = 'n'
+                elif interactive:
+                    clean = input("\tDo you want to dissociate {} (mime_type: {})? [Y/n]".format(
+                        associated.uri, associated.mime_type)).strip()
+                    if len(clean) > 0:
+                        clean = clean[0]
+                        clean = clean.lower()
+                    else:
+                        clean = 'y'
+                else:
+                    clean = 'y'
+                if clean == 'y':
+                    self.dissociate(associated.uri)
+        return missings
 
     def _repr_pretty_(self, p, cycle):
         """Pretty display in Ipython"""
@@ -455,9 +526,11 @@ class KoshDataset(object):
                 if loader is None:
                     ld, _ = self.__store__._find_loader(associated)
                 else:
-                    ld = loader(self.__store__._load(associated))
+                    if associated not in self.__store__._cached_loaders:
+                        self.__store__._cached_loaders[associated] = loader(self.__store__._load(associated))
+                    ld = self.__store__._cached_loaders[associated]
                 loaders.append(ld)
-                features += ld.list_features(*args, **kargs)
+                features += ld._list_features(*args, use_cache=use_cache, **kargs)
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
@@ -465,7 +538,7 @@ class KoshDataset(object):
                 for index, associated in enumerate(associated_data):
                     obj = self.__store__._load(associated)
                     ld = loaders[index]
-                    these_features = ld.list_features(*args, **kargs)
+                    these_features = ld._list_features(*args, use_cache=use_cache, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
                             ided_features.append("{feature}_@_{obj.uri}".format(feature=feature, obj=obj))
@@ -476,7 +549,7 @@ class KoshDataset(object):
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
             ld, _ = self.__store__._find_loader(Id)
-            features = ld.list_features(*args, **kargs)
+            features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
         self.__dict__["__features__"][Id] = features_id
@@ -503,8 +576,8 @@ class KoshDataset(object):
         if Id is None:
             for a in self._associated_data_:
                 ld, _ = self.__store__._find_loader(a)
-                if feature in ld.list_features(**kargs) or \
-                        (feature[:-len(ld.obj.uri)-3] in ld.list_features()
+                if feature in ld._list_features(**kargs) or \
+                        (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
                     loader = ld
                     break
@@ -514,31 +587,29 @@ class KoshDataset(object):
             loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
-    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
+    def get_execution_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
-        :param format: desired format after extraction
-        :type format: str
         :param Id: object to read in, defaults to None
         :type Id: str, optional
         :param loader: loader to use to get data,
                        defaults to None means pick for me
         :type loader: kosh.loaders.KoshLoader
-        :param group: group multiple features in one get call, assumes loader can handle this
-        :type group: bool
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
-        :raises RuntimeException: could not get feature
-        :raises RuntimeError: object id not associated with dataset
-        :return: [description]
+        :returns: [description]
         :rtype: [type]
         """
         if feature is None:
             out = []
             for feat in self.list_features():
-                out.append(self.get(Id=None, feature=feat, format=format,
-                                    loader=loader, transformers=transformers, *args, **kargs))
+                out.append(self.get_execution_graph(Id=None,
+                                                    feature=feat,
+                                                    format=format,
+                                                    loader=loader,
+                                                    transformers=transformers,
+                                                    *args, **kargs))
             return out
         # Need to make sure transformers are a list
         if not isinstance(transformers, (list, tuple)):
@@ -563,13 +634,13 @@ class KoshDataset(object):
                             ld = loader(a_obj)
                         else:
                             continue
-                    if ("_@_" not in feature_ and feature_ in ld.list_features()) or\
+                    if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
                             feature_ is None or\
-                            (feature_[:-len(ld.obj.uri)-3] in ld.list_features() and
+                            (feature_[:-len(ld.obj.uri) - 3] in ld._list_features() and
                              feature_[-len(ld.obj.uri):] == ld.obj.uri):
                         possible_ids.append(a)
                 if possible_ids == []:  # All failed but could be something about the feature
-                    possible_ids = self._associated_data_[:1]
+                    raise ValueError("Cannot find feature {} in dataset".format(feature_))
             elif Id not in self._associated_data_:
                 raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
             else:
@@ -599,57 +670,84 @@ class KoshDataset(object):
         out = []
         for id_ in ids:
             features = ids[id_]
-            error = None
-            possible_formats = []
             for Id in possible_ids:
                 tmp = None
                 try:
                     if loader is None:
                         ld, mime_type = self.__store__._find_loader(Id)
                     else:
-                        a_obj = self.__store__._load(Id)
-                        ld = loader(a_obj)
-                        mime_type = a_obj.mime_type
+                        if Id not in self.__store__._cached_loaders:
+                            a_obj = self.__store__._load(Id)
+                            self.__store__._cached_loaders[Id] = loader(a_obj)
+                            mime_type = a_obj.mime_type
+                        ld = self.__store__._cached_loaders[Id]
+                    # Essentially make a copy
+                    # Because we want to attach the feature to it
+                    # But lets not lose the cached list_features
+                    saved_listed_features = ld.__dict__["_KoshLoader__listed_features"]
+                    ld = ld.__class__(ld.obj)
+                    ld.__dict__["_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
-                    get_path(mime_type, ld, transformers, format)
-                    possible_formats += ld.known_load_formats(ld.obj.mime_type)
-                    # Ok we need to clean the feature names from the uri if associated with it
+                    get_graph(mime_type, ld, transformers)
                     final_features = []
                     for feature_ in features:
-                        if (feature_[:-len(ld.obj.uri)-3] in ld.list_features()
+                        if (feature_[:-len(ld.obj.uri) - 3] in ld._list_features()
                                 and feature_[-len(ld.obj.uri):] == ld.obj.uri):
                             final_features.append(
-                                feature_[:-len(ld.obj.uri)-3])
+                                feature_[:-len(ld.obj.uri) - 3])
                         else:
                             final_features.append(feature_)
                     if len(final_features) == 1:
                         final_features = final_features[0]
-                    tmp = ld.get(final_features, format,
-                                 transformers=transformers, *args, **kargs)
-                    if not isinstance(final_features, list) or not isinstance(tmp, list):
-                        out += [tmp, ]
-                    else:
-                        out += tmp
-                    break
-                except Exception as err:  # noqa
-                    error = err
+                    tmp = ld.get_execution_graph(final_features,
+                                                 transformers=transformers)
+                    ld.feature = final_features
+                    ExecGraph = kosh.exec_graphs.KoshExecutionGraph(tmp)
+                except Exception:
                     import traceback
                     traceback.print_exc()
-            if tmp is None:  # Failed to load
-                # Ok something went wrong...
-                msg = "could not get feature '{feature}'".format(feature=final_features)
-                msg += " from dataset '{self.__id__}' in format {format},".format(self=self, format=format)
-                if len(transformers) != 0:
-                    msg += " with transformers {}".format(transformers)
-                msg += " possible formats are: {possible_formats}".format(possible_formats=possible_formats)
-                if error is not None:
-                    msg += "\nError: {error}".format(error=error)
-                raise Exception(msg)
+                    ExecGraph = kosh.exec_graphs.KoshExecutionGraph(tmp)
+                out.append(ExecGraph)
 
-        if isinstance(feature, list) and group is False:
-            return out
-        else:
+        if len(out) == 1:
             return out[0]
+        else:
+            return out
+
+    def get(self, feature=None, format=None, Id=None, loader=None, group=False, transformers=[], *args, **kargs):
+        """get data for a specific feature
+        :param feature: feature (variable) to read, defaults to None
+        :type feature: str, optional if loader does not require this
+        :param format: desired format after extraction
+        :type format: str
+        :param Id: object to read in, defaults to None
+        :type Id: str, optional
+        :param loader: loader to use to get data,
+                       defaults to None means pick for me
+        :type loader: kosh.loaders.KoshLoader
+        :param group: group multiple features in one get call, assumes loader can handle this
+        :type group: bool
+        :param transformers: A list of transformers to use after the data is loaded
+        :type transformers: kosh.transformer.KoshTranformer
+        :raises RuntimeException: could not get feature
+        :raises RuntimeError: object id not associated with dataset
+        :returns: [description]
+        :rtype: [type]
+        """
+        G = self.get_execution_graph(feature=feature, Id=Id, loader=loader, transformers=transformers, *args, **kargs)
+        if isinstance(G, list):
+            return [g.traverse(format=format, *args, **kargs) for g in G]
+        else:
+            return G.traverse(format=format, *args, **kargs)
+
+    def __getitem__(self, feature):
+        """Shortcut to access a feature or list of
+        :param feature: feature(s) to access in dataset
+        :type feature: str or list of str
+        :returns: (list of) access point to feature requested
+        :rtype: (list of) kosh.execution_graph.KoshIoGraph
+        """
+        return self.get_execution_graph(feature)
 
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset

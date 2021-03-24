@@ -116,3 +116,12 @@ class KoshTestRm(KoshTest):
             self.assertFalse(os.path.exists(filename))
 
         os.remove(db_uri)
+
+
+if __name__ == "__main__":
+    A = KoshTestRm()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

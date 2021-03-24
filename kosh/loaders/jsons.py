@@ -34,7 +34,7 @@ class JSONLoader(KoshLoader):
                     out[feature] = content[feature]
                 else:
                     out.append(content[feature])
-        if isinstance(features, list) and len(features) == 1:
+        if isinstance(features, list) and len(features) == 1 and self.format != "dict":
             return out[0]
         else:
             return out

@@ -78,7 +78,9 @@ class TestKoshTransformers(koshbase.KoshTest):
         ds.get("numbers")
 
         with self.assertRaises(Exception):
-            ds.get("numbers", format="numpy")
+            data = ds.get("numbers", format="numpy")
+            print("DATA:", data, type(data))
+            print("SHOULD HAVE DIED")
 
         start = time.time()
         ds.get(
@@ -226,3 +228,12 @@ class TestKoshTransformers(koshbase.KoshTest):
         self.assertTrue(numpy.allclose(test[-5:], [16, 138, 174, 146, 150]))
         self.assertTrue(numpy.allclose(validation[-5:], [162, 69, 59, 6, 52]))
         os.remove(db_uri)
+
+
+if __name__ == "__main__":
+    A = TestKoshTransformers()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

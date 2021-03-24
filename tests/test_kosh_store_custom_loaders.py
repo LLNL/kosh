@@ -1,6 +1,7 @@
 from __future__ import print_function
 from koshbase import KoshTest
 import kosh
+import os
 import numpy
 
 
@@ -53,3 +54,14 @@ class TestKoshStoreCustomLoaders(KoshTest):
         ds = store3.open("123")
         feats = ds.list_features()
         self.assertEqual(feats, ["data_xyz", ])
+        os.remove(kosh_db)
+        os.remove("test_kosh_add_custom.xyz")
+
+
+if __name__ == "__main__":
+    A = TestKoshStoreCustomLoaders()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

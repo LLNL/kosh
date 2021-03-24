@@ -1,4 +1,5 @@
 from koshbase import KoshTest
+import os
 import kosh
 
 
@@ -30,6 +31,8 @@ class KoshTestManyFeaturesSameName(KoshTest):
             self.assertEqual(feat, "fake_@_" + chr(i + 65))
             self.assertEqual(ds.get(feat), "fake___" + chr(i + 65))
 
+        os.remove(kosh_db)
+
     def test_many_hdf5s(self):
         store, kosh_db = self.connect()
         store.add_loader(FakeLoader)
@@ -44,3 +47,13 @@ class KoshTestManyFeaturesSameName(KoshTest):
             absolute_path=False)
 
         ds.get('cycles_@_examples/sample_files/run_001.hdf5')
+        os.remove(kosh_db)
+
+
+if __name__ == "__main__":
+    A = KoshTestManyFeaturesSameName()
+    for nm in dir(A):
+        if nm[:4] == "test":
+            fn = getattr(A, nm)
+            print(nm, fn)
+            fn()

@@ -281,6 +281,37 @@ Available commands are:
         else:
             print("\n".join(ids))
 
+    def cleanup_files(self):
+        """Cleanup a store from references to dead files
+        You can filter associated object by matching metadata in form key=value
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute "some_att" with value of "some_val"""
+        parser = core_parser(
+            prog="kosh clean",
+            description="""Cleanup a store from references to dead files
+        You can filter associated object by matching metadata in form key=value
+        e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
+        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        'some_att' with value of 'some_val'""")
+        parser.add_argument("--dry-run", "--rehearsal", "-r", "-D", help="Dry run only, list ids of dataset that would be cleaned up and path of files", action='store_true')
+        parser.add_argument("--interactive", "-i", help="interactive mode, ask before dissociating", action="store_true")
+        args, search_terms = parser.parse_known_args(sys.argv[2:])
+        metadata = parse_metadata(search_terms)
+        store = kosh.KoshStore(db_uri=args.store,
+                               dataset_record_type=args.dataset_record_type)
+        ids = store.search(ids_only=True)
+        for Id in ids:
+            ds = store.open(Id)
+            missings = ds.cleanup_files(dry_run=args.dry_run, interactive=args.interactive, **metadata)
+            if len(missings) != 0:
+                if not args.interactive:  # already printed in interactive
+                    print(ds)
+                for uri in missings:
+                    associated = ds.search(uri=uri)
+                    if len(associated) != 0:
+                        print("{} (mime_type={}) is missing".format(
+                            associated[0].uri, associated[0].mime_type))
+
     def add(self):
         """add a dataset to a Kosh store command"""
         parser = core_parser(
