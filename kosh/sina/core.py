@@ -411,7 +411,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 rec["user_defined"]["{uri}___associated_last_modified".format(uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
                 tmp_uris = list(self.__store__.search(
-                    kosh_type=self.__store__._sources_type, uri=uri, ids_only=True))
+                    sina_type=self.__store__._sources_type, uri=uri, ids_only=True))
 
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
@@ -506,10 +506,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :rtype: list
         """
 
-        warnings.warn(
-            "\nIn the next version the search function will return a generator.\n"
-            "You might need to wrap the result in a list.")
-
         if self._associated_data_ is None:
             yield
         sina_kargs = {}
@@ -575,7 +571,7 @@ class KoshSinaLoader(KoshLoader):
         """open the object
         """
         record = self.obj.__store__.get_record(self.obj.__id__)
-        if record["type"] == self.obj.__store__._dataset_record_type:
+        if record["type"] not in self.obj.__store__._kosh_reserved_record_types:
             return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__, record=record)
         if record["type"] == "file":
             return KoshSinaFile(self.obj.__id__, store=self.obj.__store__, record=record)
@@ -733,7 +729,7 @@ class KoshSinaStore(KoshStoreClass):
             Id = Id.__id__
 
         rec = self.get_record(Id)
-        if rec.type == self._dataset_record_type:
+        if rec.type not in self._kosh_reserved_record_types:
             kosh_obj = self.open(Id)
             for uri in list(rec["files"].keys()):
                 # Let's dissociate to remove unused kosh objects as well
@@ -747,7 +743,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             self.__record_handler__.delete(Id)
 
-    def create(self, name="Unnamed Dataset", datasetId=None, metadata={}, schema=None):
+    def create(self, name="Unnamed Dataset", datasetId=None, metadata={}, schema=None, sina_type=None):
         """create a new (possibly named) dataset
 
         :param name: name for the dataset, defaults to None
@@ -762,11 +758,13 @@ class KoshSinaStore(KoshStoreClass):
         :return: KoshSinaDataset
         :rtype: KoshSinaDataset
         """
+        if sina_type is None:
+            sina_type = self._dataset_record_type
         if datasetId is None:
             Id = uuid.uuid4().hex
         else:
             if datasetId in self.__record_handler__.find_with_type(
-                    self._dataset_record_type, ids_only=True):
+                    sina_type, ids_only=True):
                 raise RuntimeError(
                     "Dataset id {} already exists".format(datasetId))
             Id = datasetId
@@ -778,7 +776,7 @@ class KoshSinaStore(KoshStoreClass):
         metadata["_associated_data_"] = None
         for k in metadata:
             metadata[k] = {'value': metadata[k]}
-        rec = Record(id=Id, type=self._dataset_record_type, data=metadata)
+        rec = Record(id=Id, type=sina_type, data=metadata)
         if self.__sync__:
             self.lock()
             self.__record_handler__.insert(rec)
@@ -810,8 +808,9 @@ class KoshSinaStore(KoshStoreClass):
             return self._cached_loaders[Id]
         record = self.get_record(Id)
         obj = self._load(Id)
-        if record["type"] == self._dataset_record_type:
-            return KoshSinaLoader(obj), self._dataset_record_type
+        if record["type"] not in self._kosh_reserved_record_types:
+            # Not reserved means datset
+            return KoshSinaLoader(obj), record["type"]
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
                 self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
@@ -886,16 +885,13 @@ class KoshSinaStore(KoshStoreClass):
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
 
-        "file" is a special key that will return all records being associated
+        "file" is a reserved key that will return all records being associated
         with the given "uri", e.g store.search(file=uri)
+         "sina_type" let you search over a specific sina record type only.
 
         :return: list of matching objects in store
         :rtype: list
         """
-
-        warnings.warn(
-            "\nIn the next version the search function will return a generator.\n"
-            "You might need to wrap the result in a list.")
 
         mode = self.__sync__
         if mode:
@@ -908,7 +904,14 @@ class KoshSinaStore(KoshStoreClass):
         ids_only = keys.pop("ids_only", False)
         for att in atts:
             sina_kargs[att] = sina.utils.exists()
-        search_type = keys.pop("kosh_type", None)
+        if "kosh_type" in keys and "sina_type" in keys:
+            raise ValueError("'kosh_type' had been replaced with 'sina_type' you cannot use both at same time")
+        if "kosh_type" in keys:
+            warnings.warn(DeprecationWarning("'kosh_type' is being deprecated in favor of 'sina_type' and will not work in a future version"))
+            search_type = keys.pop("kosh_type", None)
+        else:
+            search_type = keys.pop("sina_type", None)
+
         sina_kargs.update(keys)
         if search_type is not None:
             ds_filter = list(self.__record_handler__.find_with_type(

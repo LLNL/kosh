@@ -209,7 +209,8 @@ def create_new_db(name, engine='sina', db='sql',
     if db == 'sql' and name[-4:].lower() != ".sql":
         name += ".sql"
     if engine == "sina":
-        cmd = "{}/init_sina.py --user={} --sina={} --sina_db={}".format(
+        cmd = "{}/python {}/init_sina.py --user={} --sina={} --sina_db={}".format(
+            sys.prefix + "/bin",
             sys.prefix + "/bin",
             user,
             db,

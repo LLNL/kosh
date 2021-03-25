@@ -77,7 +77,7 @@ class KoshLoader(KoshExecutionGraph):
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(obj.__id__)
         mime_type = obj.mime_type
-        if mime_type == obj.__store__._dataset_record_type:
+        if mime_type not in obj.__store__._kosh_reserved_record_types:
             mime_type = "dataset"
         if mime_type not in self.types:
             open_anything = False
