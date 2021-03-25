@@ -258,6 +258,7 @@ class KoshStoreClass(object):
                 dataset = dataset.export()
             elif isinstance(dataset, str):
                 dataset = self.open(dataset).export()
+            atts = dataset["attributes"]
             min_ver = dataset.get("minimum_kosh_version", 0.)
             if min_ver is not None and kosh.__version__ < min_ver:
                 raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
@@ -266,7 +267,7 @@ class KoshStoreClass(object):
             # Ok now we need to see if dataset already exist?
             match_dict = {}
             for attribute in match_attributes:
-                match_dict[attribute] = dataset["attributes"][attribute]
+                match_dict[attribute] = atts[attribute]
 
             matching = list(self.search(**match_dict))
             if len(matching) > 1:
@@ -279,22 +280,24 @@ class KoshStoreClass(object):
                 match = matching[0]
                 match_attributes = match.listattributes(dictionary=True)
                 # ok we have some match let's make sure there is no conflict
-                for att in set(match_attributes).intersection(dataset["attributes"].keys()):
-                    if match_attributes[att] != dataset["attributes"][att]:
+                for att in set(match_attributes).intersection(atts.keys()):
+                    if match_attributes[att] != atts[att]:
                         # TODO ERROR HANDLING (--force options?)
                         raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
-                            att, dataset["attributes"][att], match_attributes[att]))
+                            att, atts[att], match_attributes[att]))
                 # Ok at this point no conflict!
-                match.update(dataset["attributes"])
+                match.update(atts)
             else:  # Non existent dataset
                 try:
-                    match = self.create(id=dataset["attributes"].get("id", None), metadata=dataset["attributes"])
+                    id = atts.get("id", None)
+                    if 'id' in atts:
+                        del(atts["id"])
+                    print("CREATING WITH ID:", id)
+                    match = self.create(id=id, metadata=atts)
                 except Exception:
                     # Ok it is possible that this imported dataset id does already exists
                     # But the user matching keys led to no match
                     # We need to create a new dataset
-                    if 'id' in dataset["attributes"]:
-                        del(dataset["attributes"]["id"])
                     match = self.create(metadata=dataset["attributes"])
 
             # now we need to handle associated files

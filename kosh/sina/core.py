@@ -95,7 +95,15 @@ class KoshSinaObject(object):
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
-                return [record["files"][f]["kosh_id"] for f in record["files"]]
+                # we cannot use list comprehension
+                # some pure sina rec have file but no kosh_id
+                out = []
+                for file_rec in record["files"]:
+                    try:
+                        out.append(file_rec["kosh_id"])
+                    except Exception:
+                        pass
+                return out
             else:
                 return self.__dict__[name]
         record = self.get_record()
