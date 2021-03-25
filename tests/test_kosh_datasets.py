@@ -28,21 +28,21 @@ class KoshTestDataset(KoshTest):
         # Check it's in db
         all_ds = list(store.search())
         self.assertEqual(len(all_ds), 1)
-        self.assertEqual(ds.listattributes(), ["creator", "name"])
+        self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
         # check error on non-existing attribute
         with self.assertRaises(AttributeError):
             print(ds.person)
         # Create an attribute
         ds.person = "Charles"
-        self.assertEqual(ds.listattributes(), ["creator", "name", "person"])
+        self.assertEqual(ds.listattributes(), ["creator", "id", "name", "person"])
         self.assertEqual(ds.person, "Charles")
         # modify attribute
         ds.person = "Charles Doutriaux"
-        self.assertEqual(ds.listattributes(), ["creator", "name", "person"])
+        self.assertEqual(ds.listattributes(), ["creator", "id", "name", "person"])
         self.assertEqual(ds.person, "Charles Doutriaux")
         # delete attribute
         del(ds.person)
-        self.assertEqual(ds.listattributes(), ["creator", "name"])
+        self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
         with self.assertRaises(AttributeError):
             print(ds.person)
         # Protected Attributes
@@ -63,7 +63,7 @@ KOSH DATASET
         creator: {creator}
         name: Unnamed Dataset
 --- Associated Data (0)---
-""".format(id=ds.__id__, creator=ds.creator)
+""".format(id=ds.id, creator=ds.creator)
         print(ds)
         self.assertEqual(str(ds).replace("\t", "        "), printTestResults)
         # Set/update many attributes at once
@@ -73,7 +73,7 @@ KOSH DATASET
         # check they are all here
         self.assertEqual(
             ds.listattributes(), [
-                "creator", "name", "some_int_attribute", "some_new_attribute"])
+                "creator", "id", "name", "some_int_attribute", "some_new_attribute"])
         # Check they are correctly added with correct value
         self.assertEqual(ds.some_new_attribute, "a new one")
         self.assertEqual(ds.some_int_attribute, 5)
@@ -250,7 +250,7 @@ KOSH DATASET
         self.assertEqual(len(list(store.search())), 4)
         store2, kosh_db = self.connect(db_uri=kosh_db)
         self.assertEqual(len(list(store2.search())), 4)
-        store.delete(ds.__id__)
+        store.delete(ds.id)
         self.assertEqual(len(list(store.search(project="test"))), 3)
         self.assertEqual(len(list(store.search())), 3)
         self.assertEqual(len(list(store2.search())), 3)
@@ -260,7 +260,7 @@ KOSH DATASET
         # sina 8c1b2cc21dc84ad32a6ff03a742ecef70ab89551
         ds_associated = ds2._associated_data_[0]
         _ = store.open(ds_associated)
-        store.delete(ds2.__id__)
+        store.delete(ds2.id)
         self.assertEqual(len(list(store.search(project="test"))), 2)
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)

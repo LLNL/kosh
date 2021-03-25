@@ -9,6 +9,8 @@ import time
 import fcntl
 import copy
 import collections
+import orjson
+import types
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -221,61 +223,88 @@ class KoshStoreClass(object):
             self.__sync__ = mode
         return self.__sync__
 
-    def export_dataset(self, dataset_Id):
+    def export_dataset(self, datasets, file=None):
         """exports a dataset
 
-        :param dataset_Id: Id of datset to export
+        :param datasets: dataset (or their ids) to export
+        :type datasets: list or str
+        :param file: optional file to dump datset to
+        :type file: None or str
         """
-        return self.open(dataset_Id).export()
+        if not isinstance(datasets, (list, tuple, types.GeneratorType)):
+            datasets = [datasets, ]
+        for dataset in datasets:
+            if isinstance(dataset, str):
+                return self.open(dataset).export(file)
+            else:
+                return dataset.export(file)
 
-    def import_dataset(self, dataset, match_attributes=["name", ]):
-        """import a dataset that was exported from another store
-        :param dataset: Dataset object exported by another store, or a dataset
-        :type dataset: json or kosh.KoshDataset
+    def import_dataset(self, datasets, match_attributes=["name", ]):
+        """import datasets that were exported from another store, or load them from a json file
+        :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
+        :type datasets: json file, json loaded object or kosh.KoshDataset
         :return: dataset
         :rtype: KoshSinaDataset
         """
-        if isinstance(dataset, KoshDataset):
-            dataset = dataset.export()
-        min_ver = dataset["minimum_kosh_version"]
-        if min_ver is not None and kosh.__version__ < min_ver:
-            raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
-                min_ver, kosh.__version__))
+        if isinstance(datasets, str):
+            with open(datasets) as f:
+                datasets = orjson.loads(f.read()).get("datasets", [])
+        elif not isinstance(datasets, (list, tuple)):
+            datasets = [datasets, ]
 
-        # Ok now we need to see if dataset already exist?
-        match_dict = {}
-        for attribute in match_attributes:
-            match_dict[attribute] = dataset["attributes"][attribute]
+        matches = []
+        for dataset in datasets:
+            if isinstance(dataset, KoshDataset):
+                dataset = dataset.export()
+            elif isinstance(dataset, str):
+                dataset = self.open(dataset).export()
+            min_ver = dataset.get("minimum_kosh_version", 0.)
+            if min_ver is not None and kosh.__version__ < min_ver:
+                raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
+                    min_ver, kosh.__version__))
 
-        matching = list(self.search(**match_dict))
+            # Ok now we need to see if dataset already exist?
+            match_dict = {}
+            for attribute in match_attributes:
+                match_dict[attribute] = dataset["attributes"][attribute]
 
-        if len(matching) > 1:
-            raise ValueError("dataset criterias: {} matches multiple ({}) "
-                             "datasets in store {}, try changing 'matching_attributes' when calling"
-                             " this function".format(
-                                 match_dict, len(matching), self.db_uri))
-        elif len(matching) == 1:
-            # All right we do have a possible conflict here
-            match = matching[0]
-            match_attributes = match.listattributes(dictionary=True)
-            # ok we have some match let's make sure there is no conflict
-            for att in set(match_attributes).intersection(dataset["attributes"].keys()):
-                if match_attributes[att] != dataset["attributes"][att]:
-                    # TODO ERROR HANDLING (--force options?)
-                    raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
-                        att, dataset["attributes"][att], match_attributes[att]))
-            # Ok at this point no conflict!
-            match.update(dataset["attributes"])
-        else:  # Non existent dataset
-            match = self.create(metadata=dataset["attributes"])
+            matching = list(self.search(**match_dict))
+            if len(matching) > 1:
+                raise ValueError("dataset criterias: {} matches multiple ({}) "
+                                 "datasets in store {}, try changing 'match_attributes' when calling"
+                                 " this function".format(
+                                     match_dict, len(matching), self.db_uri))
+            elif len(matching) == 1:
+                # All right we do have a possible conflict here
+                match = matching[0]
+                match_attributes = match.listattributes(dictionary=True)
+                # ok we have some match let's make sure there is no conflict
+                for att in set(match_attributes).intersection(dataset["attributes"].keys()):
+                    if match_attributes[att] != dataset["attributes"][att]:
+                        # TODO ERROR HANDLING (--force options?)
+                        raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
+                            att, dataset["attributes"][att], match_attributes[att]))
+                # Ok at this point no conflict!
+                match.update(dataset["attributes"])
+            else:  # Non existent dataset
+                try:
+                    match = self.create(id=dataset["attributes"].get("id", None), metadata=dataset["attributes"])
+                except Exception:
+                    # Ok it is possible that this imported dataset id does already exists
+                    # But the user matching keys led to no match
+                    # We need to create a new dataset
+                    if 'id' in dataset["attributes"]:
+                        del(dataset["attributes"]["id"])
+                    match = self.create(metadata=dataset["attributes"])
 
-        # now we need to handle associated files
-        lst = [(x.pop("uri"), x.pop("mime_type"), x.pop("associated"), x)
-               for x in copy.deepcopy(dataset["associated"])]
-        if len(lst) > 0:
-            uris, mime_types, asso, meta = zip(*lst)
-            match.associate(uris, mime_types, metadata=meta, absolute_path=False)
-        return match
+            # now we need to handle associated files
+            lst = [(x.pop("uri"), x.pop("mime_type"), x.pop("associated"), x)
+                   for x in copy.deepcopy(dataset["associated"])]
+            if len(lst) > 0:
+                uris, mime_types, asso, meta = zip(*lst)
+                match.associate(uris, mime_types, metadata=meta, absolute_path=False)
+            matches.append(match)
+        return matches
 
     def reassociate(self, target, source=None, absolute_path=True):
         """This function allows to re-associate data whose uri might have changed
@@ -370,7 +399,7 @@ class KoshDataset(object):
         """string representation"""
         st = ""
         st += "KOSH DATASET\n"
-        st += "\tid: {}\n".format(self.__id__)
+        st += "\tid: {}\n".format(self.id)
         try:
             st += "\tname:{}\n".format(self.__name__)
         except Exception:
@@ -458,9 +487,11 @@ class KoshDataset(object):
         """
         raise NotImplementedError
 
-    def export(self):
+    def export(self, file=None):
         """Exports this dataset
-        :return: datset and its associated data
+        :param file: export dataset to a file
+        :type file: None or str
+        :return: dataset and its associated data
         :rtype: dict"""
         output_dict = {
             "minimum_kosh_version": None,
@@ -472,6 +503,17 @@ class KoshDataset(object):
             a = self.__store__._load(associated)
             associated_records.append(a.list_attributes(dictionary=True))
         output_dict["associated"] = associated_records
+        if file is not None:
+            if os.path.exists(file):
+                with open(file) as f:
+                    file_dict = orjson.loads(f.read())
+            else:
+                file_dict = {"datasets": []}
+            ds = file_dict.get("datasets", [])
+            ds.append(output_dict)
+            file_dict["datasets"] = ds
+            with open(file, "w") as f:
+                f.write(orjson.dumps(file_dict).decode())
         return output_dict
 
     def open(self, Id=None, loader=None, *args, **kargs):

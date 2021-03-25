@@ -24,7 +24,7 @@ class KoshSinaObject(object):
     """KoshSinaObject Base class for sina objects
     """
     def get_record(self):
-        return self.__store__.get_record(self.__id__)
+        return self.__store__.get_record(self.id)
 
     def __init__(self, Id, store, koshType,
                  record_handler, protected=[], metadata={}, schema=None,
@@ -50,8 +50,8 @@ class KoshSinaObject(object):
         self.__dict__["__schema__"] = schema
         self.__dict__["__record_handler__"] = record_handler
         self.__dict__["__protected__"] = [
-            "__id__", "__type__", "__protected__",
-            "__record_handler__", "__store__", "__id__", "__schema__"] + protected
+            "id", "__type__", "__protected__",
+            "__record_handler__", "__store__", "id", "__schema__"] + protected
         self.__dict__["__type__"] = koshType
         if Id is None:
             Id = uuid.uuid4().hex
@@ -63,9 +63,9 @@ class KoshSinaObject(object):
             else:
                 record["user_defined"]["last_update_from_db"] = time.time()
                 self.__store__.__sync__dict__[Id] = record
-            self.__dict__["__id__"] = Id
+            self.__dict__["id"] = Id
         else:
-            self.__dict__["__id__"] = Id
+            self.__dict__["id"] = Id
             if record is None:
                 try:
                     record = self.get_record()
@@ -90,6 +90,8 @@ class KoshSinaObject(object):
         :raises AttributeError: could not retrieve attribute
         :return: requested attribute value
         """
+        if name == "__id__":
+            warnings.warn(DeprecationWarning("the attribute '__id__' has been deprecated in favor of 'id'"))
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
@@ -109,7 +111,7 @@ class KoshSinaObject(object):
                 return record["type"]
             else:
                 raise AttributeError(
-                    "Object {} does not have {} attribute".format(self.__id__,
+                    "Object {} does not have {} attribute".format(self.id,
                                                                   name))
         value = record["data"][name]["value"]
         if name == "creator":
@@ -123,6 +125,8 @@ class KoshSinaObject(object):
         :param: attributes: dictionary with attributes to update
         :type attributes: dict
         """
+        if 'id' in attributes:
+            del(attributes['id'])
         rec = None
         N = len(attributes)
         n = 0
@@ -180,7 +184,7 @@ class KoshSinaObject(object):
             raise AttributeError("Attribute {} of object id {} was modified since last sync\n"
                                  "Last modified in db at: {}, value: {}\n"
                                  "You last read it at: {}, with value: {}".format(
-                                     name, self.__id__,
+                                     name, self.id,
                                      last_db, record["data"][name],
                                      last, getattr(self, name)))
         now = time.time()
@@ -194,7 +198,7 @@ class KoshSinaObject(object):
         record["data"][name] = {"value": value}
         if update_db and self.__store__.__sync__:
             self.__store__.lock()
-            self.__record_handler__.delete(self.__id__)
+            self.__record_handler__.delete(self.id)
             self.__record_handler__.insert(record)
             self.__store__.unlock()
         return record
@@ -214,13 +218,13 @@ class KoshSinaObject(object):
         del(record["data"][name])
         if self.__store__.__sync__:
             self.__store__.lock()
-            self.__record_handler__.delete(self.__id__)
+            self.__record_handler__.delete(self.id)
             self.__record_handler__.insert(record)
             self.__store__.unlock()
 
     def sync(self):
         """sync this object with database"""
-        self.__store__.sync([self.__id__, ])
+        self.__store__.sync([self.id, ])
 
     def list_attributes(self, dictionary=False):
         __doc__ = self.listattributes.__doc__.replace("listattributes", "list_attributes")  # noqa
@@ -236,9 +240,9 @@ class KoshSinaObject(object):
         :rtype: list
         """
         record = self.get_record()
-        attributes = list(record["data"].keys())
+        attributes = list(record["data"].keys()) + ['id', ]
         for att in self.__protected__:
-            if att in attributes:
+            if att in attributes and att != "id":
                 attributes.remove(att)
         if dictionary:
             out = {}
@@ -266,9 +270,10 @@ class KoshSinaObject(object):
 
     def __str__(self):
         """String for printing"""
-        st = "Id: {}".format(self.__id__)
+        st = "Id: {}".format(self.id)
         for att in sorted(self.listattributes()):
-            st += "\n\t{}: {}".format(att, getattr(self, att))
+            if att != 'id':
+                st += "\n\t{}: {}".format(att, getattr(self, att))
         return st
 
 
@@ -278,15 +283,15 @@ class KoshSinaFile(KoshSinaObject):
         """open opens the file
         :return: handle to file in open mode
         """
-        return self.__store__.open(self.__id__, *args, **kargs)
+        return self.__store__.open(self.id, *args, **kargs)
 
 
 class KoshSinaDataset(KoshSinaObject, KoshDataset):
-    def __init__(self, datasetId, store, schema=None, record=None):
+    def __init__(self, id, store, schema=None, record=None):
         """KoshSinaDataset Sina representation of Kosh Dataset
 
-        :param datasetId: dataset's unique Id
-        :type datasetId: str
+        :param id: dataset's unique Id
+        :type id: str
         :param store: store containing the dataset
         :type store: KoshSinaStore
         :param schema: Kosh schema validator
@@ -294,7 +299,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         :param record: to avoid looking up in sina pass sina record
         :type record: Record
         """
-        super(KoshSinaDataset, self).__init__(datasetId, koshType=store._dataset_record_type,
+        super(KoshSinaDataset, self).__init__(id, koshType=store._dataset_record_type,
                                               protected=[
                                                          "__name__", "__creator__", "__store__",
                                                          "_associated_data_", "__features__"],
@@ -430,7 +435,7 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 rec["files"][uri]["kosh_id"] = Id
                 meta["uri"] = uri
                 meta["mime_type"] = mime_types[i]
-                meta["associated"] = [self.__id__, ]
+                meta["associated"] = [self.id, ]
                 for key in meta:
                     rec_obj.add_data(key, meta[key])
                     last_modif_att = "{name}_last_modified".format(name=key)
@@ -458,11 +463,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
         if self.__store__.__sync__:
             self.__store__.lock()
             self.__store__.__record_handler__.insert(new_recs)
-            self.__store__.__record_handler__.delete(self.__id__)
+            self.__store__.__record_handler__.delete(self.id)
             self.__store__.__record_handler__.insert(rec)
             self.__store__.unlock()
         else:
-            self.__store__._added_unsync_handler.delete(self.__id__)
+            self.__store__._added_unsync_handler.delete(self.id)
             self.__store__._added_unsync_handler.insert(rec)
 
         # Since we changed the associated, we need to cleanup
@@ -570,13 +575,13 @@ class KoshSinaLoader(KoshLoader):
     def open(self, *args, **kargs):
         """open the object
         """
-        record = self.obj.__store__.get_record(self.obj.__id__)
+        record = self.obj.__store__.get_record(self.obj.id)
         if record["type"] not in self.obj.__store__._kosh_reserved_record_types:
-            return KoshSinaDataset(self.obj.__id__, store=self.obj.__store__, record=record)
+            return KoshSinaDataset(self.obj.id, store=self.obj.__store__, record=record)
         if record["type"] == "file":
-            return KoshSinaFile(self.obj.__id__, store=self.obj.__store__, record=record)
+            return KoshSinaFile(self.obj.id, store=self.obj.__store__, record=record)
         else:
-            return KoshSinaObject(self.obj.__id__, record["type"], protected=[
+            return KoshSinaObject(self.obj.id, record["type"], protected=[
             ], record_handler=self.obj.__store__.__record_handler__, record=record)
 
 
@@ -630,7 +635,7 @@ class KoshSinaStore(KoshStoreClass):
         if db == "sql":
             import sina.datastores.sql as sina
             if not os.path.exists(db_uri):
-                if ("://" in db_uri and "@" in db_uri) :
+                if ("://" in db_uri and "@" in db_uri):
                     self.__sina_store = create_datastore(db_uri)
                 else:
                     raise ValueError("Kosh store could not be found at: {}".format(db_uri))
@@ -726,7 +731,7 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         """
         if not isinstance(Id, basestring):
-            Id = Id.__id__
+            Id = Id.id
 
         rec = self.get_record(Id)
         if rec.type not in self._kosh_reserved_record_types:
@@ -743,31 +748,40 @@ class KoshSinaStore(KoshStoreClass):
         else:
             self.__record_handler__.delete(Id)
 
-    def create(self, name="Unnamed Dataset", datasetId=None, metadata={}, schema=None, sina_type=None):
+    def create(self, name="Unnamed Dataset", id=None, metadata={}, schema=None, sina_type=None, **kargs):
         """create a new (possibly named) dataset
 
         :param name: name for the dataset, defaults to None
         :type name: str, optional
-        :param datasetId: unique Id, defaults to None which means use uuid4()
-        :type datasetId: str, optional
+        :param id: unique Id, defaults to None which means use uuid4()
+        :type id: str, optional
         :param metadata: dictionary of attribute/value pair for the dataset, defaults to {}
         :type metadata: dict, optional
         :param schema: a KoshSchema object to validate datasets and when setting attributes
         :type schema: KoshSchema
+        :param kargs: extra keyword arguments (ignored)
+        :type kargs: dict
         :raises RuntimeError: Dataset already exists
         :return: KoshSinaDataset
         :rtype: KoshSinaDataset
         """
+        if "datasetId" in kargs:
+            if id is None:
+                warnings.warn("'datasetId' has been deprecated in favor of 'id'")
+                id = kargs["datasetId"]
+            else:
+                raise ValueError("'datasetId' is deprecated in favor of 'id' which you already set here")
+
         if sina_type is None:
             sina_type = self._dataset_record_type
-        if datasetId is None:
+        if id is None:
             Id = uuid.uuid4().hex
         else:
-            if datasetId in self.__record_handler__.find_with_type(
+            if id in self.__record_handler__.find_with_type(
                     sina_type, ids_only=True):
                 raise RuntimeError(
-                    "Dataset id {} already exists".format(datasetId))
-            Id = datasetId
+                    "Dataset id {} already exists".format(id))
+            Id = id
 
         metadata = metadata.copy()
         metadata["creator"] = self.__user_id__
@@ -811,6 +825,7 @@ class KoshSinaStore(KoshStoreClass):
         if record["type"] not in self._kosh_reserved_record_types:
             # Not reserved means datset
             return KoshSinaLoader(obj), record["type"]
+        # Ok special type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
                 self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
@@ -907,7 +922,8 @@ class KoshSinaStore(KoshStoreClass):
         if "kosh_type" in keys and "sina_type" in keys:
             raise ValueError("'kosh_type' had been replaced with 'sina_type' you cannot use both at same time")
         if "kosh_type" in keys:
-            warnings.warn(DeprecationWarning("'kosh_type' is being deprecated in favor of 'sina_type' and will not work in a future version"))
+            warnings.warn(DeprecationWarning(
+                "'kosh_type' is being deprecated in favor of 'sina_type' and will not work in a future version"))
             search_type = keys.pop("kosh_type", None)
         else:
             search_type = keys.pop("sina_type", None)

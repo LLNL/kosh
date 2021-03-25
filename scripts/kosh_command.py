@@ -323,8 +323,8 @@ Available commands are:
         metadata = parse_metadata(metadata)
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
-        ds = store.create(datasetId=args.id, metadata=metadata)
-        print(ds.__id__)
+        ds = store.create(id=args.id, metadata=metadata)
+        print(ds.id)
 
     def remove(self):
         """Remove dataset(s) from store command"""
