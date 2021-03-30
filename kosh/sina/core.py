@@ -100,7 +100,7 @@ class KoshSinaObject(object):
                 out = []
                 for file_rec in record["files"]:
                     try:
-                        out.append(file_rec["kosh_id"])
+                        out.append(record["files"][file_rec]["kosh_id"])
                     except Exception:
                         pass
                 return out
@@ -439,7 +439,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                         raise TypeError("source {} is already associated with another dataset with mimetype"
                                         " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
                 rec.add_file(uri, mime_types[i])
-
                 rec["files"][uri]["kosh_id"] = Id
                 meta["uri"] = uri
                 meta["mime_type"] = mime_types[i]
