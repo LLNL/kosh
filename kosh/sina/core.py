@@ -2,14 +2,14 @@ import uuid
 from kosh.core import KoshStoreClass, KoshDataset
 from kosh.schema import KoshSchema
 from kosh.loaders import KoshLoader
-from kosh.utils import compute_fast_sha, compute_long_sha
+from kosh.utils import compute_fast_sha, compute_long_sha, version
 import warnings
 import time
 from sina.datastore import create_datastore
 import sina.utils
 import pickle
 import os
-import grp
+
 try:
     basestring
 except NameError:
@@ -612,23 +612,8 @@ class KoshSinaStore(KoshStoreClass):
         """
         KoshStoreClass.__init__(self, sync, verbose, use_lock_file)
         self._dataset_record_type = dataset_record_type
-        # TODO
-        # I will need to think of way to
-        # migrate the Kosh db if/when we
-        # decide to change these
-        # and keep it backward compatible
-        # Where to store info in db?
-        # ask @haluska2 if there's anything like this in Sina.
-        self._sources_type = "file"
-        self._users_type = "user"
-        self._groups_type = "group"
-        self._loaders_type = "koshloader"
-        self._kosh_reserved_record_types = kosh_reserved_record_types + \
-            [self._sources_type, self._users_type, self._groups_type, self._loaders_type]
-
         self.db_uri = db_uri
         if db == "sql":
-            import sina.datastores.sql as sina
             if not os.path.exists(db_uri):
                 if ("://" in db_uri and "@" in db_uri) :
                     self.__sina_store = create_datastore(db_uri)
@@ -639,12 +624,44 @@ class KoshSinaStore(KoshStoreClass):
                 self.__sina_store = create_datastore(database=os.path.abspath(db_uri))
                 self.unlock()
         elif db[:4].lower() == 'cass':
-            import sina.datastores.cass as sina  # noqa
             self.__sina_store = create_datastore(
                 keyspace=keyspace, database=db_uri, database_type='cassandra')
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
+        # First let's see if this store contains a dedicated record
+        # describing this store specs
+        store_info = list(self.__sina_store.records.find_with_type("__kosh_storeinfo__"))
+        if len(store_info) > 1:
+            raise RuntimeError("Your store has many entries describing its Kosh internal\nLikely it is corrupted. Aborting")
+        elif len(store_info) == 0:
+            # ok it's the old type, well let's try to upgrade it for next time
+            # and add the store info
+            rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
+            rec.add_data("sources_type", "file")
+            rec.add_data("users_type", "user")
+            rec.add_data("groups_type", "group")
+            rec.add_data("loaders_type", "koshloader")
+            rec.add_data("reserved_types", [
+                         "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
+            rec.add_data("kosh_min_version", "1.2.1")
+            self.__sina_store.records.insert(rec)
+        else:
+            rec = store_info[0]
+            # This will fail if we get to version x.10
+            # revisit then...
+            ver = sum([float(x)/10**i for i,x in enumerate(version().split(".")) if x[0] != 'g'])
+            min_ver = rec["data"]["kosh_min_version"]["value"]
+            min_ver = sum([float(x)/10**i for i,x in enumerate(min_ver.split("."))])
+            if ver < min_ver:
+                raise RuntimeError("This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, kosh._version__))
+
+        self._sources_type = rec["data"]["sources_type"]["value"]
+        self._users_type = rec["data"]["users_type"]["value"]
+        self._groups_type = rec["data"]["groups_type"]["value"]
+        self._loaders_type = rec["data"]["loaders_type"]["value"]
+        self._kosh_reserved_record_types = kosh_reserved_record_types + rec["data"]["reserved_types"]["value"]
+
         self.lock()
         self.__dict__["__record_handler__"] = self.__sina_store.records
         self.unlock()
@@ -965,8 +982,6 @@ class KoshSinaStore(KoshStoreClass):
             self.__sync__dict__ = backup
             self.synchronous()
 
-        # We used to return a list
-        # Breaking this and making it a generator
         if ids_only:
             for rec_id in inter_recs:
                 yield rec_id

@@ -1,4 +1,5 @@
 from subprocess import Popen, PIPE
+import pkg_resources
 import os
 import shlex
 import sys
@@ -230,3 +231,12 @@ def create_new_db(name, engine='sina', db='sql',
     o, e = p.communicate()
     if engine == "sina":
         return kosh.KoshStore(engine="sina", db_uri=name, **kargs)
+
+def version():
+    """Returns version
+    """
+    try:
+        __version__ = pkg_resources.get_distribution("kosh").version
+    except Exception as err:
+        __version__ = "???"
+    return __version__

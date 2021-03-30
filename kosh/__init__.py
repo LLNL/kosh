@@ -9,5 +9,5 @@ import pkg_resources  # noqa
 
 try:
     __version__ = pkg_resources.get_distribution("kosh").version
-except Exception:
+except Exception as err:
     __version__ = "???"

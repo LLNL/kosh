@@ -51,10 +51,21 @@ for typ in record_handler.get_available_types():
         record_handler.delete(rec.id)
 # Create users
 uid = uuid.uuid4().hex
-user = Record(id=uid, type="user")
+user = Record(id=uid, type="__kosh_user__")
 user.add_data("username", args.user)
 record_handler.insert(user)
 uid = uuid.uuid4().hex
-user = Record(id=uid, type="user")
+user = Record(id=uid, type="__kosh_user__")
 user.add_data("username", "anonymous")
 record_handler.insert(user)
+store_info = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
+store_info.add_data("sources_type", "__kosh_source__")
+store_info.add_data("users_type", "__kosh_user__")
+store_info.add_data("groups_type", "__kosh_group__")
+store_info.add_data("loaders_type", "__kosh_loader__")
+store_info.add_data("reserved_types", [
+    "__kosh_storeinfo__", "__kosh_source__", "__kosh_user___", "__kosh_group__", "__kosh_loader__"])
+store_info.add_data("kosh_version", [int(x) for x in kosh.__version__.split(".") if x[0]!="g"])
+# Minimum version required to read this store
+store_info.add_data("kosh_min_version", "1.2.1")
+record_handler.insert(store_info)
