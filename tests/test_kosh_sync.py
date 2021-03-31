@@ -76,7 +76,7 @@ class KoshTestSync(KoshTest):
         store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
         # Create dataset on syncing store
         ds1 = store1.create()
-        dsid = ds1.__id__
+        dsid = ds1.id
         # Check it exists on store2
         self.assertEqual(len(list(store1.search())), 1)
         self.assertEqual(len(list(store2.search())), 1)
@@ -97,9 +97,9 @@ class KoshTestSync(KoshTest):
         ds1 = store1.create()
         ds1.test_sync = "Set"
         # Check it exists on store2
-        ds2 = store2.open(ds1.__id__)
+        ds2 = store2.open(ds1.id)
         # Check they are identical
-        self.assertEqual(ds2.__id__, ds1.__id__)
+        self.assertEqual(ds2.id, ds1.id)
         self.assertEqual(ds2.test_sync, ds1.test_sync)
         # Change in store1, shouldn't change on store2 until synced
         ds1.test_sync = "Changed"
@@ -124,14 +124,14 @@ class KoshTestSync(KoshTest):
         ds3.test_sync = "exists"
         # Check it does not exists on store1
         with self.assertRaises(Exception):
-            ds3 = store1.open(ds3.__id__)
+            ds3 = store1.open(ds3.id)
         ds2.test_sync = "Another change"
         self.assertNotEqual(ds1.test_sync, ds2.test_sync)
         # Sync the store
         store2.sync()
         self.assertEqual(ds2.test_sync, ds1.test_sync)
         self.assertEqual(ds1.test_sync, "Another change")
-        ds3 = store1.open(ds3.__id__)
+        ds3 = store1.open(ds3.id)
         self.assertEqual(ds3.test_sync, "exists")
         # ok now test it fails if store changed in between
         ds2.test_sync = "I changed it"

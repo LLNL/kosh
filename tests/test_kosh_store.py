@@ -38,6 +38,7 @@ class KoshTestStore(KoshTest):
         store2.import_dataset(ds2)
         d2 = list(store2.search(name="two"))
         self.assertEqual(len(d2), 1)
+        print(d2[0])
         self.assertEqual(d2[0].param3, "blah")
 
         # if we alter it should not work though
