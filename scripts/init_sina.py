@@ -5,6 +5,8 @@ from sina.model import Record
 import argparse
 import os
 import uuid
+import kosh
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -32,6 +34,7 @@ parser.add_argument(
     help="type of sina datastore",
     default="sina.sql")
 args = parser.parse_args()
+
 
 if args.sina == "sql":
     import sina.datastores.sql as sina

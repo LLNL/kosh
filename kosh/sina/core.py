@@ -9,6 +9,8 @@ from sina.datastore import create_datastore
 import sina.utils
 import pickle
 import os
+import grp
+
 
 try:
     basestring
@@ -668,6 +670,7 @@ class KoshSinaStore(KoshStoreClass):
             if ver < min_ver:
                 raise RuntimeError("This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, kosh._version__))
 
+        print("REC DATA:", rec["data"])
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
         self._groups_type = rec["data"]["groups_type"]["value"]
