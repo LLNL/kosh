@@ -76,7 +76,7 @@ class KoshTestLoaders(KoshTest):
         ds.associate("setup.py", "ascii")
         l, _ = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(sorted(l.known_types()), ["file"])
+        self.assertEqual(sorted(l.known_types()), sorted(set(["file", store._sources_type])))
         self.assertEqual(l.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
@@ -121,7 +121,6 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
-        print("DATA IS:", data)
         self.assertEqual(data.shape[:-1], info["size"][::-1])
         os.remove(kosh_db)
 

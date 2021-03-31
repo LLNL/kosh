@@ -670,7 +670,6 @@ class KoshSinaStore(KoshStoreClass):
             if ver < min_ver:
                 raise RuntimeError("This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, kosh._version__))
 
-        print("REC DATA:", rec["data"])
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
         self._groups_type = rec["data"]["groups_type"]["value"]
@@ -709,6 +708,13 @@ class KoshSinaStore(KoshStoreClass):
             mem = create_datastore(None)
         self._added_unsync_handler = mem.records
         self._cached_loaders = {}
+
+        # Ok we need to map the KoshFileLoader back to whatever the source_type is
+        # in this store
+        ks = self.loaders["file"]
+        for loader in ks:
+            loader.types[self._sources_type] = loader.types["file"]
+        self.loaders[self._sources_type] = self.loaders["file"]
 
     def close(self):
         """closes store and sina related things"""
@@ -850,7 +856,7 @@ class KoshSinaStore(KoshStoreClass):
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] not in self._kosh_reserved_record_types:
-            # Not reserved means datset
+            # Not reserved means dataset
             return KoshSinaLoader(obj), record["type"]
         # Ok special type
         if "mime_type" in record["data"]:
@@ -955,6 +961,7 @@ class KoshSinaStore(KoshStoreClass):
         else:
             search_type = keys.pop("sina_type", None)
 
+
         sina_kargs.update(keys)
         if search_type is not None:
             ds_filter = list(self.__record_handler__.find_with_type(
@@ -974,7 +981,8 @@ class KoshSinaStore(KoshStoreClass):
             for rec_type in self._kosh_reserved_record_types:
                 excluded += self._added_unsync_handler.find_with_type(rec_type, ids_only=True)
 
-        file_uri = sina_kargs.pop(self._sources_type, None)
+        file_uri = sina_kargs.pop("file", None)
+
         if len(sina_kargs) == 0:
             match = set(self.__record_handler__.get_all(ids_only=True))
         else:

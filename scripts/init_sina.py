@@ -67,7 +67,7 @@ store_info.add_data("users_type", "__kosh_user__")
 store_info.add_data("groups_type", "__kosh_group__")
 store_info.add_data("loaders_type", "__kosh_loader__")
 store_info.add_data("reserved_types", [
-    "__kosh_storeinfo__", "__kosh_source__", "__kosh_user___", "__kosh_group__", "__kosh_loader__"])
+    "__kosh_storeinfo__", "__kosh_source__", "__kosh_user__", "__kosh_group__", "__kosh_loader__"])
 store_info.add_data("kosh_version", [int(x) for x in kosh.__version__.split(".") if x[0]!="g"])
 # Minimum version required to read this store
 store_info.add_data("kosh_min_version", "1.2.1")

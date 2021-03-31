@@ -64,11 +64,11 @@ class KoshTestMv(KoshTest):
 
         dest_name_orig = os.path.abspath("file_dest.py")
         run_mv([file_src_orig, ], dest_name_orig, [db1, db2])
+        self.assertFalse(self.file_exist(file_src_orig))
+        self.assertTrue(self.file_exist(dest_name_orig))
         for ds in [ds1, ds2]:
             associated = next(ds.search(mime_type="py"))
             self.assertEqual(associated.uri, dest_name_orig)
-        self.assertFalse(self.file_exist(file_src_orig))
-        self.assertTrue(self.file_exist(dest_name_orig))
 
         # cleanup file
         os.remove(dest_name_orig)

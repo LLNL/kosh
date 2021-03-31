@@ -130,13 +130,13 @@ KOSH DATASET
                 absolute_path=False)
         self.assertEqual(len(list(ds.search())), 1)
         # Associating with another dataset does not create another obj in db
-        n_files = len(list(store.search(kosh_type="file", ids_only=True)))
+        n_files = len(list(store.search(sina_type=store._sources_type, ids_only=True)))
         ds_2 = store.create("multi")
         ds_2.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
-        n_files_2 = len(list(store.search(kosh_type="file", ids_only=True)))
+        n_files_2 = len(list(store.search(sina_type=store._sources_type, ids_only=True)))
         self.assertEqual(n_files, n_files_2)
 
         f = ds.associate(
@@ -182,9 +182,9 @@ KOSH DATASET
             ds_2.associate("some_uri", "some_other_mime_type")
 
         # make sure dissociate fully removes obj from store
-        n_files = len(list(store.search(kosh_type="file", ids_only=True)))
+        n_files = len(list(store.search(sina_type=store._sources_type, ids_only=True)))
         ds.dissociate("some_uri")  # shouldn't be anywhere now
-        n_files_2 = len(list(store.search(kosh_type="file", ids_only=True)))
+        n_files_2 = len(list(store.search(sina_type=store._sources_type, ids_only=True)))
         self.assertEqual(n_files - 1, n_files_2)
         os.remove(kosh_db)
 

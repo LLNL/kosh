@@ -337,11 +337,11 @@ class KoshStoreClass(object):
 
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha search all "kosh files" that match this
-        matches = list(self.search(kosh_type="file", fast_sha=source, ids_only=True))
+        matches = list(self.search(sina_type=self._sources_type, fast_sha=source, ids_only=True))
         # Now it could be simply a uri
-        matches += list(self.search(kosh_type="file", uri=source, ids_only=True))
+        matches += list(self.search(sina_type=self._sources_type, uri=source, ids_only=True))
         # And it's quite possible it's a long_sha too
-        matches += list(self.search(kosh_type="file", long_sha=source, ids_only=True))
+        matches += list(self.search(sina_type=self._sources_type, long_sha=source, ids_only=True))
 
         # And now let's do the work
         for match_id in matches:
