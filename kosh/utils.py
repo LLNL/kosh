@@ -232,11 +232,12 @@ def create_new_db(name, engine='sina', db='sql',
     if engine == "sina":
         return kosh.KoshStore(engine="sina", db_uri=name, **kargs)
 
+
 def version():
     """Returns version
     """
     try:
         __version__ = pkg_resources.get_distribution("kosh").version
-    except Exception as err:
+    except Exception:
         __version__ = "???"
     return __version__

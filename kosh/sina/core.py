@@ -647,7 +647,8 @@ class KoshSinaStore(KoshStoreClass):
         # describing this store specs
         store_info = list(self.__sina_store.records.find_with_type("__kosh_storeinfo__"))
         if len(store_info) > 1:
-            raise RuntimeError("Your store has many entries describing its Kosh internal\nLikely it is corrupted. Aborting")
+            raise RuntimeError(
+                "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
         elif len(store_info) == 0:
             # ok it's the old type, well let's try to upgrade it for next time
             # and add the store info
@@ -664,11 +665,14 @@ class KoshSinaStore(KoshStoreClass):
             rec = store_info[0]
             # This will fail if we get to version x.10
             # revisit then...
-            ver = sum([float(x)/10**i for i,x in enumerate(version().split(".")) if x[0] != 'g'])
+            ver = sum(
+                [float(x)/10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
             min_ver = rec["data"]["kosh_min_version"]["value"]
-            min_ver = sum([float(x)/10**i for i,x in enumerate(min_ver.split("."))])
+            min_ver = sum(
+                [float(x)/10**i for i, x in enumerate(min_ver.split("."))])
             if ver < min_ver:
-                raise RuntimeError("This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, kosh._version__))
+                raise RuntimeError(
+                    "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
 
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
@@ -960,7 +964,6 @@ class KoshSinaStore(KoshStoreClass):
             search_type = keys.pop("kosh_type", None)
         else:
             search_type = keys.pop("sina_type", None)
-
 
         sina_kargs.update(keys)
         if search_type is not None:
