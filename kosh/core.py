@@ -9,7 +9,10 @@ import time
 import fcntl
 import copy
 import collections
-import orjson
+try:
+    import orjson
+except ImportError:
+    import json as orjson  # noqa
 import types
 try:
     from .loaders import HDF5Loader
