@@ -281,6 +281,8 @@ class KoshStoreClass(object):
                 match_attributes = match.listattributes(dictionary=True)
                 # ok we have some match let's make sure there is no conflict
                 for att in set(match_attributes).intersection(atts.keys()):
+                    if att == 'id' and 'id' not in match_dict:
+                        continue
                     if match_attributes[att] != atts[att]:
                         # TODO ERROR HANDLING (--force options?)
                         raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
