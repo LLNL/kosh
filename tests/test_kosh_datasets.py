@@ -19,6 +19,33 @@ class KoshTestDataset(KoshTest):
             ds["some_key_not_in_file"]
         os.remove(kosh_db)
 
+    def test_associate_known_mime_no_file(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate(
+            "tests/baselines/I_dont_exists.hdf5",
+            "hdf5",
+            metadata={
+                "bad": True})
+        ds.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5",
+            "hdf5", metadata={"bad": False})
+        features = ds.list_features()
+        self.assertEqual(features, ['cycles', 'direction', 'elements',
+                                    'node', 'node/metrics_0', 'node/metrics_1', 'node/metrics_10',
+                                    'node/metrics_11', 'node/metrics_12', 'node/metrics_2',
+                                    'node/metrics_3',
+                                    'node/metrics_4', 'node/metrics_5',
+                                    'node/metrics_6', 'node/metrics_7',
+                                    'node/metrics_8', 'node/metrics_9',
+                                    'zone', 'zone/metrics_0',
+                                    'zone/metrics_1', 'zone/metrics_2',
+                                    'zone/metrics_3', 'zone/metrics_4'])
+        search = ds.search(bad=True, ids_only=True)
+        self.assertEqual(len(search), 1)
+        search = ds.search(bad=False, ids_only=True)
+        self.assertEqual(len(search), 1)
+
     def test_add_dataset(self):
         store, kosh_db = self.connect()
         # Check it's empy
