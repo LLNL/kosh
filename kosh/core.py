@@ -530,7 +530,10 @@ class KoshDataset(object):
                         self.__store__._cached_loaders[associated] = loader(self.__store__._load(associated))
                     ld = self.__store__._cached_loaders[associated]
                 loaders.append(ld)
-                features += ld._list_features(*args, use_cache=use_cache, **kargs)
+                try:
+                    features += ld._list_features(*args, use_cache=use_cache, **kargs)
+                except Exception:  # Ok the loader couldn't get the feature list
+                    pass
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
