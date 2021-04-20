@@ -642,7 +642,7 @@ class KoshSinaStore(KoshStoreClass):
         from sina.utils import DataRange
         global Record, DataRange
 
-        rec = self.update_store_and_get_info_record(self)
+        rec = self.update_store_and_get_info_record()
 
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
