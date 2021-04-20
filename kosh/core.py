@@ -297,10 +297,9 @@ class KoshStoreClass(object):
                     id = atts.get("id", None)
                     if 'id' in atts:
                         del(atts["id"])
-                    print("CREATING WITH ID:", id)
                     match = self.create(id=id, metadata=atts)
                 except Exception:
-                    # Ok it is possible that this imported dataset id does already exists
+                    # Ok it is possible that this imported dataset id already exists
                     # But the user matching keys led to no match
                     # We need to create a new dataset
                     match = self.create(metadata=dataset["attributes"])

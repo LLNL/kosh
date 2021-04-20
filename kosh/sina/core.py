@@ -103,7 +103,7 @@ class KoshSinaObject(object):
                 for file_rec in record["files"]:
                     try:
                         out.append(record["files"][file_rec]["kosh_id"])
-                    except Exception:
+                    except KeyError:
                         pass
                 return out
             else:
@@ -561,8 +561,6 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                     match = []
             inter_recs = set(match).intersection(set(self._associated_data_))
 
-        # Breaking old way
-        # Now it's a generator
         if ids_only:
             for rec_id in inter_recs:
                 yield rec_id
@@ -643,36 +641,8 @@ class KoshSinaStore(KoshStoreClass):
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
-        # First let's see if this store contains a dedicated record
-        # describing this store specs
-        store_info = list(self.__sina_store.records.find_with_type("__kosh_storeinfo__"))
-        if len(store_info) > 1:
-            raise RuntimeError(
-                "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
-        elif len(store_info) == 0:
-            # ok it's the old type, well let's try to upgrade it for next time
-            # and add the store info
-            rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
-            rec.add_data("sources_type", "file")
-            rec.add_data("users_type", "user")
-            rec.add_data("groups_type", "group")
-            rec.add_data("loaders_type", "koshloader")
-            rec.add_data("reserved_types", [
-                         "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
-            rec.add_data("kosh_min_version", "1.2.1")
-            self.__sina_store.records.insert(rec)
-        else:
-            rec = store_info[0]
-            # This will fail if we get to version x.10
-            # revisit then...
-            ver = sum(
-                [float(x)/10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
-            min_ver = rec["data"]["kosh_min_version"]["value"]
-            min_ver = sum(
-                [float(x)/10**i for i, x in enumerate(min_ver.split("."))])
-            if ver < min_ver:
-                raise RuntimeError(
-                    "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+
+        rec = self.update_store_and_get_info_record(self)
 
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
@@ -719,6 +689,44 @@ class KoshSinaStore(KoshStoreClass):
         for loader in ks:
             loader.types[self._sources_type] = loader.types["file"]
         self.loaders[self._sources_type] = self.loaders["file"]
+
+    def update_store_and_get_info_record(self):
+        """Obtain the sina record containing store info
+        If necessary update store to latest standards
+        :returns: sina recor for store info
+        :rtype: Record
+        """
+        # First let's see if this store contains a dedicated record
+        # describing this store specs
+        store_info = list(self.__sina_store.records.find_with_type("__kosh_storeinfo__"))
+        if len(store_info) > 1:
+            raise RuntimeError(
+                "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
+        elif len(store_info) == 0:
+            # ok it's the old type, well let's try to upgrade it for next time
+            # and add the store info
+            rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
+            rec.add_data("sources_type", "file")
+            rec.add_data("users_type", "user")
+            rec.add_data("groups_type", "group")
+            rec.add_data("loaders_type", "koshloader")
+            rec.add_data("reserved_types", [
+                         "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
+            rec.add_data("kosh_min_version", "1.2.1")
+            self.__sina_store.records.insert(rec)
+        else:
+            rec = store_info[0]
+            # This will fail if we get to version x.10
+            # revisit then...
+            ver = sum(
+                [float(x)/10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
+            min_ver = rec["data"]["kosh_min_version"]["value"]
+            min_ver = sum(
+                [float(x)/10**i for i, x in enumerate(min_ver.split("."))])
+            if ver < min_ver:
+                raise RuntimeError(
+                    "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+        return rec
 
     def close(self):
         """closes store and sina related things"""
@@ -796,6 +804,8 @@ class KoshSinaStore(KoshStoreClass):
         :type metadata: dict, optional
         :param schema: a KoshSchema object to validate datasets and when setting attributes
         :type schema: KoshSchema
+        :param sina_type: If you want to query the store for a specific sina record type, not just a datset
+        :type sina_type: str
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
         :raises RuntimeError: Dataset already exists
