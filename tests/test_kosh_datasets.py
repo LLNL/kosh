@@ -42,9 +42,9 @@ class KoshTestDataset(KoshTest):
                                     'zone/metrics_1', 'zone/metrics_2',
                                     'zone/metrics_3', 'zone/metrics_4'])
         search = ds.search(bad=True, ids_only=True)
-        self.assertEqual(len(search), 1)
+        self.assertEqual(len(list(search)), 1)
         search = ds.search(bad=False, ids_only=True)
-        self.assertEqual(len(search), 1)
+        self.assertEqual(len(list(search)), 1)
 
     def test_add_dataset(self):
         store, kosh_db = self.connect()
