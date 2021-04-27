@@ -10,6 +10,7 @@ import sina.utils
 import pickle
 import os
 import grp
+import numpy
 
 
 try:
@@ -97,9 +98,12 @@ class KoshSinaObject(object):
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
+                if len(record["curve_sets"]) != 0:
+                    out = [self.id, ]
+                else:
+                    out = []
                 # we cannot use list comprehension
                 # some pure sina rec have file but no kosh_id
-                out = []
                 for file_rec in record["files"]:
                     try:
                         out.append(record["files"][file_rec]["kosh_id"])
@@ -571,12 +575,11 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
 
 class KoshSinaLoader(KoshLoader):
     """Sina base class for loaders"""
-    types = {"dataset": []}
+    types = {"dataset": ["numpy", ]}
 
     def __init__(self, obj):
         """KoshSinaLoader generic sina-based loader
         """
-
         super(KoshSinaLoader, self).__init__(obj)
 
     def open(self, *args, **kargs):
@@ -590,6 +593,51 @@ class KoshSinaLoader(KoshLoader):
         else:
             return KoshSinaObject(self.obj.id, record["type"], protected=[
             ], record_handler=self.obj.__store__.__record_handler__, record=record)
+
+    def list_features(self):
+        record = self.obj.__store__.get_record(self.obj.id)
+        # Using set in case a variable is both in independent and dependent
+        # Dependent would win when getting the data
+        curves = set()
+        for curve in record["curve_sets"]:
+            curves.add(curve)
+            for curve_type in ["independent", "dependent"]:
+                for name in record["curve_sets"][curve][curve_type]:
+                    curves.add("{}/{}".format(curve, name))
+        return sorted(curves)
+
+    def extract(self, *args, **kargs):
+        features = self.feature
+        if not isinstance(features, list):
+            features = [self.feature, ]
+        record = self.obj.__store__.get_record(self.obj.id)
+        out = []
+        for feature in features:
+            sp = feature.split("/")
+            # Here we are assuming the curve root name cannot have "/" in it
+            curve_root = record["curve_sets"][sp[0]]
+            if len(sp) > 1:
+                curve_name = "/".join(sp[1:])
+                if curve_name in curve_root["dependent"]:
+                    curve = curve_root["dependent"][curve_name]["value"]
+                else:
+                    curve = curve_root["independent"][curve_name]["value"]
+                out.append(numpy.array(curve))
+            else:
+                # we want all curves
+                all = []
+                # Matching order (indep/dep) that we used in list_features
+                for curve_type in ["independent", "dependent"]:
+                    # Same order as list_features()
+                    for curve_name in sorted(curve_root[curve_type].keys()):
+                        curve = curve_root[curve_type][curve_name]["value"]
+                        all.append(numpy.array(curve))
+                out.append(all)
+
+        if not isinstance(self.feature, list):
+            return out[0]
+        else:
+            return out
 
 
 class KoshSinaStore(KoshStoreClass):
@@ -863,7 +911,7 @@ class KoshSinaStore(KoshStoreClass):
 
         :param Id: Id of the object to load
         :type Id: str
-        :return: Kosh loader object and mime_type
+        :return: Kosh loader object
         """
         if Id in self._cached_loaders:
             return self._cached_loaders[Id]
@@ -871,17 +919,17 @@ class KoshSinaStore(KoshStoreClass):
         obj = self._load(Id)
         if record["type"] not in self._kosh_reserved_record_types:
             # Not reserved means dataset
-            return KoshSinaLoader(obj), record["type"]
+            return KoshSinaLoader(obj)
         # Ok special type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
                 self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
-                    obj), record["data"]["mime_type"]["value"]
+                    obj)
                 return self._cached_loaders[Id]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj), record["type"]
+            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj)
             return self._cached_loaders[Id]
         return
 
@@ -895,7 +943,7 @@ class KoshSinaStore(KoshStoreClass):
         :return:
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
         return loader.open(*args, **kargs)
@@ -932,7 +980,7 @@ class KoshSinaStore(KoshStoreClass):
         :type transformers: kosh.operator.KoshTransformer
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 

@@ -428,12 +428,19 @@ class KoshDataset(object):
             # Let's organize per mime_type
             associated = {}
             for a in self._associated_data_:
-                a_obj = self.__store__._load(a)
-                st2 = "{a_obj.uri} ( {a} )".format(a_obj=a_obj, a=a)
-                if a_obj.mime_type not in associated:
-                    associated[a_obj.mime_type] = [st2, ]
+                if a == self.id:
+                    st2 = "internal ( {} )".format(", ".join(self.get_record()["curve_sets"].keys()))
+                    if "sina/curve" not in associated:
+                        associated["sina/curve"] = [st2, ]
+                    else:
+                        associated["sina/curve"].append(st2)
                 else:
-                    associated[a_obj.mime_type].append(st2)
+                    a_obj = self.__store__._load(a)
+                    st2 = "{a_obj.uri} ( {a} )".format(a_obj=a_obj, a=a)
+                    if a_obj.mime_type not in associated:
+                        associated[a_obj.mime_type] = [st2, ]
+                    else:
+                        associated[a_obj.mime_type].append(st2)
             for mime in sorted(associated):
                 st += "\tMime_type: {mime}".format(mime=mime)
                 for uri in sorted(associated[mime]):
@@ -573,7 +580,7 @@ class KoshDataset(object):
         if Id is None:
             for associated in associated_data:
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated)
+                    ld = self.__store__._find_loader(associated)
                 else:
                     if associated not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated] = loader(self.__store__._load(associated))
@@ -600,7 +607,7 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            ld, _ = self.__store__._find_loader(Id)
+            ld = self.__store__._find_loader(Id)
             features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
@@ -627,7 +634,7 @@ class KoshDataset(object):
         loader = None
         if Id is None:
             for a in self._associated_data_:
-                ld, _ = self.__store__._find_loader(a)
+                ld = self.__store__._find_loader(a)
                 if feature in ld._list_features(**kargs) or \
                         (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
@@ -636,7 +643,7 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            loader, _ = self.__store__._find_loader(Id)
+            loader = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
     def get_execution_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
@@ -680,16 +687,18 @@ class KoshDataset(object):
                 for a in self._associated_data_:
                     a_obj = self.__store__._load(a)
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(a)
+                        ld = self.__store__._find_loader(a)
                     else:
                         if a_obj.mime_type in loader.types:
                             ld = loader(a_obj)
                         else:
                             continue
+                    # Dataset with urve have themsleves as uri
+                    obj_uri = getattr(ld.obj, "uri", "self")
                     if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
                             feature_ is None or\
-                            (feature_[:-len(ld.obj.uri) - 3] in ld._list_features() and
-                             feature_[-len(ld.obj.uri):] == ld.obj.uri):
+                            (feature_[:-len(obj_uri) - 3] in ld._list_features() and
+                             feature_[-len(obj_uri):] == obj_uri):
                         possible_ids.append(a)
                 if possible_ids == []:  # All failed but could be something about the feature
                     raise ValueError("Cannot find feature {} in dataset".format(feature_))
@@ -726,7 +735,8 @@ class KoshDataset(object):
                 tmp = None
                 try:
                     if loader is None:
-                        ld, mime_type = self.__store__._find_loader(Id)
+                        ld = self.__store__._find_loader(Id)
+                        mime_type = ld._mime_type
                     else:
                         if Id not in self.__store__._cached_loaders:
                             a_obj = self.__store__._load(Id)
@@ -742,17 +752,19 @@ class KoshDataset(object):
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
+                    obj_uri = getattr(ld.obj, "uri", "")
                     for feature_ in features:
-                        if (feature_[:-len(ld.obj.uri) - 3] in ld._list_features()
-                                and feature_[-len(ld.obj.uri):] == ld.obj.uri):
+                        if (feature_[:-len(obj_uri) - 3] in ld._list_features()
+                                and feature_[-len(obj_uri):] == obj_uri):
                             final_features.append(
-                                feature_[:-len(ld.obj.uri) - 3])
+                                feature_[:-len(obj_uri) - 3])
                         else:
                             final_features.append(feature_)
                     if len(final_features) == 1:
                         final_features = final_features[0]
                     tmp = ld.get_execution_graph(final_features,
-                                                 transformers=transformers)
+                                                 transformers=transformers
+                                                 )
                     ld.feature = final_features
                     ExecGraph = kosh.exec_graphs.KoshExecutionGraph(tmp)
                 except Exception:
