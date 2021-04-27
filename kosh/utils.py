@@ -241,3 +241,24 @@ def version():
     except Exception:
         __version__ = "???"
     return __version__
+
+
+def walk_dictionary_keys(dictionary, separator="/"):
+    """Walks through a dictionary and return all levels of keys
+    sub dictionary keys are append to parent key with the 'separator'
+    :param dictionary: The dictionary to walk
+    :type dictionary: dict
+    :param separator: The string to use between a parent key and its children
+    :type separator: str
+    :returns: generator of keys and possibly their sub keys
+    :rtype: generator
+    """
+    out = []
+    for key in sorted(dictionary.keys(), key=lambda x: str(x)):
+        out.append(str(key))
+        if isinstance(dictionary[key], dict):
+            yld = walk_dictionary_keys(dictionary[key], separator)
+            for y in yld:
+                st = "{}{}{}".format(key, separator, y)
+                out.append(st)
+    return out
