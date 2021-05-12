@@ -524,7 +524,7 @@ Available commands are:
             # option
             tarred_files = get_all_files(opts)
 
-            # Prpare dictionar to hold list of datasets to epxort (per store)
+            # Prepare dictionary to hold list of datasets to export (per store)
             store_datasets = {}
             for store in stores:
                 store_datasets[store.db_uri] = []
@@ -866,6 +866,48 @@ Available commands are:
         # closes stores and send them back to remote if necessary
         close_stores(origin_stores, args.stores)
         close_stores(dest_stores, args.destination_stores)
+
+    def create_new_db(self):
+        """Creates a Kosh store"""
+        parser = argparse.ArgumentParser(
+            prog="kosh create_new_db",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            description="Creates a new Kosh store",
+            epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
+        parser.add_argument("--uri", "-u", help="path to database", required=True) 
+        parser.add_argument("--engine", "-e", help="engine to use as Kosh backend", choices=["sina",], default="sina")
+        parser.add_argument("--database", "--db", "-d", help="Database type to use as backend", choices=["sql", "cass"], default="sql")
+        parser.add_argument("--token", "-t", help="Token to use (for Cassandra databases)", default="")
+        parser.add_argument("--keyspace", "-k", help="keyspace to use (for Cassandra databases)")
+        parser.add_argument("--cluster", "-c", help="cluster to use (for Cassandra databases)")
+
+        args = parser.parse_args(sys.argv[2:])
+
+        kosh.create_new_db(args.uri, engine=args.engine, db=args.database,
+                           token=args.token, keyspace=args.keyspace, cluster=args.cluster)
+    
+    def create(self):
+        """Creates a Kosh dataset in a store"""
+        parser = core_parser(
+            description='Create a dataset in the store with matching metadata in form key=value')
+        args, user_params = parser.parse_known_args(sys.argv[2:])
+
+        params = {}
+        index = 0
+        while index < len(user_params):
+            term = user_params[index]
+            sp = term.split("=")
+            if len(sp) > 1:
+                params[sp[0]] = eval(sp[1])
+                index += 1
+            else:
+                params[sp[0]] = eval(user_params[index+1])
+                index += 2
+
+        print("Adding ds to: {}".format(args.store))
+        store = kosh.KoshStore(args.store)
+        store.create(metadata=params)
+
 
 
 def is_remote(path):
