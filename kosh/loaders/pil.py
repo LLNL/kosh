@@ -11,13 +11,13 @@ class PILLoader(KoshLoader):
              "pil": ["numpy", "bytes"],
              "tif": ["numpy", "bytes"]}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **kargs):
         """ImageLoader for Kosh to be able to read in pillow (PIL) compatible image files
 
         :param obj: Kosh obj reference
         :type obj: object
         """
-        super(PILLoader, self).__init__(obj)
+        super(PILLoader, self).__init__(obj, **kargs)
 
     def open(self, mode="r"):
         """open the pil reader
@@ -26,7 +26,7 @@ class PILLoader(KoshLoader):
         :type mode: str, optional
         :return: Image file from PIL
         """
-        return Image.open(self.obj.uri)
+        return Image.open(self.uri)
 
     def extract(self):
         """get a feature

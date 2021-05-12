@@ -7,7 +7,7 @@ class JSONLoader(KoshLoader):
     types = {"json": ["any", "dict", "list", "str"]}
 
     def list_features(self):
-        with open(self.obj.uri) as json_file:
+        with open(self.uri) as json_file:
             content = json.load(json_file)
         if isinstance(content, dict):
             return sorted(["content", ] + list(content.keys()))
@@ -19,7 +19,7 @@ class JSONLoader(KoshLoader):
         if not isinstance(features, list) and features != "content":
             features = [self.feature, ]
 
-        with open(self.obj.uri) as json_file:
+        with open(self.uri) as json_file:
             content = json.load(json_file)
 
         if features == "content":
