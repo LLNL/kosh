@@ -23,9 +23,9 @@ class UltraLoader(KoshLoader):
     """Kosh Loader for ultra files"""
     types = {"ultra": ["numpy", ]}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **kargs):
         super(UltraLoader, self).__init__(obj)
-        self.curves = pydvif.read(self.obj.uri)
+        self.curves = pydvif.read(self.uri, **kargs)
 
     def load_from_ultra(self, variable):
         """Load variables from an ultra file

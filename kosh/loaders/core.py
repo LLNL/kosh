@@ -69,16 +69,30 @@ class KoshLoader(KoshExecutionGraph):
     """
     types = {"dataset": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, mime_type=None, uri=None):
         """KoshLoader generic Kosh loader
         :param obj: object the loader will try to load from
         :type obj: object
+        :param mime_type: If you want to force the mime_type to use
+        :type mime_type: str
+        :param uri: If you want/need to force the uri to use
+        :type uri: str
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(obj.id)
-        self._mime_type = obj.mime_type
+        if mime_type is None:
+            self._mime_type = obj.mime_type
+        else:
+            self._mime_type = mime_type
+        if uri is None:
+            try:
+                self.uri = obj.uri
+            except AttributeError:  # Not uri on this
+                self.uri = None
+        else:
+            self.uri = uri
         rec = obj.__store__.get_record(obj.id)
-        if rec["type"] not in obj.__store__._kosh_reserved_record_types:
+        if rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None:
             self._mime_type = "dataset"
         if self._mime_type not in self.types:
             open_anything = False
@@ -302,7 +316,7 @@ class KoshFileLoader(KoshLoader):
     """Kosh loader to load content from files"""
     types = {"file": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **args):
         super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
@@ -312,7 +326,7 @@ class KoshFileLoader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        return KoshGenericObjectFromFile(self.obj.uri, mode)
+        return KoshGenericObjectFromFile(self.uri, mode)
 
     def extract(self, feature, format):
         """extract return a feature from the loaded object.
@@ -323,7 +337,7 @@ class KoshFileLoader(KoshLoader):
         :type format: str
         :return: data
         """
-        with open(self.obj.uri) as f:
+        with open(self.uri) as f:
             return f.read()
 
     def list_features(self, *args, **kargs):

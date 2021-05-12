@@ -15,7 +15,7 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
             features = self.feature
 
         ioh = conduit.relay.io.IOHandle()
-        ioh.open(self.obj.uri, "sidre_hdf5")
+        ioh.open(self.uri, "sidre_hdf5")
         # look for self.feature
         bp_idx = conduit.Node()
         ioh.read(bp_idx, "root/blueprint_index")
@@ -60,7 +60,7 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
 
     def list_features(self):
         ioh = conduit.relay.io.IOHandle()
-        ioh.open(self.obj.uri, "sidre_hdf5")
+        ioh.open(self.uri, "sidre_hdf5")
         # get the blueprint index
         bp_idx = conduit.Node()
         ioh.read(bp_idx, "root/blueprint_index")

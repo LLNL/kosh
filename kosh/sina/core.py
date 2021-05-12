@@ -98,6 +98,7 @@ class KoshSinaObject(object):
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
+                # Any curve sets?
                 if len(record["curve_sets"]) != 0:
                     out = [self.id, ]
                 else:
@@ -105,10 +106,15 @@ class KoshSinaObject(object):
                 # we cannot use list comprehension
                 # some pure sina rec have file but no kosh_id
                 for file_rec in record["files"]:
-                    try:
+                    file_entry = record["files"][file_rec]
+                    if "kosh_id" in file_entry:
                         out.append(record["files"][file_rec]["kosh_id"])
-                    except KeyError:
-                        pass
+                    else:
+                        # Not an entry made by Kosh
+                        # But maybe we can salvage this!
+                        # did  the user added a mime_type?
+                        if "mimetype" in file_entry:
+                            out.append("{}__uri__{}".format(self.id, file_rec))
                 return out
             else:
                 return self.__dict__[name]
@@ -577,10 +583,10 @@ class KoshSinaLoader(KoshLoader):
     """Sina base class for loaders"""
     types = {"dataset": ["numpy", ]}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **kargs):
         """KoshSinaLoader generic sina-based loader
         """
-        super(KoshSinaLoader, self).__init__(obj)
+        super(KoshSinaLoader, self).__init__(obj, **kargs)
 
     def open(self, *args, **kargs):
         """open the object
@@ -913,24 +919,38 @@ class KoshSinaStore(KoshStoreClass):
         :type Id: str
         :return: Kosh loader object
         """
-        if Id in self._cached_loaders:
-            return self._cached_loaders[Id]
+        Id_original = str(Id)
+        if "__uri__" in Id:
+            # Ok this is a pure sina file with mime_type
+            Id, uri = Id.split("__uri__")
+        else:
+            uri = None
+        if Id_original in self._cached_loaders:
+            return self._cached_loaders[Id_original]
         record = self.get_record(Id)
         obj = self._load(Id)
-        if record["type"] not in self._kosh_reserved_record_types:
+        # uri not none means it is pure sina record with file and mime_type
+        if record["type"] not in self._kosh_reserved_record_types and uri is None:
             # Not reserved means dataset
             return KoshSinaLoader(obj)
         # Ok special type
-        if "mime_type" in record["data"]:
-            if record["data"]["mime_type"]["value"] in self.loaders:
-                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
-                    obj)
-                return self._cached_loaders[Id]
+        if uri is None:
+            if "mime_type" in record["data"]:
+                mime_type = record["data"]["mime_type"]["value"]
+            else:
+                mime_type = None
+            mime_type_passed = None
+        else:  # Pure sina with file/mime_type
+            mime_type = mime_type_passed = record["files"][uri]["mimetype"]
+        if mime_type in self.loaders:
+            self._cached_loaders[Id_original] = self.loaders[mime_type][0](obj, mime_type=mime_type_passed, uri=uri)
+            return self._cached_loaders[Id_original]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj)
-            return self._cached_loaders[Id]
+            self._cached_loaders[Id_original] = self.loaders[record["type"]][0](
+                obj, mime_type=mime_type_passed, uri=uri)
+            return self._cached_loaders[Id_original]
         return
 
     def open(self, Id, loader=None, *args, **kargs):

@@ -36,7 +36,9 @@ class KoshTestSinaCurves(KoshTest):
 	presets: {}
 	revision: 12-4-11
 	total_energy: 12.2
---- Associated Data (1)---
+--- Associated Data (2)---
+	Mime_type: image/png
+		foo.png ( obj1 )
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
 """.format(dataset.presets)  # noqa

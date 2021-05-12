@@ -435,12 +435,20 @@ class KoshDataset(object):
                     else:
                         associated["sina/curve"].append(st2)
                 else:
-                    a_obj = self.__store__._load(a)
-                    st2 = "{a_obj.uri} ( {a} )".format(a_obj=a_obj, a=a)
-                    if a_obj.mime_type not in associated:
-                        associated[a_obj.mime_type] = [st2, ]
+                    if "__uri__" in a:
+                        a_id, a_uri = a.split("__uri__")
+                        a_mime_type = self.get_record()["files"][a_uri]["mimetype"]
                     else:
-                        associated[a_obj.mime_type].append(st2)
+                        a_id, a_uri = a, None
+                    a_obj = self.__store__._load(a_id)
+                    if a_uri is None:
+                        a_uri = a_obj.uri
+                        a_mime_type = a_obj.mime_type
+                    st2 = "{a_uri} ( {a} )".format(a_uri=a_uri, a=a_id)
+                    if a_mime_type not in associated:
+                        associated[a_mime_type] = [st2, ]
+                    else:
+                        associated[a_mime_type].append(st2)
             for mime in sorted(associated):
                 st += "\tMime_type: {mime}".format(mime=mime)
                 for uri in sorted(associated[mime]):
@@ -685,9 +693,15 @@ class KoshDataset(object):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
+                    a_original = a
+                    if "__uri__" in a:
+                        # Ok this is a pure sina file with mime_type
+                        a, _ = a.split("__uri__")
                     a_obj = self.__store__._load(a)
                     if loader is None:
-                        ld = self.__store__._find_loader(a)
+                        ld = self.__store__._find_loader(a_original)
+                        if ld is None:  # unknown mimetype probably
+                            continue
                     else:
                         if a_obj.mime_type in loader.types:
                             ld = loader(a_obj)
@@ -699,9 +713,23 @@ class KoshDataset(object):
                             feature_ is None or\
                             (feature_[:-len(obj_uri) - 3] in ld._list_features() and
                              feature_[-len(obj_uri):] == obj_uri):
-                        possible_ids.append(a)
+                        possible_ids.append(a_original)
                 if possible_ids == []:  # All failed but could be something about the feature
                     raise ValueError("Cannot find feature {} in dataset".format(feature_))
+            elif Id == self.id:
+                # Ok asking for data not associated externally
+                # Likely curve
+                ld = self.__store__._find_loader(Id)
+                if feature_ in ld._list_features():
+                    possible_ids = [Id, ]
+                else:  # ok not a curve maybe a file?
+                    rec = self.get_record()
+                    for uri in rec["files"]:
+                        if "mimetype" in rec["files"][uri]:
+                            full_id = "{}__uri__{}".format(Id, uri)
+                            ld = self.__store__._find_loader(full_id)
+                            if ld is not None and feature_ in ld.list_features():
+                                possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
                 raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
             else:
@@ -747,7 +775,8 @@ class KoshDataset(object):
                     # Because we want to attach the feature to it
                     # But lets not lose the cached list_features
                     saved_listed_features = ld.__dict__["_KoshLoader__listed_features"]
-                    ld = ld.__class__(ld.obj)
+                    ld_uri = getattr(ld, "uri", None)
+                    ld = ld.__class__(ld.obj, mime_type=ld._mime_type, uri=ld_uri)
                     ld.__dict__["_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
