@@ -5,6 +5,8 @@ import shutil
 import shlex
 from subprocess import Popen, PIPE
 import numpy
+import kosh
+import six
 
 
 def run_cmd(cmd, verbose=False):
@@ -25,6 +27,50 @@ def run_cmd(cmd, verbose=False):
 
 
 class KoshTestDataset(KoshTest):
+
+    def test_create_dataset(self):
+        store, kosh_db = self.connect(dataset_record_type="dataset")
+        # Empty store
+        datasets = list(store.search())
+        self.assertEqual(len(datasets), 0)
+        o, e = run_cmd(
+            "kosh create --store={} paramint=2 paramfloat 2.4 paramstr \"'45'\"".format(kosh_db), verbose=True)
+
+        datasets = list(store.search())
+        # Created a new dataset
+        self.assertEqual(len(datasets), 1)
+        ds = datasets[0]
+        self.assertEqual(ds.list_attributes(), ["creator", "name", "paramfloat", "paramint", "paramstr"])
+
+        self.assertEqual(ds.paramint, 2)
+        self.assertIsInstance(ds.paramint, int)
+
+        self.assertEqual(ds.paramfloat, 2.4)
+        self.assertIsInstance(ds.paramfloat, float)
+
+        self.assertEqual(ds.paramstr, "45")
+        self.assertIsInstance(ds.paramstr, six.text_type)
+        os.remove(kosh_db)
+
+    def test_create_store(self):
+        name = "kosh_command_open_new.sql"
+        if os.path.exists(name):
+            os.remove(name)
+
+        o, e = run_cmd("kosh create_new_db -u {}".format(name))
+
+        self.assertTrue(os.path.exists(name))
+
+        store = kosh.KoshStore(name)
+
+        self.assertEqual(len(list(store.search())), 0)
+        store.create()
+        self.assertEqual(len(list(store.search())), 1)
+        o, e = run_cmd("kosh create_new_db -u {}".format(name))
+        store = kosh.KoshStore(name)
+        self.assertEqual(len(list(store.search())), 0)
+        os.remove(name)
+
     def test_kosh_command(self):
         shutil.copy("tests/baselines/sina/data.sqlite", "cmd_line.sql")
         store, kosh_db = self.connect(
