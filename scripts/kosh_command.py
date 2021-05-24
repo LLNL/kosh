@@ -586,10 +586,15 @@ Available commands are:
 
             # Step 1 figure out the json file that contains our datsets
             filenames = out.decode().split("\n")
+            if "HTAR" in filenames[0]:
+                # htar used
+                filenames = filenames[:-3]  # last 3 lines are nothing
+                filenames = [x.split(",")[0].split()[-1].strip() for x in filenames]
             # tar removes leading slah from full path
             slashed_filenames = ["/" + x for x in filenames]
             for filename in filenames:
                 if filename[:15] == "__kosh_export__" and filename[-5:] == ".json":
+                    found = True
                     break
             with open(filename) as f:
                 datasets = json.load(f)
