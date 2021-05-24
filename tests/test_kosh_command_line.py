@@ -37,7 +37,7 @@ class KoshTestDataset(KoshTest):
         d1.associate("setup.py", "python")
         seed = random.randint(0, 100000)
         o, e = run_cmd(
-            "kosh tar --store={} -c -v -f my_setup_{}.tar setup.py".format(kosh_db, seed), verbose=True)
+            "kosh {} --store={} -c -v -f my_setup_{}.tar setup.py".format(tar_command, kosh_db, seed), verbose=True)
         if tar_command != "htar":
             self.assertTrue(os.path.exists("my_setup_{}.tar".format(seed)))
 
