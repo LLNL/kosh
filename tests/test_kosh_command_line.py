@@ -7,6 +7,7 @@ from subprocess import Popen, PIPE
 import numpy
 import kosh
 import six
+import random
 
 
 def run_cmd(cmd, verbose=False):
@@ -27,6 +28,35 @@ def run_cmd(cmd, verbose=False):
 
 
 class KoshTestDataset(KoshTest):
+
+    def _tar(self, tar_command):
+        store, kosh_db = self.connect(dataset_record_type="dataset")
+        store2, kosh_db_2 = self.connect(dataset_record_type="dataset")
+
+        d1 = store.create("one")
+        d1.associate("setup.py", "python")
+        seed = random.randint(0, 100000)
+        o, e = run_cmd(
+            "kosh tar --store={} -c -v -f my_setup_{}.tar setup.py".format(kosh_db, seed), verbose=True)
+        if tar_command != "htar":
+            self.assertTrue(os.path.exists("my_setup_{}.tar".format(seed)))
+
+        self.assertEqual(len(list(store2.search())), 0)
+        o, e = run_cmd(
+            "kosh {} --store={} -x -v -f my_setup_{}.tar".format(tar_command, kosh_db_2, seed), verbose=True)
+
+        self.assertEqual(len(list(store2.search())), 1)
+        os.remove(kosh_db)
+        os.remove(kosh_db_2)
+        if tar_command != "htar":
+            os.remove("my_setup_{}.tar".format(seed))
+
+    def test_htar(self):
+        if os.environ.get("SOURCE_ZONE", "CZ") != "CZ":
+            self._tar("htar")
+
+    def test_tar(self):
+        self._tar("tar")
 
     def test_create_dataset(self):
         store, kosh_db = self.connect(dataset_record_type="dataset")

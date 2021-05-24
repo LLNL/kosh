@@ -97,7 +97,7 @@ def core_parser(description,
                         help="Kosh store to use")
     parser.add_argument("--dataset_record_type", "-d", default="dataset",
                         help="type used by sina db that Kosh will recognize as dataset")
-    parser.add_argument("--version", "-v", action="store_true",
+    parser.add_argument("--version", action="store_true",
                         help="print version and exit")
     return parser
 
@@ -480,11 +480,19 @@ Available commands are:
         self._mv_cp_("cp")
 
     def tar(self):
+        """tar files"""
+        self._tar("tar", "Uses `tar` to (un)tar files and the dataset they're associated with in selected Kosh store(s)")
+
+    def htar(self):
+        """tar files using htar"""
+        self._tar("htar", "Uses htar to (un)tar files and the dataset they're associated with in selected Kosh store(s)")
+
+    def _tar(self, tar_command, description):
         """tar files command"""
         parser = argparse.ArgumentParser(
             prog="kosh tar",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="(un)tar files and the dataset they're associated with in selected Kosh store(s)",
+            description=description,
             epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
         parser.add_argument("--stores", "--store", "-s", required=True,
                             help="Kosh store(s) to use", action="append")
@@ -503,12 +511,15 @@ Available commands are:
         # Ok are we creating or extracting?
         extract = False
         create = False
-        if "x" in opts[0]:
+        if "x" in opts[0] or "-x" in opts:
             extract = True
-            if "v" not in opts[0]:
-                opts[0] += "v"
-        if "c" in opts[0]:
+            if "v" not in opts[0] and "-v" not in opts:
+                opts.append("-v")
+        if "c" in opts[0] or "-c" in opts:
             create = True
+
+        if "t" in opts[0] or "-t" in opts:
+            raise ValueError("t (test archive) option is not supported yet")
 
         if create == extract:
             raise RuntimeError(
@@ -557,17 +568,17 @@ Available commands are:
             tmp_json.file.flush()
 
             # Let's tar this!
-            cmd = "tar {} {} -f {}".format(" ".join(opts),
+            cmd = "{} {} {} -f {}".format(tar_command, " ".join(opts),
                                            os.path.basename(tmp_json.name), args.file)
         else:  # ok we are extracting
-            cmd = "tar {} -f {}".format(" ".join(opts), args.file)
+            cmd = "{} {} -f {}".format(tar_command, " ".join(opts), args.file)
 
         p, out, err = process_cmd(cmd)
 
         if p.returncode != 0:
             raise RuntimeError(
-                "Could not run tar cmd: {}\nReceived error: {}".format(
-                    cmd, err.decode()))
+                "Could not run {} cmd: {}\nReceived error: {}".format(
+                    tar_command, cmd, err.decode()))
 
         if extract:
             # ok we extracted that's nice
@@ -582,6 +593,8 @@ Available commands are:
                     break
             with open(filename) as f:
                 datasets = json.load(f)
+
+            os.remove(filename)
 
             # Step 2 recover the root path from where the tar was made
             # And our guessed tarrred files
