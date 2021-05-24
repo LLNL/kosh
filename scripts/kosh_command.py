@@ -154,12 +154,16 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
     :rtype: list
     """
 
+
+    print("THE COMMAND IS:", command.encode())
+
     if use_shell:
         proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate(command.encode())
     else:
         proc = Popen(shlex.split(command), stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate()
+
     return proc, o, e
 
 
@@ -568,10 +572,10 @@ Available commands are:
             tmp_json.file.flush()
 
             # Let's tar this!
-            cmd = "{} {} {} -f {}".format(tar_command, " ".join(opts),
-                                           os.path.basename(tmp_json.name), args.file)
+            cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts),
+                                           os.path.basename(tmp_json.name))
         else:  # ok we are extracting
-            cmd = "{} {} -f {}".format(tar_command, " ".join(opts), args.file)
+            cmd = "{} -f {} {}".format(tar_command, args.file, " ".join(opts))
 
         p, out, err = process_cmd(cmd)
 
