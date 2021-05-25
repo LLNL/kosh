@@ -4,8 +4,7 @@ Kosh allows codes to store, query, share data via an easy-to-use Python API. Kos
 
 In addition Kosh aims to make data access and sharing as simple as possible.
 
-Via "loaders" Kosh can open files associated with datasets in a seamless fashion independently of the actual file format. Kosh's loader can also load data in different format, although numpy is the most usual output type. 
-
+Via "loaders", "transformers" and "operators" Kosh can access and process data in a consistent fashion, decoupled from data format and location. 
 
 
 # Getting Started
