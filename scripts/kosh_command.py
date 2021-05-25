@@ -155,8 +155,6 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
     """
 
 
-    print("THE COMMAND IS:", command.encode())
-
     if use_shell:
         proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate(command.encode())
@@ -792,7 +790,7 @@ Available commands are:
         if command != "rm":
             parser.add_argument("--destination",
                                 help="destination (file or directory) name", required=True)
-        parser.add_argument("--version", "-v", action="store_true",
+        parser.add_argument("--version", action="store_true",
                             help="print version and exit")
         args, opts = parser.parse_known_args(sys.argv[2:])
         files = []
