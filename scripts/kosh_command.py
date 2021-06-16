@@ -97,7 +97,7 @@ def core_parser(description,
                         help="Kosh store to use")
     parser.add_argument("--dataset_record_type", "-d", default="dataset",
                         help="type used by sina db that Kosh will recognize as dataset")
-    parser.add_argument("--version", "-v", action="store_true",
+    parser.add_argument("--version", action="store_true",
                         help="print version and exit")
     return parser
 
@@ -154,12 +154,14 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
     :rtype: list
     """
 
+
     if use_shell:
         proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate(command.encode())
     else:
         proc = Popen(shlex.split(command), stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate()
+
     return proc, o, e
 
 
@@ -480,11 +482,19 @@ Available commands are:
         self._mv_cp_("cp")
 
     def tar(self):
+        """tar files"""
+        self._tar("tar", "Uses `tar` to (un)tar files and the dataset they're associated with in selected Kosh store(s)")
+
+    def htar(self):
+        """tar files using htar"""
+        self._tar("htar", "Uses htar to (un)tar files and the dataset they're associated with in selected Kosh store(s)")
+
+    def _tar(self, tar_command, description):
         """tar files command"""
         parser = argparse.ArgumentParser(
             prog="kosh tar",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-            description="(un)tar files and the dataset they're associated with in selected Kosh store(s)",
+            description=description,
             epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
         parser.add_argument("--stores", "--store", "-s", required=True,
                             help="Kosh store(s) to use", action="append")
@@ -503,12 +513,15 @@ Available commands are:
         # Ok are we creating or extracting?
         extract = False
         create = False
-        if "x" in opts[0]:
+        if "x" in opts[0] or "-x" in opts:
             extract = True
-            if "v" not in opts[0]:
-                opts[0] += "v"
-        if "c" in opts[0]:
+            if "v" not in opts[0] and "-v" not in opts:
+                opts.append("-v")
+        if "c" in opts[0] or "-c" in opts:
             create = True
+
+        if "t" in opts[0] or "-t" in opts:
+            raise ValueError("t (test archive) option is not supported yet")
 
         if create == extract:
             raise RuntimeError(
@@ -524,7 +537,7 @@ Available commands are:
             # option
             tarred_files = get_all_files(opts)
 
-            # Prpare dictionar to hold list of datasets to epxort (per store)
+            # Prepare dictionary to hold list of datasets to export (per store)
             store_datasets = {}
             for store in stores:
                 store_datasets[store.db_uri] = []
@@ -557,17 +570,17 @@ Available commands are:
             tmp_json.file.flush()
 
             # Let's tar this!
-            cmd = "tar {} {} -f {}".format(" ".join(opts),
-                                           os.path.basename(tmp_json.name), args.file)
+            cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts),
+                                           os.path.basename(tmp_json.name))
         else:  # ok we are extracting
-            cmd = "tar {} -f {}".format(" ".join(opts), args.file)
+            cmd = "{} -f {} {}".format(tar_command, args.file, " ".join(opts))
 
         p, out, err = process_cmd(cmd)
 
         if p.returncode != 0:
             raise RuntimeError(
-                "Could not run tar cmd: {}\nReceived error: {}".format(
-                    cmd, err.decode()))
+                "Could not run {} cmd: {}\nReceived error: {}".format(
+                    tar_command, cmd, err.decode()))
 
         if extract:
             # ok we extracted that's nice
@@ -575,13 +588,20 @@ Available commands are:
 
             # Step 1 figure out the json file that contains our datsets
             filenames = out.decode().split("\n")
+            if "HTAR" in filenames[0]:
+                # htar used
+                filenames = filenames[:-3]  # last 3 lines are nothing
+                filenames = [x.split(",")[0].split()[-1].strip() for x in filenames]
             # tar removes leading slah from full path
             slashed_filenames = ["/" + x for x in filenames]
             for filename in filenames:
                 if filename[:15] == "__kosh_export__" and filename[-5:] == ".json":
+                    found = True
                     break
             with open(filename) as f:
                 datasets = json.load(f)
+
+            os.remove(filename)
 
             # Step 2 recover the root path from where the tar was made
             # And our guessed tarrred files
@@ -770,7 +790,7 @@ Available commands are:
         if command != "rm":
             parser.add_argument("--destination",
                                 help="destination (file or directory) name", required=True)
-        parser.add_argument("--version", "-v", action="store_true",
+        parser.add_argument("--version", action="store_true",
                             help="print version and exit")
         args, opts = parser.parse_known_args(sys.argv[2:])
         files = []
@@ -866,6 +886,48 @@ Available commands are:
         # closes stores and send them back to remote if necessary
         close_stores(origin_stores, args.stores)
         close_stores(dest_stores, args.destination_stores)
+
+    def create_new_db(self):
+        """Creates a Kosh store"""
+        parser = argparse.ArgumentParser(
+            prog="kosh create_new_db",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            description="Creates a new Kosh store",
+            epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
+        parser.add_argument("--uri", "-u", help="path to database", required=True) 
+        parser.add_argument("--engine", "-e", help="engine to use as Kosh backend", choices=["sina",], default="sina")
+        parser.add_argument("--database", "--db", "-d", help="Database type to use as backend", choices=["sql", "cass"], default="sql")
+        parser.add_argument("--token", "-t", help="Token to use (for Cassandra databases)", default="")
+        parser.add_argument("--keyspace", "-k", help="keyspace to use (for Cassandra databases)")
+        parser.add_argument("--cluster", "-c", help="cluster to use (for Cassandra databases)")
+
+        args = parser.parse_args(sys.argv[2:])
+
+        kosh.create_new_db(args.uri, engine=args.engine, db=args.database,
+                           token=args.token, keyspace=args.keyspace, cluster=args.cluster)
+    
+    def create(self):
+        """Creates a Kosh dataset in a store"""
+        parser = core_parser(
+            description='Create a dataset in the store with matching metadata in form key=value')
+        args, user_params = parser.parse_known_args(sys.argv[2:])
+
+        params = {}
+        index = 0
+        while index < len(user_params):
+            term = user_params[index]
+            sp = term.split("=")
+            if len(sp) > 1:
+                params[sp[0]] = eval(sp[1])
+                index += 1
+            else:
+                params[sp[0]] = eval(user_params[index+1])
+                index += 2
+
+        print("Adding ds to: {}".format(args.store))
+        store = kosh.KoshStore(args.store)
+        store.create(metadata=params)
+
 
 
 def is_remote(path):

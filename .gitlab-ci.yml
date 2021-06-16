@@ -154,6 +154,8 @@ deploy_to_aml_on_cz_py2:
 
 deploy_doc_on_cz:
   stage: deploy:docs
+  only:
+    - stable
   extends: [ .on_cz, .deploy_docs ]
 
 # CI on RZ
