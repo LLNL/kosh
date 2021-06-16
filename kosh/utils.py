@@ -233,13 +233,25 @@ def create_new_db(name, engine='sina', db='sql',
         return kosh.KoshStore(engine="sina", db_uri=name, **kargs)
 
 
-def version():
-    """Returns version
+def version(comparable=False):
+    """Returns version string
+    :param comparable: returns version as a tuple of ints so it can be compared
+    :type comparable: bool
+    :returns: version string or tuple
+    :rtype: str or tuple
     """
     try:
         __version__ = pkg_resources.get_distribution("kosh").version
     except Exception:
         __version__ = "???"
+    if comparable:
+        tuple_version = ()
+        for number in __version__.split("."):
+            try:
+                tuple_version += (int(number),)
+            except ValueError:  # Probably some letter or symbol in here
+                pass
+        __version__ = tuple_version
     return __version__
 
 

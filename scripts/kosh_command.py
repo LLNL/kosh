@@ -592,8 +592,8 @@ Available commands are:
             for dataset in datasets:
                 # Let's try to recover the correct path now..
                 delete_them = []
-                for index, associated in enumerate(dataset["associated"]):
-                    uri = associated["uri"]
+                for index, associated in enumerate(dataset["records"][1:]):
+                    uri = associated["data"]["uri"]["value"]
                     if uri in filenames:
                         new_uri = os.path.join(os.getcwd(), uri)
                     elif uri in slashed_filenames:  # tar removes leading /
@@ -604,13 +604,13 @@ Available commands are:
                             os.getcwd(), filenames[root_filenames.index(uri)])
                     else:
                         if not os.path.exists(uri):
-                            delete_them.append(index)
+                            delete_them.append(index + 1)
                         new_uri = None
-                    associated["uri"] = new_uri
+                    associated["data"]["uri"]["value"] = new_uri
 
                 # Yank uris that do not exists in this filesystem
                 for index in delete_them[::-1]:
-                    dataset["associated"].pop(index)
+                    dataset["records"].pop(index)
 
                 # Add dataset to store(s)
                 for store in stores:
@@ -829,13 +829,13 @@ Available commands are:
                         # Ok we need to update the uri to point t the new
                         # target
                         delte_these = []
-                        for indx, a in enumerate(exported["associated"]):
-                            if a["uri"] == source:
-                                a["uri"] = targets[i]
+                        for indx, a in enumerate(exported["records"][1:]):
+                            if a["data"]["uri"]["value"] == source:
+                                a["data"]["uri"]["value"] = targets[i]
                             else:
-                                delte_these.append(indx)
+                                delte_these.append(indx + 1)
                         for indx in delte_these[::-1]:
-                            del(exported["associated"][indx])
+                            del(exported["records"][indx])
 
                         for d_store in dest_stores:
                             d_store.import_dataset(
