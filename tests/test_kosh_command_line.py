@@ -70,7 +70,7 @@ class KoshTestDataset(KoshTest):
         # Created a new dataset
         self.assertEqual(len(datasets), 1)
         ds = datasets[0]
-        self.assertEqual(ds.list_attributes(), ["creator", "name", "paramfloat", "paramint", "paramstr"])
+        self.assertEqual(ds.list_attributes(), ["creator", "id", "name", "paramfloat", "paramint", "paramstr"])
 
         self.assertEqual(ds.paramint, 2)
         self.assertIsInstance(ds.paramint, int)
