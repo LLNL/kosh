@@ -10,6 +10,10 @@ import fcntl
 import copy
 import collections
 try:
+    basestring
+except NameError:
+    basestring = str
+try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
@@ -234,10 +238,11 @@ class KoshStoreClass(object):
         :param file: optional file to dump datset to
         :type file: None or str
         """
+        print("DS:", datasets)
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             datasets = [datasets, ]
         for dataset in datasets:
-            if isinstance(dataset, str):
+            if isinstance(dataset, basestring):
                 return self.open(dataset).export(file)
             else:
                 return dataset.export(file)
@@ -258,7 +263,7 @@ class KoshStoreClass(object):
         :return: list dataset
         :rtype: list of KoshSinaDataset
         """
-        if isinstance(datasets, str):
+        if isinstance(datasets, basestring):
             with open(datasets) as f:
                 datasets = orjson.loads(f.read()).get("datasets", [])
         elif not isinstance(datasets, (list, tuple)):
@@ -268,7 +273,7 @@ class KoshStoreClass(object):
         for dataset in datasets:
             if isinstance(dataset, KoshDataset):
                 dataset = dataset.export()
-            elif isinstance(dataset, str):
+            elif isinstance(dataset, basestring):
                 dataset = self.open(dataset).export()
             atts = dataset["attributes"]
             min_ver = dataset.get("minimum_kosh_version", (0, 0, 0))
