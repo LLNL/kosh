@@ -246,13 +246,14 @@ class KoshStoreClass(object):
         """import datasets that were exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
-        :param match_attributes: parameters on a dataset to use if this dataset is already in the store
-                                 in general we can't use 'id' since it is randomly generated at dataset creation
-                                 If the "same" dataset was created in two different store (e.g running the same code
-                                 twice but with different Kosh store) the Id would be different but dataset would be identical.
-                                 This helps you make sure you do not end up with copies. 
-                                 Warning thogh, if it's too lose too many datasets will match and we will abort. It's too tight
-                                 duplicate will not be identified.
+        :param match_attributes: parameters on a dataset to use if this it is already in the store
+                                 in general we can't use 'id' since it is randomly generated at creation
+                                 If the "same" dataset was created in two different stores
+                                 (e.g running the same code twice but with different Kosh store)
+                                 the dataset would be identical in both store but with different ids.
+                                 This helps you make sure you do not end up with duplicate entries.
+                                 Warning, if this parameter is too lose too many datasets will match
+                                 and the import will abort, if it's too tight duplicates will not be identified.
         :type match_attributes: list of str
         :return: list dataset
         :rtype: list of KoshSinaDataset

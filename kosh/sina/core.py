@@ -1504,7 +1504,7 @@ class KoshSinaStore(KoshStoreClass):
                                  If the "same" dataset was created in two different stores
                                  (e.g running the same code twice but with different Kosh store)
                                  the dataset would be identical in both store but with different ids.
-                                 This helps you make sure you do not end up with duplicate entries. 
+                                 This helps you make sure you do not end up with duplicate entries.
                                  Warning, if this parameter is too lose too many datasets will match
                                  and the import will abort, if it's too tight duplicates will not be identified.
         :type match_attributes: list of str
