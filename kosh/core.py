@@ -246,8 +246,16 @@ class KoshStoreClass(object):
         """import datasets that were exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
-        :return: dataset
-        :rtype: KoshSinaDataset
+        :param match_attributes: parameters on a dataset to use if this dataset is already in the store
+                                 in general we can't use 'id' since it is randomly generated at dataset creation
+                                 If the "same" dataset was created in two different store (e.g running the same code
+                                 twice but with different Kosh store) the Id would be different but dataset would be identical.
+                                 This helps you make sure you do not end up with copies. 
+                                 Warning thogh, if it's too lose too many datasets will match and we will abort. It's too tight
+                                 duplicate will not be identified.
+        :type match_attributes: list of str
+        :return: list dataset
+        :rtype: list of KoshSinaDataset
         """
         if isinstance(datasets, str):
             with open(datasets) as f:
@@ -262,8 +270,8 @@ class KoshStoreClass(object):
             elif isinstance(dataset, str):
                 dataset = self.open(dataset).export()
             atts = dataset["attributes"]
-            min_ver = dataset.get("minimum_kosh_version", 0.)
-            if min_ver is not None and kosh.__version__ < min_ver:
+            min_ver = dataset.get("minimum_kosh_version", (0, 0, 0))
+            if min_ver is not None and kosh.version(comparable=True) < min_ver:
                 raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
                     min_ver, kosh.__version__))
 
@@ -517,7 +525,7 @@ class KoshDataset(object):
         :rtype: dict"""
         output_dict = {
             "minimum_kosh_version": None,
-            "kosh_version": kosh.__version__,
+            "kosh_version": kosh.version(comparable=True),
             "attributes": self.list_attributes(dictionary=True)
         }
         associated_records = []
