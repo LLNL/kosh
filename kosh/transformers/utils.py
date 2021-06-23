@@ -3,29 +3,29 @@ import sys
 import numpy
 
 
-try:
-    from mpi4py import MPI
-    comm = MPI.COMM_WORLD
-    hasMpi = True
-except ImportError:
-    # no mpi
-    # we'll fake it
-    class Comm():
-        def Get_size(self):
-            return 1
+def get_mpi_tools():
+    try:
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+    except ImportError:
+        # no mpi
+        # we'll fake it
+        class Comm():
+            def Get_size(self):
+                return 1
 
-        def Get_rank(self):
-            return 0
-    comm = Comm()
-    hasMPI = False
-    MPI = False
+            def Get_rank(self):
+                return 0
+        comm = Comm()
+        MPI = False
 
-rank = comm.Get_rank()
-size = comm.Get_size()
+    rank = comm.Get_rank()
+    size = comm.Get_size()
+    return rank, size, comm
 
 
 def get_ids_for_rank(total):
-    rank = comm.Get_rank()
+    rank, size, comm = get_mpi_tools()
     if isinstance(total, int):
         total = list(range(total))
     if len(total) == 1:
@@ -44,6 +44,7 @@ def get_ids_for_rank(total):
 
 def send_or_gather(data, dest=0, tag=0, verbose=False):
     out = None
+    rank, size, comm = get_mpi_tools()
     if rank != dest:
         if isinstance(data, numpy.ndarray):
             comm.send(data.shape, dest=dest, tag=tag)
@@ -68,6 +69,6 @@ def send_or_gather(data, dest=0, tag=0, verbose=False):
 
 
 def MPIPrint(s, pre=""):
-    rank = comm.Get_rank()
+    rank, _, _ = get_mpi_tools()
     print("{}{}: {}".format(pre, rank, s), file=sys.stderr)
     sys.stderr.flush()

@@ -778,20 +778,40 @@ class KoshSinaStore(KoshStoreClass):
         :return: Kosh loader object and mime_type
         """
         if Id in self._cached_loaders:
-            return self._cached_loaders[Id]
+            try:
+                feats = self._cached_loaders[Id][0].list_features() != []
+            except Exception:
+                feats = []
+            if feats != []:
+                return self._cached_loaders[Id]
         record = self.get_record(Id)
         obj = self._load(Id)
         if record["type"] == self._dataset_record_type:
             return KoshSinaLoader(obj), self._dataset_record_type
         if "mime_type" in record["data"]:
             if record["data"]["mime_type"]["value"] in self.loaders:
-                self._cached_loaders[Id] = self.loaders[record["data"]["mime_type"]["value"]][0](
-                    obj), record["data"]["mime_type"]["value"]
+                for ld in self.loaders[record["data"]["mime_type"]["value"]]:
+                    try:
+                        feats = ld.list_features()
+                    except Exception:
+                        # Something happened can't list features
+                        feats = []
+                    if feats != []:
+                        break
+                self._cached_loaders[Id] = ld(obj), record["data"]["mime_type"]["value"]
                 return self._cached_loaders[Id]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            self._cached_loaders[Id] = self.loaders[record["type"]][0](obj), record["type"]
+            for ld in self.loaders[record["type"]]:
+                try:
+                    feats = ld.list_features()
+                except Exception:
+                    # Something happened can't list features
+                    feats = []
+                if feats != []:
+                    break
+            self._cached_loaders[Id] = ld(obj), record["type"]
             return self._cached_loaders[Id]
         return
 
