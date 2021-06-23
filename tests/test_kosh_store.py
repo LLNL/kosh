@@ -45,7 +45,8 @@ class KoshTestStore(KoshTest):
         with self.assertRaises(ValueError) as context:
             store2.import_dataset(ds2)
         self.assertTrue(
-            "Attribute 'param2':'7' differs from existing dataset in store ('3')" in str(
+            "Trying to import dataset with attribute 'param2' value :"
+            " 7. But value for this attribute in target is '3'" in str(
                 context.exception))
 
         # now let's create another dataset named 'one'
@@ -62,7 +63,8 @@ class KoshTestStore(KoshTest):
         with self.assertRaises(ValueError) as context:
             store2.import_dataset(ds1, match_attributes=["name", "param2"])
         self.assertTrue(
-            "Attribute 'param1':'b' differs from existing dataset in store ('5')" in str(
+            "Trying to import dataset with attribute 'param1' value : b. "
+            "But value for this attribute in target is '5'" in str(
                 context.exception))
 
         # Now using param1 should lead to creation of new dataset since no
@@ -72,6 +74,19 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(d1), 3)
         d1 = store2.search(param1='b', name="one")
         self.assertEqual(len(d1), 1)
+
+        # Now test that we can overwrite exisitng dataset with new one
+        ds1 = store.create(metadata={"a": 1, "b": 2, "c": 3, "d": 4})
+        ds2 = store2.create(metadata={"a": 1, "b": 2, "c": 4})
+        store2.import_dataset(ds1.export(), match_attributes=[
+                              "a", "b"], merge_handler="overwrite")
+        self.assertEqual(ds2.c, 3)
+        self.assertEqual(ds2.d, 4)
+        # revert to test preserve
+        ds2.c = 4
+        store2.import_dataset(ds1.export(), match_attributes=[
+                              "a", "b"], merge_handler="preserve")
+        self.assertEqual(ds2.c, 4)
 
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)

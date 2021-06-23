@@ -1,7 +1,7 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader, get_graph
-from kosh.utils import compute_fast_sha
+from kosh.utils import compute_fast_sha, merge_datasets_handler
 import warnings
 import os
 import kosh
@@ -9,6 +9,7 @@ import time
 import fcntl
 import copy
 import collections
+from inspect import isfunction, ismethod
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -228,10 +229,18 @@ class KoshStoreClass(object):
         """
         return self.open(dataset_Id).export()
 
-    def import_dataset(self, dataset, match_attributes=["name", ]):
+    def import_dataset(self, dataset, match_attributes=["name", ], merge_handler=None, merge_handler_kargs={}):
         """import a dataset that was exported from another store
         :param dataset: Dataset object exported by another store, or a dataset
         :type dataset: json or kosh.KoshDataset
+        :param merge_handler: If found dataset has attributes with different values from imported dataset
+                                 how do we handle this? Accept values are: None, "conservative", "overwrite",
+                                 "preserve", or a function.
+                                 A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
+        :type merge_handler: None, str, func
+        :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
+                                    will be passed in addtion to this store dataset and the imported dataset.
+        :type merge_handler_kargs: dict
         :return: dataset
         :rtype: KoshSinaDataset
         """
@@ -241,6 +250,14 @@ class KoshStoreClass(object):
         if min_ver is not None and kosh.__version__ < min_ver:
             raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
                 min_ver, kosh.__version__))
+
+        # setup merge handler
+        ok_merge_handler_values = [None, "conservative", "preserve", "overwrite"]
+        if merge_handler in ok_merge_handler_values:
+            merge_handler_kargs = {"handling_method": merge_handler}
+            merge_handler = merge_datasets_handler
+        elif not (isfunction(merge_handler) or ismethod(merge_handler)):
+            raise ValueError("'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
 
         # Ok now we need to see if dataset already exist?
         match_dict = {}
@@ -257,15 +274,9 @@ class KoshStoreClass(object):
         elif len(matching) == 1:
             # All right we do have a possible conflict here
             match = matching[0]
-            match_attributes = match.listattributes(dictionary=True)
-            # ok we have some match let's make sure there is no conflict
-            for att in set(match_attributes).intersection(dataset["attributes"].keys()):
-                if match_attributes[att] != dataset["attributes"][att]:
-                    # TODO ERROR HANDLING (--force options?)
-                    raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
-                        att, dataset["attributes"][att], match_attributes[att]))
+            merged_attributes = merge_handler(match, dataset["attributes"], **merge_handler_kargs)
             # Ok at this point no conflict!
-            match.update(dataset["attributes"])
+            match.update(merged_attributes)
         else:  # Non existent dataset
             match = self.create(metadata=dataset["attributes"])
 
