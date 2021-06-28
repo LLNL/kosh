@@ -259,12 +259,18 @@ class KoshExecutionGraph(object):
             seed = random.random()
         G.seed = seed
         if verbose:
-            import matplotlib.pyplot as plt
-            nx.draw(self._graph)
-            plt.show()
-            png_name = png_template + "_IN.png"
-            plt.savefig(png_name.format(seed))
-            plt.clf()
+            try:
+                if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
+                    import matplotlib
+                    matplotlib.use("agg", force=True)
+                import matplotlib.pyplot as plt
+                nx.draw(self._graph)
+                plt.show()
+                png_name = png_template + "_IN.png"
+                plt.savefig(png_name.format(seed))
+                plt.clf()
+            except ImportError:
+                raise RuntimeError("Could not import matplotlib, will not plot anything")
         used_nodes = collections.OrderedDict()
         for (n1, n2) in self._graph.edges():
             if n1 in used_nodes:

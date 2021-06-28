@@ -7,11 +7,6 @@ import hashlib
 import numpy
 import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
-try:
-    import matplotlib.pyplot as plt
-    has_mpl = True
-except ImportError:
-    has_mpl = False
 from kosh.exec_graphs import find_network_ends
 
 
@@ -166,10 +161,17 @@ def draw_execution_graph(G,
             for i in range(len(pth) - 1):
                 edges.append((pth[i], pth[i + 1]))
             nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color='red')
-    plt.show()
-    plt.savefig(png_name)
-    if clear:
-        plt.clf()
+    try:
+        if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
+            import matplotlib
+            matplotlib.use("agg", force=True)
+        import matplotlib.pyplot as plt
+        plt.show()
+        plt.savefig(png_name)
+        if clear:
+            plt.clf()
+    except ImportError:
+        raise RuntimeError("Could not import matplotlib, will not plot anything")
 
 
 def compute_fast_sha(uri, n_samples=10):
