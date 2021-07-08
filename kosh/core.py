@@ -27,6 +27,7 @@ try:
 except ImportError:
     pass
 from .loaders import JSONLoader
+from .loaders import NpyLoader
 
 
 class KoshAgent(object):
@@ -51,6 +52,7 @@ class KoshStoreClass(object):
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         self.add_loader(JSONLoader)
+        self.add_loader(NpyLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
