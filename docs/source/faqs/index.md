@@ -96,6 +96,11 @@ Currently Kosh comes with the following loaders
      - hdf5
      - numpy
      - h5py
+   * - NpyLoader
+     - Loads data saved by numpy in a npy file
+     - npy
+     - numpy
+     - numpy
    * - PGMLoader
      - Load pgm formatted images (P2 and P5)
      - pgm

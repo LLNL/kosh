@@ -249,6 +249,23 @@ class KoshTestLoaders(KoshTest):
         h5.close()
         os.remove(kosh_db)
 
+    def test_npy(self):
+        a = numpy.array([[1, 2, 3], [4, 5, 6]])
+        name = "kosh_random_npy_{}.npy".format(random.randint(0, 23434434))
+        numpy.save(name, a)
+
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate(name, "npy")
+        self.assertEqual(ds.list_features(), ["ndarray", ])
+        data = ds.get("ndarray")
+        self.assertEqual(data.shape, (2, 3))
+        self.assertTrue(numpy.allclose(a, data))
+        info = ds.describe_feature("ndarray")
+        self.assertEqual(info["size"], (2, 3))
+        self.assertEqual(info["format"], "numpy")
+        self.assertEqual(info["type"], a.dtype)
+
 
 if __name__ == "__main__":
     A = KoshTestLoaders()

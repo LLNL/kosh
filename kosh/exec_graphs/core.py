@@ -382,7 +382,7 @@ class KoshExecutionGraph(object):
             node[1].use_cache = use_cache
             node[1].cache_dir = cache_dir
             node[1]._user_passed_parameters = (None, kargs)
-            if getitem_key != slice(None, None, None):
+            if not isinstance(getitem_key, slice) or getitem_key != slice(None, None, None):
                 if "__getitem__" in node[1].__class__.__dict__:
                     out = node[1][getitem_key]
                 else:
