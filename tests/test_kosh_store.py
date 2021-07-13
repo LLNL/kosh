@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import kosh
 import json
@@ -45,7 +46,6 @@ class KoshTestStore(KoshTest):
         ds2.param2 = 7
         with self.assertRaises(ValueError) as context:
             store2.import_dataset(ds2)
-        print("CONTEXT ERROR:", str(context.exception))
         self.assertTrue(
             "Trying to import dataset with attribute 'param2' value :"
             " 7. But value for this attribute in target is '3'" in str(
@@ -64,7 +64,6 @@ class KoshTestStore(KoshTest):
         # Attribute changed so should reject
         with self.assertRaises(ValueError) as context:
             store2.import_dataset(ds1, match_attributes=["name", "param2"])
-        print("CONTEXT ERROR:", str(context.exception))
         self.assertTrue(
             "Trying to import dataset with attribute 'param1' value : b. "
             "But value for this attribute in target is '5'" in str(

@@ -42,6 +42,9 @@ def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
     if not isinstance(imported_dataset, dict):
         imported_dataset = imported_dataset.list_attributes(dictionary=True)
 
+    # We cannot set _associatated_data_ anyway and if it comes last (py2) it prevents updating the db
+    imported_dataset.pop("_associated_data_", None)
+
     for attribute, value in imported_dataset.items():
         if attribute in target_dict:
             if target_dict[attribute] != value:
