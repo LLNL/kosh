@@ -1,7 +1,7 @@
 from .core import KoshTransformer, kosh_cache_dir
 import os
 import numpy
-from .utils import comm, rank, size, get_ids_for_rank, MPIPrint
+from .utils import get_ids_for_rank, MPIPrint, get_mpi_tools
 import time
 
 
@@ -156,6 +156,7 @@ class Take(KoshSimpleNpCache):
         :return: input taken over transformer's axis and indices
         :rtype: ndarray
         """
+        rank, size, comm = get_mpi_tools()
         my_ids = get_ids_for_rank(self.indices)
 
         if self.verbose and rank == 0:

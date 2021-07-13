@@ -1,5 +1,4 @@
 from __future__ import print_function, division
-import h5py
 from .core import KoshLoader
 
 
@@ -12,6 +11,7 @@ def walk_hdf5(dataset, prefix=""):
     :return: hdf5 dataset structure
     :rtype: generator
     """
+    import h5py
     for key in sorted(dataset.keys()):
         value = dataset[key]
         if isinstance(value, h5py._hl.dataset.Dataset):
@@ -53,7 +53,8 @@ class HDF5Loader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        return h5py.File(self.uri, mode)
+        import h5py
+        return h5py.File(self.obj.uri, mode)
 
     def extract(self):
         """extract return a feature from the loaded object.
@@ -64,6 +65,7 @@ class HDF5Loader(KoshLoader):
         :type format: str
         :return: data
         """
+        import h5py
         args, kargs = self._user_passed_parameters
         f = h5py.File(self.uri, "r")
         features = self.feature
@@ -111,6 +113,7 @@ class HDF5Loader(KoshLoader):
         :return: list of features available in file
         :rtype: list
         """
+        import h5py
         with h5py.File(self.uri, "r") as f:
             features = list_hdf5(f)
         if group is not None:
@@ -136,6 +139,7 @@ class HDF5Loader(KoshLoader):
         :return: dictionary describing the feature
         :rtype: dict
         """
+        import h5py
         features = self._list_features()
         if feature not in features:
             raise ValueError("feature {feature} is not available".format(feature=feature))

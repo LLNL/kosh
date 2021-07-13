@@ -2,7 +2,7 @@ import uuid
 from kosh.core import KoshStoreClass, KoshDataset
 from kosh.schema import KoshSchema
 from kosh.loaders import KoshLoader
-from kosh.utils import compute_fast_sha, compute_long_sha, version
+from kosh.utils import compute_fast_sha, compute_long_sha, version, merge_datasets_handler
 import warnings
 import time
 from sina.datastore import create_datastore
@@ -21,6 +21,7 @@ except NameError:
     basestring = str
 from sina import get_version
 import kosh
+from inspect import isfunction, ismethod
 
 
 sina_version = float(".".join(get_version().split(".")[:2]))
@@ -202,7 +203,7 @@ class KoshSinaObject(object):
         :rtype: sina.model.Record
         """
         if name in self.__protected__:  # Cannot set protected attributes
-            return
+            return record
         if record is None:
             record = self.get_record()
         if name == "schema":
@@ -1020,13 +1021,18 @@ class KoshSinaStore(KoshStoreClass):
         else:
             uri = None
         if Id_original in self._cached_loaders:
-            return self._cached_loaders[Id_original]
+            try:
+                feats = self._cached_loaders[Id_original][0].list_features() != []
+            except Exception:
+                feats = []
+            if feats != []:
+                return self._cached_loaders[Id_original]
         record = self.get_record(Id)
         obj = self._load(Id)
         # uri not none means it is pure sina record with file and mime_type
         if record["type"] not in self._kosh_reserved_record_types and uri is None:
             # Not reserved means dataset
-            return KoshSinaLoader(obj)
+            return KoshSinaLoader(obj), record["type"]
         # Ok special type
         if uri is None:
             if "mime_type" in record["data"]:
@@ -1037,16 +1043,30 @@ class KoshSinaStore(KoshStoreClass):
         else:  # Pure sina with file/mime_type
             mime_type = mime_type_passed = record["files"][uri]["mimetype"]
         if mime_type in self.loaders:
-            self._cached_loaders[Id_original] = self.loaders[mime_type][0](
-                obj, mime_type=mime_type_passed, uri=uri)
+            for ld in self.loaders[mime_type]:
+                try:
+                    feats = ld.list_features()
+                except Exception:
+                    # Something happened can't list features
+                    feats = []
+                if feats != []:
+                    break
+            self._cached_loaders[Id_original] = ld(obj, mime_type=mime_type_passed, uri=uri), record["type"]
             return self._cached_loaders[Id_original]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
-            self._cached_loaders[Id_original] = self.loaders[record["type"]][0](
-                obj, mime_type=mime_type_passed, uri=uri)
+            for ld in self.loaders[record["type"]]:
+                try:
+                    feats = ld.list_features()
+                except Exception:
+                    # Something happened can't list features
+                    feats = []
+                if feats != []:
+                    break
+            self._cached_loaders[Id_original] = ld(obj, mime_type=mime_type_passed, uri=uri), record["type"]
             return self._cached_loaders[Id_original]
-        return
+        return None, None
 
     def open(self, Id, loader=None, *args, **kargs):
         """open loads an object in store based on its Id
@@ -1058,7 +1078,7 @@ class KoshSinaStore(KoshStoreClass):
         :return:
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
         return loader.open(*args, **kargs)
@@ -1096,7 +1116,7 @@ class KoshSinaStore(KoshStoreClass):
         :type transformers: kosh.operator.KoshTransformer
         """
         if loader is None:
-            loader = self._find_loader(Id)
+            loader, _ = self._find_loader(Id)
         else:
             loader = loader(self._load(Id))
 
@@ -1186,11 +1206,11 @@ class KoshSinaStore(KoshStoreClass):
 
         if file_uri is not None:
             file_match = list(self.__record_handler__.find_with_file_uri(file_uri,
-                                                                         accepted_ids_list=inter_recs,
+                                                                         id_pool=inter_recs,
                                                                          ids_only=True))
             if not self.__sync__:
                 file_match += list(self._added_unsync_handler.find_with_file_uri(file_uri,
-                                                                                 accepted_ids_list=inter_recs,
+                                                                                 id_pool=inter_recs,
                                                                                  ids_only=True))
             inter_recs = set(inter_recs).intersection(file_match)
 
@@ -1495,7 +1515,7 @@ class KoshSinaStore(KoshStoreClass):
         self.__record_handler__.delete(names_filter[0])
         self.__record_handler__.insert(user)
 
-    def import_dataset(self, datasets, match_attributes=["name", ]):
+    def import_dataset(self, datasets, match_attributes=["name", ], merge_handler=None, merge_handler_kargs={}):
         """import datasets that were exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1508,6 +1528,14 @@ class KoshSinaStore(KoshStoreClass):
                                  Warning, if this parameter is too lose too many datasets will match
                                  and the import will abort, if it's too tight duplicates will not be identified.
         :type match_attributes: list of str
+        :param merge_handler: If found dataset has attributes with different values from imported dataset
+                                 how do we handle this? Accept values are: None, "conservative", "overwrite",
+                                 "preserve", or a function.
+                                 A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
+        :type merge_handler: None, str, func
+        :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
+                                    will be passed in addtion to this store dataset and the imported dataset.
+        :type merge_handler_kargs: dict
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1521,6 +1549,14 @@ class KoshSinaStore(KoshStoreClass):
         elif isinstance(datasets, KoshDataset):
             from_file = datasets.export()
             records_in = from_file["records"]
+
+        # setup merge handler
+        ok_merge_handler_values = [None, "conservative", "preserve", "overwrite"]
+        if merge_handler in ok_merge_handler_values:
+            merge_handler_kargs = {"handling_method": merge_handler}
+            merge_handler = merge_datasets_handler
+        elif not (isfunction(merge_handler) or ismethod(merge_handler)):
+            raise ValueError("'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
 
         matches = []
         for record in records_in:
@@ -1556,17 +1592,9 @@ class KoshSinaStore(KoshStoreClass):
                 elif len(matching) == 1:
                     # All right we do have a possible conflict here
                     match = matching[0]
-                    match_attributes = match.listattributes(dictionary=True)
-                    # ok we have some match let's make sure there is no
-                    # conflict
-                    for att in set(match_attributes).intersection(atts.keys()):
-                        if att == 'id' and 'id' not in match_dict:
-                            continue
-                        if match_attributes[att] != atts[att]:
-                            # TODO ERROR HANDLING (--force options?)
-                            raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
-                                att, atts[att], match_attributes[att]))
+                    merged_attributes = merge_handler(match, atts, **merge_handler_kargs)
                     # Ok at this point no conflict!
+                    match.update(merged_attributes)
                     match_rec = match.get_record()
                 else:  # Non existent dataset
                     cont = True
@@ -1604,8 +1632,10 @@ class KoshSinaStore(KoshStoreClass):
             # But first make sure it is a record :)
             if isinstance(match_rec, dict):
                 match_rec = sina.model.generate_record_from_json(match_rec)
-            for section in ["data", "user_defined", "files"]:
+            # User defined and files are preserved?
+            for section in ["user_defined", "files"]:
                 match_rec.raw[section].update(record[section])
+            # Curves are preserved
             for curve_set in record["curve_sets"]:
                 if curve_set not in match_rec.raw["curve_sets"]:
                     match_rec.raw["curve_sets"][curve_set] = record[curve_set]

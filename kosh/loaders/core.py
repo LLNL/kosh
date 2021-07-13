@@ -254,10 +254,14 @@ class KoshLoader(KoshExecutionGraph):
         return data
 
     def _list_features(self, *args, **kargs):
-        """Wrapper on top of list_features to snatch from cache rther than calling everytime"""
+        """Wrapper on top of list_features to snatch from cache rather than calling everytime"""
         use_cache = kargs.pop("use_cache", True)
         if self.__listed_features is None or not use_cache:
-            self.__listed_features = self.list_features(*args, **kargs)
+            try:
+                self.__listed_features = self.list_features(*args, **kargs)
+            except Exception:
+                # Broken loader at the moment
+                self.__listed_features = []
         out = self.__listed_features
         # Reset
         if not use_cache:

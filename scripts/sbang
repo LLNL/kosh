@@ -20,10 +20,8 @@
 #
 # `sbang` will run the real interpreter with the script as its argument.
 #
-
-# We disable two shellcheck errors below:
-# SC2124: when saving arguments, we intentionally assign as an array
-# SC2086: when splitting $shebang_line and exec args, we want to expand args
+# See https://github.com/spack/sbang for more details.
+#
 
 # Generic error handling
 die() {
@@ -80,13 +78,17 @@ EOF
 #
 # will be true for '#!/usr/bin/perl' and '#!/usr/bin/env perl'
 interpreter_is() {
-    if [ "${interpreter##*/}" = "$1" ]; then
-        return 0
-    elif [ "$interpreter" = "/usr/bin/env" ] && [ "$arg1" = "$1" ]; then
-        return 0
-    else
-        return 1
+    case "${interpreter##*/}" in
+        "$1"*) return 0 ;;
+    esac
+
+    if [ "$interpreter" = "/usr/bin/env" ]; then
+        case "$arg1" in
+            "$1"*) return 0 ;;
+        esac
     fi
+
+    return 1
 }
 
 if interpreter_is "sbang"; then

@@ -32,7 +32,7 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
             len(search_times) - 10), numpy.array(search_times[10:]), 1)
         print("A, B:", a, b)
         # Make sure it's pretty much constant
-        self.assertLessEqual(a, .001)
+        self.assertLessEqual(a, .01)
         os.remove(kosh_db)
 
 

@@ -8,11 +8,6 @@ import hashlib
 import numpy
 import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
-try:
-    import matplotlib.pyplot as plt
-    has_mpl = True
-except ImportError:
-    has_mpl = False
 from kosh.exec_graphs import find_network_ends
 
 
@@ -20,6 +15,55 @@ try:
     default_nx_layout = nx.planar_layout
 except AttributeError:  # planar is available from nx version 2.5
     default_nx_layout = nx.circular_layout
+
+
+def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
+    """When importing a dataset, checks if the imported dataset has
+    attributes that match the one in the datset already in this store.
+    If attributes values conflict then we use 'handling_method to resolve the conflict
+
+    The store_dataset is not updated here, we return a list of attributes/values pairs resolving the conflict
+
+    :param target_dataset: The dataset that will received the merge
+    :type target_dataset: kosh.KoshDataset
+    :param imported_dataset: The dataset we are trying to merge into target_dataset or its attributes/values dictionary
+    :type imported_dataset: kosh.KoshDataset or dict
+    :param handling_method: How do we handle conflicts?
+                            None, "conservative": Error exit
+                            "preserve": Keep value from target_dataset
+                            "overwrite": Use value from imported dataset
+    :returns: Dictionary of attribute/value that the target_dataset should have
+    :rtype: dict
+    """
+    handling_method = kargs.pop("handling_method", None)
+
+    target_dict = target_dataset.list_attributes(dictionary=True)
+
+    if not isinstance(imported_dataset, dict):
+        imported_dataset = imported_dataset.list_attributes(dictionary=True)
+
+    for attribute, value in imported_dataset.items():
+        if attribute in target_dict:
+            if target_dict[attribute] != value:
+                if handling_method in [None, "conservative"]:
+                    msg = "Trying to import dataset with attribute '{}'".format(attribute)
+                    msg += " value : {}. ".format(value)
+                    msg += "But value for this attribute in target is '{}'".format(target_dict[attribute])
+                    raise ValueError(msg)
+                elif handling_method == "overwrite":
+                    # Do we want a warning here?
+                    # handling says use new value
+                    target_dict[attribute] = value
+                elif handling_method == "preserve":
+                    # Do we want a warning here?
+                    # We preserve so not changing the target value
+                    pass
+                else:
+                    raise ValueError("Unknown 'handling_method': {}".format(handling_method))
+        else:
+            # New attribute let's add it
+            target_dict[attribute] = value
+    return target_dict
 
 
 def gen_labels(G):
@@ -118,10 +162,17 @@ def draw_execution_graph(G,
             for i in range(len(pth) - 1):
                 edges.append((pth[i], pth[i + 1]))
             nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color='red')
-    plt.show()
-    plt.savefig(png_name)
-    if clear:
-        plt.clf()
+    try:
+        if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
+            import matplotlib
+            matplotlib.use("agg", force=True)
+        import matplotlib.pyplot as plt
+        plt.show()
+        plt.savefig(png_name)
+        if clear:
+            plt.clf()
+    except ImportError:
+        raise RuntimeError("Could not import matplotlib, will not plot anything")
 
 
 def compute_fast_sha(uri, n_samples=10):

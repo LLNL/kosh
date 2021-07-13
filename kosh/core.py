@@ -1,7 +1,7 @@
 # Core module for our Kosh data access
 from abc import ABCMeta, abstractmethod
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader, get_graph
-from kosh.utils import compute_fast_sha
+from kosh.utils import compute_fast_sha, merge_datasets_handler
 import warnings
 import os
 import kosh
@@ -9,6 +9,7 @@ import time
 import fcntl
 import copy
 import collections
+from inspect import isfunction, ismethod
 try:
     basestring
 except NameError:
@@ -35,6 +36,7 @@ try:
 except ImportError:
     pass
 from .loaders import JSONLoader
+from .loaders import NpyLoader
 
 
 class KoshAgent(object):
@@ -59,6 +61,7 @@ class KoshStoreClass(object):
         self.storeLoader = KoshLoader
         self.add_loader(KoshFileLoader)
         self.add_loader(JSONLoader)
+        self.add_loader(NpyLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
@@ -238,7 +241,6 @@ class KoshStoreClass(object):
         :param file: optional file to dump datset to
         :type file: None or str
         """
-        print("DS:", datasets)
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             datasets = [datasets, ]
         for dataset in datasets:
@@ -247,7 +249,7 @@ class KoshStoreClass(object):
             else:
                 return dataset.export(file)
 
-    def import_dataset(self, datasets, match_attributes=["name", ]):
+    def import_dataset(self, datasets, match_attributes=["name", ], merge_handler=None, merge_handler_kargs={}):
         """import datasets that were exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -260,6 +262,14 @@ class KoshStoreClass(object):
                                  Warning, if this parameter is too lose too many datasets will match
                                  and the import will abort, if it's too tight duplicates will not be identified.
         :type match_attributes: list of str
+        :param merge_handler: If found dataset has attributes with different values from imported dataset
+                                 how do we handle this? Accept values are: None, "conservative", "overwrite",
+                                 "preserve", or a function.
+                                 A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
+        :type merge_handler: None, str, func
+        :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
+                                    will be passed in addtion to this store dataset and the imported dataset.
+        :type merge_handler_kargs: dict
         :return: list dataset
         :rtype: list of KoshSinaDataset
         """
@@ -268,6 +278,14 @@ class KoshStoreClass(object):
                 datasets = orjson.loads(f.read()).get("datasets", [])
         elif not isinstance(datasets, (list, tuple)):
             datasets = [datasets, ]
+
+        # setup merge handler
+        ok_merge_handler_values = [None, "conservative", "preserve", "overwrite"]
+        if merge_handler in ok_merge_handler_values:
+            merge_handler_kargs = {"handling_method": merge_handler}
+            merge_handler = merge_datasets_handler
+        elif not (isfunction(merge_handler) or ismethod(merge_handler)):
+            raise ValueError("'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
 
         matches = []
         for dataset in datasets:
@@ -296,16 +314,9 @@ class KoshStoreClass(object):
                 # All right we do have a possible conflict here
                 match = matching[0]
                 match_attributes = match.listattributes(dictionary=True)
-                # ok we have some match let's make sure there is no conflict
-                for att in set(match_attributes).intersection(atts.keys()):
-                    if att == 'id' and 'id' not in match_dict:
-                        continue
-                    if match_attributes[att] != atts[att]:
-                        # TODO ERROR HANDLING (--force options?)
-                        raise ValueError("Attribute '{}':'{}' differs from existing dataset in store ('{}')".format(
-                            att, atts[att], match_attributes[att]))
+                merged_attributes = merge_handler(match, match_attributes, **merge_handler_kargs)
                 # Ok at this point no conflict!
-                match.update(atts)
+                match.update(merged_attributes)
             else:  # Non existent dataset
                 try:
                     id = atts.get("id", None)
@@ -602,11 +613,11 @@ class KoshDataset(object):
         if Id is None:
             for associated in associated_data:
                 if loader is None:
-                    ld = self.__store__._find_loader(associated)
+                    ld, _ = self.__store__._find_loader(associated)
                 else:
                     if associated not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated] = loader(self.__store__._load(associated))
-                    ld = self.__store__._cached_loaders[associated]
+                    ld, _ = self.__store__._cached_loaders[associated]
                 loaders.append(ld)
                 try:
                     features += ld._list_features(*args, use_cache=use_cache, **kargs)
@@ -629,7 +640,7 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            ld = self.__store__._find_loader(Id)
+            ld, _ = self.__store__._find_loader(Id)
             features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
@@ -656,7 +667,7 @@ class KoshDataset(object):
         loader = None
         if Id is None:
             for a in self._associated_data_:
-                ld = self.__store__._find_loader(a)
+                ld, _ = self.__store__._find_loader(a)
                 if feature in ld._list_features(**kargs) or \
                         (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
@@ -665,7 +676,7 @@ class KoshDataset(object):
         elif Id not in self._associated_data_:
             raise RuntimeError("object {Id} is not associated with this dataset".format(Id=Id))
         else:
-            loader = self.__store__._find_loader(Id)
+            loader, _ = self.__store__._find_loader(Id)
         return loader.describe_feature(feature)
 
     def get_execution_graph(self, feature=None, Id=None, loader=None, transformers=[], *args, **kargs):
@@ -713,7 +724,7 @@ class KoshDataset(object):
                         a, _ = a.split("__uri__")
                     a_obj = self.__store__._load(a)
                     if loader is None:
-                        ld = self.__store__._find_loader(a_original)
+                        ld, _ = self.__store__._find_loader(a_original)
                         if ld is None:  # unknown mimetype probably
                             continue
                     else:
@@ -733,7 +744,7 @@ class KoshDataset(object):
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
-                ld = self.__store__._find_loader(Id)
+                ld, _ = self.__store__._find_loader(Id)
                 if feature_ in ld._list_features():
                     possible_ids = [Id, ]
                 else:  # ok not a curve maybe a file?
@@ -741,7 +752,7 @@ class KoshDataset(object):
                     for uri in rec["files"]:
                         if "mimetype" in rec["files"][uri]:
                             full_id = "{}__uri__{}".format(Id, uri)
-                            ld = self.__store__._find_loader(full_id)
+                            ld, _ = self.__store__._find_loader(full_id)
                             if ld is not None and feature_ in ld.list_features():
                                 possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
@@ -777,7 +788,7 @@ class KoshDataset(object):
                 tmp = None
                 try:
                     if loader is None:
-                        ld = self.__store__._find_loader(Id)
+                        ld, _ = self.__store__._find_loader(Id)
                         mime_type = ld._mime_type
                     else:
                         if Id not in self.__store__._cached_loaders:

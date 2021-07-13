@@ -1,5 +1,4 @@
 from .core import KoshLoader
-from PIL import Image
 import numpy
 
 
@@ -26,6 +25,7 @@ class PILLoader(KoshLoader):
         :type mode: str, optional
         :return: Image file from PIL
         """
+        from PIL import Image
         return Image.open(self.uri)
 
     def extract(self):
