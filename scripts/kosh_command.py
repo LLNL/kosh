@@ -815,6 +815,7 @@ Available commands are:
                 raise ValueError("kosh mv only works on local files")
 
         sources, targets = find_sources_and_targets(opts, files, target)
+        print("SOURCES TARGETS:", sources, targets)
 
         if command == "rm":
             targets = ["", ] * len(sources)
@@ -846,7 +847,7 @@ Available commands are:
                             associated.uri = targets[i]
                     else:
                         exported = dataset.export()
-                        # Ok we need to update the uri to point t the new
+                        # Ok we need to update the uri to point to the new
                         # target
                         delte_these = []
                         for indx, a in enumerate(exported["records"][1:]):

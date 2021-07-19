@@ -47,7 +47,7 @@ class KoshStoreClass(object):
     """Base Store Class for Kosh backend to build uppon"""
     __metaclass__ = ABCMeta
 
-    def __init__(self, sync, verbose=False, use_lock_file=False):
+    def __init__(self, sync, verbose=False, use_lock_file=False, read_only=False):
         """Constructor
         :param sync: Does this store constantly sync with db
         :type sync: bool
@@ -55,6 +55,8 @@ class KoshStoreClass(object):
         :type verbose: bool
         :param use_lock_file: If you receive sqlite threads access error, turning this on might help
         :type use_lock_file: bool
+        :param read_only: Can we modify the database source?
+        :type read_only: bool
         """
         self.use_lock_file = use_lock_file
         self.loaders = {}
@@ -87,6 +89,9 @@ class KoshStoreClass(object):
             if verbose:
                 warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
                               " Pass verbose=False when creating the store to turn this message off")
+        if read_only:
+            sync = False
+        self.__read_only__ = read_only
         self.__sync__ = sync
         self.__sync__dict__ = {}
         self.__sync__deleted__ = {}
@@ -113,6 +118,18 @@ class KoshStoreClass(object):
     def create(self):
         """create a dataset
 
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete_all_contents(self, force=""):
+        """
+        Delete EVERYTHING in a datastore; this cannot be undone.
+
+        :param force: This function is meant to raise a confirmation prompt. If you
+                      want to use it in an automated script (and you're sure of
+                      what you're doing), set this to "SKIP PROMPT".
         :raises NotImplementedError: Needs to be implemented for each engine
         """
         raise NotImplementedError()
@@ -214,6 +231,14 @@ class KoshStoreClass(object):
         :rtype: bool
         """
         return self.__sync__
+
+    @abstractmethod
+    def sync(self):
+        """syncs in memory and store original database
+
+        :raises NotImplementedError: Needs to be implemented for each engine
+        """
+        raise NotImplementedError()
 
     def synchronous(self, mode=None):
         """Change sync mode for the store
@@ -402,7 +427,7 @@ class KoshStoreClass(object):
         return missings
 
 
-def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, *args, **kargs):
+def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, read_only=False, **kargs):
     """KoshStore return a store based on a specific engine
 
     :param db_uri: URI to access backend database
@@ -411,15 +436,22 @@ def KoshStore(db_uri=None, engine="sina", sync=True, verbose=False, *args, **kar
     :type engine: str
     :param sync: Does Kosh sync automatically to the db (True) or on demand (False)
     :type sync: bool
+    :param verbose: Verbose operations?
+    :type verbose: bool
+    :param read_only: Can we modify the database source?
+    :type read_only: bool
+    :
     :raises RuntimeError: [description]
     :return: [description]
     :rtype: [type]
     """
     known_engines = ["sina", ]
+    if read_only:
+        sync = False
     # Initialize and returns access class
     if engine.lower() == "sina":
         from .sina import KoshSinaStore
-        return KoshSinaStore(db_uri=db_uri, sync=sync, verbose=verbose, *args, **kargs)
+        return KoshSinaStore(db_uri=db_uri, sync=sync, verbose=verbose, read_only=read_only, **kargs)
     else:
         raise RuntimeError(
             "Unknown engine type {}, supported engines: {}".format(
