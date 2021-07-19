@@ -1,5 +1,6 @@
 ![Kosh Logo](share/icons/png/Kosh_Logo_Blue.png)
 # Overview
+
 Kosh allows codes to store, query, share data via an easy-to-use Python API. Kosh lies on top of Sina and as a result can use any database backend supported by Sina.
 
 In addition Kosh aims to make data access and sharing as simple as possible.

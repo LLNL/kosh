@@ -6,6 +6,7 @@ from .utils import create_new_db, walk_dictionary_keys, version  # noqa
 from .schema import KoshSchema  # noqa
 from .operators import KoshOperator  # noqa
 import pkg_resources  # noqa
+from .sina import connect  # noqa
 
 try:
     d = pkg_resources.get_distribution("kosh")

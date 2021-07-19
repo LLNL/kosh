@@ -1,16 +1,21 @@
 import uuid
-from kosh.core import KoshStoreClass, KoshDataset
+from kosh.core import KoshStoreClass, KoshDataset, KoshStore
 from kosh.schema import KoshSchema
 from kosh.loaders import KoshLoader
-from kosh.utils import compute_fast_sha, compute_long_sha, version, merge_datasets_handler
+from kosh.utils import compute_fast_sha, compute_long_sha
+from kosh.utils import update_store_and_get_info_record
+from kosh.utils import create_kosh_users
+from kosh.utils import merge_datasets_handler
 import warnings
 import time
-from sina.datastore import create_datastore
+from sina.datastore import connect as sina_connect
+from sina.model import Record
 import sina.utils
 import pickle
 import os
 import grp
 import numpy
+import hashlib
 try:
     import orjson
 except ImportError:
@@ -25,6 +30,61 @@ from inspect import isfunction, ismethod
 
 
 sina_version = float(".".join(get_version().split(".")[:2]))
+
+
+def connect(database, keyspace=None, database_type=None,
+            allow_connection_pooling=False, read_only=False,
+            delete_all_contents=False, **kargs):
+    """Connect to a Sina store.
+
+Given a uri/path (and, if required, the name of a keyspace),
+figures out which backend is required.
+
+:param database: The URI of the store to connect to.
+:type database: str
+:param keyspace: The keyspace to connect to (Cassandra only).
+:type keyspace: str
+:param database_type: Type of backend to connect to. If not provided, Sina
+                      will infer this from <database>. One of "sql" or
+                      "cassandra".
+:type database_type: str
+:param allow_connection_pooling: Allow "pooling" behavior that recycles connections,
+                                 which may prevent them from closing fully on .close().
+                                 Only used for the sql backend.
+:type allow_connection_pooling: bool
+:param read_only: whether to create a read-only store
+:type read_only: bool
+:param kargs: Any extra arguments you wish to pass to the KoshStore function
+:type kargs: dict, key=value
+:param delete_all_contents: Deletes all data after opening the db
+:type delete_all_contents: bool
+:return: a KoshStore object connected to the specified database
+:rtype: KoshStoreClass
+"""
+    db = kargs.pop("db", None)
+    if db is not None:
+        if database_type is not None and db != database_type:
+            raise ValueError("You cannot specifiy `db` and `database_type` with different values")
+        database_type = db
+    sina_store = sina_connect(database=database,
+                              keyspace=keyspace,
+                              database_type=database_type,
+                              allow_connection_pooling=allow_connection_pooling,
+                              read_only=read_only)
+    if not read_only:
+        update_store_and_get_info_record(sina_store.records)
+        create_kosh_users(sina_store.records)
+    sina_store.close()
+    sync = kargs.pop("sync", True)
+    if read_only:
+        sync = False
+    store = KoshStore(database, sync=sync, keyspace=keyspace, read_only=read_only,
+                      db=database_type,
+                      allow_connection_pooling=allow_connection_pooling,
+                      **kargs)
+    if delete_all_contents:
+        store.delete_all_contents(force="SKIP PROMPT")
+    return store
 
 
 def cleanup_sina_record_from_kosh_sync(record):
@@ -160,7 +220,7 @@ class KoshSinaObject(object):
         if name == "creator":
             # old records have user id let's fix this
             if value in self.__store__.__record_handler__.find_with_type(
-                    "user", ids_only=True):
+                    self.__store__._users_type, ids_only=True):
                 value = self.__store__.get_record(
                     value)["data"]["username"]["value"]
         return value
@@ -311,7 +371,7 @@ class KoshSinaObject(object):
             if a == "creator":
                 # old records have user id let's fix this
                 if attributes[a] in self.__store__.__record_handler__.find_with_type(
-                        "user", ids_only=True):
+                        self.__store__._users_type, ids_only=True):
                     attributes[a] = self.__store__.get_record(
                         attributes[a])["data"]["username"]["value"]
         return attributes
@@ -733,9 +793,10 @@ class KoshSinaLoader(KoshLoader):
 class KoshSinaStore(KoshStoreClass):
     """Sina-based implementation of Kosh store"""
 
-    def __init__(self, username=os.environ["USER"], db='sql', db_uri=None,
+    def __init__(self, username=os.environ["USER"], db=None, db_uri=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
-                 verbose=True, use_lock_file=False, kosh_reserved_record_types=[]):
+                 verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
+                 read_only=False, allow_connection_pooling=False):
         """__init__ initialize a new Sina-based store
 
         :param username: user name defautl to user id
@@ -758,32 +819,44 @@ class KoshSinaStore(KoshStoreClass):
         :param kosh_reserved_record_types: list of record types that are reserved for Kosh internal
                                            use, will be ignored when searching store
         :type kosh_reserved_record_types: list of strings
+        :param read_only: Can we modify the database source?
+        :type read_only: bool
+        :param allow_connection_pooling: Allow "pooling" behavior that recycles connections,
+                                        which may prevent them from closing fully on .close().
+                                        Only used for the sql backend.
+        :type allow_connection_pooling: bool
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
         KoshStoreClass.__init__(self, sync, verbose, use_lock_file)
+        if db is None:
+            db = 'sql'
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
             if not os.path.exists(db_uri):
                 if ("://" in db_uri and "@" in db_uri):
-                    self.__sina_store = create_datastore(db_uri)
+                    self.__sina_store = sina_connect(db_uri, read_only=read_only)
                 else:
                     raise ValueError(
                         "Kosh store could not be found at: {}".format(db_uri))
             else:
                 self.lock()
-                self.__sina_store = create_datastore(
-                    database=os.path.abspath(db_uri))
+                self.__sina_store = sina_connect(database=os.path.abspath(db_uri),
+                                                 read_only=read_only,
+                                                 database_type=db,
+                                                 allow_connection_pooling=allow_connection_pooling)
                 self.unlock()
-        elif db[:4].lower() == 'cass':
-            self.__sina_store = create_datastore(
-                keyspace=keyspace, database=db_uri, database_type='cassandra')
+        elif db.lower().startswith('cass'):
+            self.__sina_store = sina_connect(
+                keyspace=keyspace, database=db_uri,
+                database_type='cassandra', read_only=read_only,
+                allow_connection_pooling=allow_connection_pooling)
         from sina.model import Record
         from sina.utils import DataRange
         global Record, DataRange
 
-        rec = self.update_store_and_get_info_record()
+        rec = update_store_and_get_info_record(self.__sina_store.records)
 
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
@@ -796,7 +869,7 @@ class KoshSinaStore(KoshStoreClass):
         self.__dict__["__record_handler__"] = self.__sina_store.records
         self.unlock()
         users_filter = list(self.__record_handler__.find_with_type(
-            "user", ids_only=True))
+            self._users_type, ids_only=True))
         names_filter = list(
             self.__record_handler__.find_with_data(
                 username=username))
@@ -820,11 +893,7 @@ class KoshSinaStore(KoshStoreClass):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
-        if sina_version < 1.9:
-            # Ask @haluska2 if that is valid
-            mem = create_datastore(":memory:")
-        else:
-            mem = create_datastore(None)
+        mem = sina_connect(None)
         self._added_unsync_handler = mem.records
         self._cached_loaders = {}
 
@@ -835,48 +904,24 @@ class KoshSinaStore(KoshStoreClass):
             loader.types[self._sources_type] = loader.types["file"]
         self.loaders[self._sources_type] = self.loaders["file"]
 
-    def update_store_and_get_info_record(self):
-        """Obtain the sina record containing store info
-        If necessary update store to latest standards
-        :returns: sina recor for store info
-        :rtype: Record
-        """
-        # First let's see if this store contains a dedicated record
-        # describing this store specs
-        store_info = list(
-            self.__sina_store.records.find_with_type("__kosh_storeinfo__"))
-        if len(store_info) > 1:
-            raise RuntimeError(
-                "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
-        elif len(store_info) == 0:
-            # ok it's the old type, well let's try to upgrade it for next time
-            # and add the store info
-            rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
-            rec.add_data("sources_type", "file")
-            rec.add_data("users_type", "user")
-            rec.add_data("groups_type", "group")
-            rec.add_data("loaders_type", "koshloader")
-            rec.add_data("reserved_types", [
-                         "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
-            rec.add_data("kosh_min_version", "1.2.1")
-            self.__sina_store.records.insert(rec)
-        else:
-            rec = store_info[0]
-            # This will fail if we get to version x.10
-            # revisit then...
-            ver = sum(
-                [float(x) / 10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
-            min_ver = rec["data"]["kosh_min_version"]["value"]
-            min_ver = sum(
-                [float(x) / 10**i for i, x in enumerate(min_ver.split("."))])
-            if ver < min_ver:
-                raise RuntimeError(
-                    "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
-        return rec
-
     def close(self):
         """closes store and sina related things"""
         self.__sina_store.close()
+
+    def delete_all_contents(self, force=""):
+        """
+        Delete EVERYTHING in a datastore; this cannot be undone.
+
+        :param force: This function is meant to raise a confirmation prompt. If you
+                      want to use it in an automated script (and you're sure of
+                      what you're doing), set this to "SKIP PROMPT".
+        :type force: str
+        :returns: whether the deletion happened.
+        """
+        ret = self.__sina_store.delete_all_contents(force=force)
+        update_store_and_get_info_record(self.__sina_store.records)
+        create_kosh_users(self.__sina_store.records)
+        return ret
 
     def save_loader(self, loader):
         """Save a loader to the store
@@ -1039,7 +1084,7 @@ class KoshSinaStore(KoshStoreClass):
                 mime_type = record["data"]["mime_type"]["value"]
             else:
                 mime_type = None
-            mime_type_passed = None
+            mime_type_passed = mime_type
         else:  # Pure sina with file/mime_type
             mime_type = mime_type_passed = record["files"][uri]["mimetype"]
         if mime_type in self.loaders:
@@ -1350,6 +1395,10 @@ class KoshSinaStore(KoshStoreClass):
         """
         if self.__sync__:
             return
+
+        if not hasattr(self.__record_handler__, "insert"):
+            raise RuntimeError("Kosh store is read_only, cannot sync with it")
+
         if keys is None:
             keys = list(self.__sync__dict__.keys()) + \
                 list(self.__sync__deleted__.keys())
@@ -1443,7 +1492,7 @@ class KoshSinaStore(KoshStoreClass):
         users = [rec["data"]["username"]["value"] for rec in existing_users]
         if username not in users:
             # Create user
-            uid = uuid.uuid4().hex
+            uid = hashlib.md5(username.encode()).hexdigest()
             user = Record(id=uid, type=self._users_type)
             user.add_data("username", username)
             self.__record_handler__.insert(user)
