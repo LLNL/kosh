@@ -99,8 +99,8 @@ class KoshStoreClass(object):
     agent = KoshAgent()
 
     @abstractmethod
-    def search(self):
-        """search store
+    def find(self):
+        """find something in the store
 
         :raises NotImplementedError: Needs to be implemented for each engine
         """
@@ -329,7 +329,7 @@ class KoshStoreClass(object):
             for attribute in match_attributes:
                 match_dict[attribute] = atts[attribute]
 
-            matching = list(self.search(**match_dict))
+            matching = list(self.find(**match_dict))
             if len(matching) > 1:
                 raise ValueError("dataset criterias: {} matches multiple ({}) "
                                  "datasets in store {}, try changing 'match_attributes' when calling"
@@ -391,11 +391,11 @@ class KoshStoreClass(object):
 
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha search all "kosh files" that match this
-        matches = list(self.search(sina_type=self._sources_type, fast_sha=source, ids_only=True))
+        matches = list(self.find(types=[self._sources_type, ], fast_sha=source, ids_only=True))
         # Now it could be simply a uri
-        matches += list(self.search(sina_type=self._sources_type, uri=source, ids_only=True))
+        matches += list(self.find(types=[self._sources_type, ], uri=source, ids_only=True))
         # And it's quite possible it's a long_sha too
-        matches += list(self.search(sina_type=self._sources_type, long_sha=source, ids_only=True))
+        matches += list(self.find(types=[self._sources_type, ], long_sha=source, ids_only=True))
 
         # And now let's do the work
         for match_id in matches:
@@ -420,7 +420,7 @@ class KoshStoreClass(object):
         :rtype: list
         """
         missings = []
-        datasets = self.search()
+        datasets = self.find()
         for dataset in datasets:
             missings += dataset.cleanup_files(dry_run=dry_run,
                                               interactive=interactive, **dataset_search_keys)
@@ -529,7 +529,7 @@ class KoshDataset(object):
         """
         print_some = False
         missings = []
-        for associated in self.search(**search_keys):
+        for associated in self.find(**search_keys):
             clean = 'n'
             if not os.path.exists(associated.uri):  # Ok this is gone
                 missings.append(associated.uri)
@@ -938,11 +938,11 @@ class KoshDataset(object):
 
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha
-        matches = list(self.search(fast_sha=source, ids_only=True))
+        matches = list(self.find(fast_sha=source, ids_only=True))
         # Now it could be simply a uri
-        matches += list(self.search(uri=source, ids_only=True))
+        matches += list(self.find(uri=source, ids_only=True))
         # And it's quite possible it's a long_sha too
-        matches += list(self.search(long_sha=source, ids_only=True))
+        matches += list(self.find(long_sha=source, ids_only=True))
 
         # And now let's do the work
         for match_id in matches:
@@ -960,6 +960,6 @@ class KoshDataset(object):
         :rtype: set
         """
         searchable = set()
-        for source in self.search():
+        for source in self.find():
             searchable = searchable.union(source.listattributes())
         return searchable

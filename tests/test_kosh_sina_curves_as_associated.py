@@ -24,7 +24,7 @@ class KoshTestSinaCurves(KoshTest):
         rec = sina.utils.convert_json_to_records_and_relationships(
             "tests/baselines/sina/sina_curve_rec.json")[0][0]
         store.__record_handler__.insert(rec)
-        dataset = list(store.search())[0]
+        dataset = list(store.find())[0]
         print_str = """KOSH DATASET
 	id: obj1
 	name:???

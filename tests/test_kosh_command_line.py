@@ -41,11 +41,11 @@ class KoshTestDataset(KoshTest):
         if tar_command != "htar":
             self.assertTrue(os.path.exists("my_setup_{}.tar".format(seed)))
 
-        self.assertEqual(len(list(store2.search())), 0)
+        self.assertEqual(len(list(store2.find())), 0)
         o, e = run_cmd(
             "kosh {} --store={} -x -v -f my_setup_{}.tar".format(tar_command, kosh_db_2, seed), verbose=True)
 
-        self.assertEqual(len(list(store2.search())), 1)
+        self.assertEqual(len(list(store2.find())), 1)
         os.remove(kosh_db)
         os.remove(kosh_db_2)
         if tar_command != "htar":
@@ -61,12 +61,12 @@ class KoshTestDataset(KoshTest):
     def test_create_dataset(self):
         store, kosh_db = self.connect(dataset_record_type="dataset")
         # Empty store
-        datasets = list(store.search())
+        datasets = list(store.find())
         self.assertEqual(len(datasets), 0)
         o, e = run_cmd(
             "kosh create --store={} paramint=2 paramfloat 2.4 paramstr \"'45'\"".format(kosh_db), verbose=True)
 
-        datasets = list(store.search())
+        datasets = list(store.find())
         # Created a new dataset
         self.assertEqual(len(datasets), 1)
         ds = datasets[0]
@@ -93,12 +93,12 @@ class KoshTestDataset(KoshTest):
 
         store = kosh.KoshStore(name)
 
-        self.assertEqual(len(list(store.search())), 0)
+        self.assertEqual(len(list(store.find())), 0)
         store.create()
-        self.assertEqual(len(list(store.search())), 1)
+        self.assertEqual(len(list(store.find())), 1)
         o, e = run_cmd("kosh create_new_db -u {}".format(name))
         store = kosh.KoshStore(name)
-        self.assertEqual(len(list(store.search())), 0)
+        self.assertEqual(len(list(store.find())), 0)
         os.remove(name)
 
     def test_kosh_command(self):
@@ -106,20 +106,20 @@ class KoshTestDataset(KoshTest):
         store, kosh_db = self.connect(
             db_uri="cmd_line.sql", dataset_record_type="obs")
         # Search the all store
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs")
         self.assertEqual(len(o), 27)
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1=143.557")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs PARAM1=143.557")
         self.assertEqual(len(o), 1)
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1>241.289")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs PARAM1>241.289")
         self.assertEqual(len(o), 3)
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1>=241.289")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs PARAM1>=241.289")
         self.assertEqual(len(o), 4)
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1<241.289")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs PARAM1<241.289")
         self.assertEqual(len(o), 6)
-        o, e = run_cmd("kosh search -s 'cmd_line.sql' -d obs PARAM1<=241.289")
+        o, e = run_cmd("kosh find -s 'cmd_line.sql' -d obs PARAM1<=241.289")
         self.assertEqual(len(o), 7)
         o, e = run_cmd(
-            "kosh search -s 'cmd_line.sql' -d obs PARAM1=DataRange(140,445)")
+            "kosh find -s 'cmd_line.sql' -d obs PARAM1=DataRange(140,445)")
         self.assertEqual(len(o), 8)
         o, e = run_cmd(
             "kosh add -s 'cmd_line.sql' -d obs -i '2020-03-11-13-45-23' PARAM1=156 PARAM2=.2 PARAM3=something")
@@ -171,28 +171,28 @@ class KoshTestDataset(KoshTest):
         ds.associate("README.md", "md")  # real
         ds.associate("REEEEDME.mmmmdddd", "md")  # fake one
         verbose = False
-        self.assertEqual(len(list(ds.search())), 6)
+        self.assertEqual(len(list(ds.find())), 6)
         # first test cleanup python files only
-        self.assertEqual(len(list(ds.search(mime_type="py"))), 2)
+        self.assertEqual(len(list(ds.find(mime_type="py"))), 2)
         # Dry run first
         cmd = "kosh cleanup_files -s '{}' -d blah --dry-run mime_type=py".format(
             kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
         # Let's make sure it's still all here
-        self.assertEqual(len(list(ds.search())), 6)
-        self.assertEqual(len(list(ds.search(mime_type="py"))), 2)
+        self.assertEqual(len(list(ds.find())), 6)
+        self.assertEqual(len(list(ds.find(mime_type="py"))), 2)
         cmd = "kosh cleanup_files -s '{}' -d blah mime_type=py".format(kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
         # Let's make sure only one py file was removed
-        self.assertEqual(len(list(ds.search())), 5)
-        self.assertEqual(len(list(ds.search(mime_type="py"))), 1)
+        self.assertEqual(len(list(ds.find())), 5)
+        self.assertEqual(len(list(ds.find(mime_type="py"))), 1)
         # Let's clean it all
         cmd = "kosh cleanup_files -s '{}' -d blah ".format(kosh_db)
         o, e = run_cmd(cmd, verbose=verbose)
-        self.assertEqual(len(list(ds.search())), 3)
-        self.assertEqual(len(list(ds.search(mime_type="py"))), 1)
-        self.assertEqual(len(list(ds.search(mime_type="md"))), 1)
-        self.assertEqual(len(list(ds.search(mime_type="hdf5"))), 1)
+        self.assertEqual(len(list(ds.find())), 3)
+        self.assertEqual(len(list(ds.find(mime_type="py"))), 1)
+        self.assertEqual(len(list(ds.find(mime_type="md"))), 1)
+        self.assertEqual(len(list(ds.find(mime_type="hdf5"))), 1)
         os.remove(kosh_db)
 
 

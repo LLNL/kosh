@@ -8,7 +8,7 @@ class KoshTestDataset(KoshTest):
         store = kosh.KoshStore(
             db_uri="tests/baselines/sina/data.sqlite",
             dataset_record_type="obs")
-        all_recs = list(store.search(ids_only=True))
+        all_recs = list(store.find(ids_only=True))
         self.assertEqual(len(all_recs), 27)
         A = store.open("2014-04-05-06-21-43")
         self.assertEqual(A.PARAM1, 243.3184)
