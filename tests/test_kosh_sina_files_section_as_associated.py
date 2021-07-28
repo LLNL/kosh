@@ -10,7 +10,7 @@ class KoshTestSinaFiles(KoshTest):
         rec = sina.utils.convert_json_to_records_and_relationships(
             "tests/baselines/sina/sina_curve_rec_mimes.json")[0][0]
         store.__record_handler__.insert(rec)
-        dataset = list(store.search())[0]
+        dataset = list(store.find())[0]
         dataset.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
         asso = dataset._associated_data_
         self.assertEqual(len(asso), 2)
@@ -53,14 +53,14 @@ class KoshTestSinaFiles(KoshTest):
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
 	Mime_type: png
 		/g/g19/cdoutrix/git/kosh/tests/baselines/images/LLNLiconWHITE.png ( {} )
-""".format(dataset.presets, list(dataset.search(mime_type="png", ids_only=True))[0])  # noqa
+""".format(dataset.presets, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
 
     def test_sina_files_section_with_curves(self):
         store, kosh_db = self.connect()
         rec = sina.utils.convert_json_to_records_and_relationships(
             "tests/baselines/sina/sina_curve_rec_mimes_and_curves.json")[0][0]
         store.__record_handler__.insert(rec)
-        dataset = list(store.search())[0]
+        dataset = list(store.find())[0]
         asso = dataset._associated_data_
         self.assertEqual(len(asso), 2)
         selfie = [x.split("__uri__")[0] for x in asso]
@@ -114,7 +114,7 @@ class KoshTestSinaFiles(KoshTest):
         rec = sina.utils.convert_json_to_records_and_relationships(
             "tests/baselines/sina/sina_curve_rec_mimes_and_curves_and_badmime.json")[0][0]
         store.__record_handler__.insert(rec)
-        dataset = list(store.search())[0]
+        dataset = list(store.find())[0]
         asso = dataset._associated_data_
         self.assertEqual(len(asso), 3)
         selfie = [x.split("__uri__")[0] for x in asso]

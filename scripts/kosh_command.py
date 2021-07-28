@@ -104,11 +104,11 @@ def core_parser(description,
 
 def parse_metadata(terms):
     """
-    Parse metadata for Kosh search
+    Parse metadata for Kosh  queries
     param=value / param>value, etc...
     :param terms: list of strings conatining name/operator/value
     :term terms: list of str
-    :return: Dictionary with name as key and matching sina search object as value
+    :return: Dictionary with name as key and matching sina find object as value
     :rtype: dict
     """
     metadata = {}
@@ -218,6 +218,12 @@ class KoshCmd(object):
     def __init__(self):
         commands = "".join(
             ["" if k[0] == "_" else "\n\t" + k for k in sorted(dir(self))])
+
+        # search is deprecated let's not list it
+        index = commands.find("search")
+        if index > -1:
+            commands = commands[:index] + commands[index+8:]  # 8 because of \n\t
+
         parser = core_parser(
             description='Execute kosh operations',
             usage='''kosh <command> [<args>]
@@ -260,9 +266,17 @@ Available commands are:
         getattr(self, args.command)()
 
     def search(self):
-        """search a store command"""
+        """
+        Deprecated use find
+        """
+        warnings.warn(DeprecationWarning, "The 'search' command is deprecated and now called `find`.\n"\
+                      "Please update your code to use `find` as `search` might disappear in the future")
+        return self.find()
+
+    def find(self):
+        """find in a store command"""
         parser = core_parser(
-            description='Search Kosh store for datasets matching metadata in form key=value')
+            description='Find datasets in store that are matching metadata in form key=value')
         parser.add_argument(
             "--print",
             "-p",
@@ -273,7 +287,7 @@ Available commands are:
         store = kosh.KoshStore(db_uri=args.store,
                                dataset_record_type=args.dataset_record_type)
         metadata["ids_only"] = True
-        ids = store.search(**metadata)
+        ids = store.find(**metadata)
         if args.print:
             for Id in ids:
                 ds = store.open(Id)
@@ -301,7 +315,7 @@ Available commands are:
         metadata = parse_metadata(search_terms)
         store = kosh.KoshStore(db_uri=args.store,
                                dataset_record_type=args.dataset_record_type)
-        ids = store.search(ids_only=True)
+        ids = store.find(ids_only=True)
         for Id in ids:
             ds = store.open(Id)
             missings = ds.cleanup_files(dry_run=args.dry_run, interactive=args.interactive, **metadata)
@@ -309,7 +323,7 @@ Available commands are:
                 if not args.interactive:  # already printed in interactive
                     print(ds)
                 for uri in missings:
-                    associated = list(ds.search(uri=uri))
+                    associated = list(ds.find(uri=uri))
                     if len(associated) != 0:
                         print("{} (mime_type={}) is missing".format(
                             associated[0].uri, associated[0].mime_type))
@@ -548,7 +562,7 @@ Available commands are:
                 if not args.no_absolute_path:
                     filename = os.path.abspath(filename)
                 for store in stores:
-                    store_datasets[store.db_uri] += list(store.search(
+                    store_datasets[store.db_uri] += list(store.find(
                         file=filename, ids_only=True))
 
             # Ok now we need to export all the datasets to a file
@@ -691,7 +705,7 @@ Available commands are:
 
             # it worked let's remove it from stores
             for store in stores:
-                datasets = store.search(file=filename)
+                datasets = store.find(file=filename)
                 for dataset in datasets:
                     dataset.dissociate(filename)
 
@@ -839,10 +853,10 @@ Available commands are:
         rsync_ran = []
         for i, source in enumerate(sources):
             for o_store in origin_stores:
-                datasets = o_store.search(file=source)
+                datasets = o_store.find(file=source)
                 for dataset in datasets:
                     if command == "mv":
-                        associated_uris = dataset.search(uri=source)
+                        associated_uris = dataset.find(uri=source)
                         for associated in associated_uris:
                             associated.uri = targets[i]
                     else:

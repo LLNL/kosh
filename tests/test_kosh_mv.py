@@ -67,7 +67,7 @@ class KoshTestMv(KoshTest):
         self.assertFalse(self.file_exist(file_src_orig))
         self.assertTrue(self.file_exist(dest_name_orig))
         for ds in [ds1, ds2]:
-            associated = next(ds.search(mime_type="py"))
+            associated = next(ds.find(mime_type="py"))
             self.assertEqual(associated.uri, dest_name_orig)
 
         # cleanup file
@@ -125,7 +125,7 @@ class KoshTestMv(KoshTest):
             self.assertTrue(os.path.exists(new_paths[-1]))
 
         for ds in [ds1, ds2]:
-            associated_uris = ds.search(mime_type="py")
+            associated_uris = ds.find(mime_type="py")
             for associated in associated_uris:
                 self.assertTrue(associated.uri in new_paths)
 
@@ -185,7 +185,7 @@ class KoshTestMv(KoshTest):
             self.assertTrue(os.path.exists(new_paths[-1]))
 
         for ds in [ds1, ds2]:
-            associated_uris = ds.search(mime_type="py")
+            associated_uris = ds.find(mime_type="py")
             for associated in associated_uris:
                 self.assertTrue(associated.uri in new_paths)
 
@@ -244,14 +244,14 @@ class KoshTestMv(KoshTest):
             self.assertTrue(os.path.exists(dest))
             # Test datasets are updated
             for ds in [ds1, ds2]:
-                associated_uris = ds.search(mime_type="testme")
+                associated_uris = ds.find(mime_type="testme")
                 for associated in associated_uris:
                     if os.path.basename(
                             associated.uri) == os.path.basename(file_src):
                         self.assertEqual(associated.uri, dest)
         # Test that file that was not moved still is there
         self.assertTrue(os.path.exists(file_src_orig[-1]))
-        self.assertGreater(len(list(ds1.search(uri=file_src_orig_associate[-1]))), 0)
+        self.assertGreater(len(list(ds1.find(uri=file_src_orig_associate[-1]))), 0)
 
         # Cleanup files
         shutil.rmtree("dir1")
@@ -286,7 +286,7 @@ class KoshTestMv(KoshTest):
                 file_src_orig))
         self.assertTrue(os.path.exists(dest_path))
 
-        associated = next(ds1.search(mime_type="py"))
+        associated = next(ds1.find(mime_type="py"))
         self.assertEqual(associated.uri, dest_path)
 
         # Cleanup
@@ -321,7 +321,7 @@ class KoshTestMv(KoshTest):
             dest_path = os.path.abspath(os.path.join(dest_name_orig, x))
             self.assertFalse(os.path.exists(dest_path))
 
-        associated = ds1.search(mime_type="py")
+        associated = ds1.find(mime_type="py")
         for a in associated:
             self.assertTrue(a.uri in file_src_orig_associate)
 

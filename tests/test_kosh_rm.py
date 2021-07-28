@@ -33,7 +33,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm([filename, ], [db_uri, ])
 
-        associated = list(ds.search(mime_type="text"))
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         self.assertFalse(os.path.exists(filename))
@@ -51,7 +51,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(filenames, [db_uri, ])
 
-        associated = list(ds.search(mime_type="text"))
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:
@@ -79,7 +79,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(["rm_from_dir", ], [db_uri, ])
 
-        associated = list(ds.search(mime_type="text"))
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:
@@ -109,7 +109,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(["rm_from_dir_mix", filenames[-1]], [db_uri, ])
 
-        associated = list(ds.search(mime_type="text"))
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:

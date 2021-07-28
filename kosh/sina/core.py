@@ -64,7 +64,8 @@ figures out which backend is required.
     db = kargs.pop("db", None)
     if db is not None:
         if database_type is not None and db != database_type:
-            raise ValueError("You cannot specifiy `db` and `database_type` with different values")
+            raise ValueError(
+                "You cannot specifiy `db` and `database_type` with different values")
         database_type = db
     sina_store = sina_connect(database=database,
                               keyspace=keyspace,
@@ -174,8 +175,7 @@ class KoshSinaObject(object):
         :return: requested attribute value
         """
         if name == "__id__":
-            warnings.warn(DeprecationWarning(
-                "the attribute '__id__' has been deprecated in favor of 'id'"))
+            warnings.warn("the attribute '__id__' has been deprecated in favor of 'id'", DeprecationWarning)
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
@@ -224,6 +224,14 @@ class KoshSinaObject(object):
                 value = self.__store__.get_record(
                     value)["data"]["username"]["value"]
         return value
+
+    def get_sina_store(self):
+        """Returns the sina store object"""
+        return self.__store__.get_sina_store()
+
+    def get_sina_records(self):
+        """Returns sina store's records"""
+        return self.__record_handler__
 
     def update(self, attributes):
         """update many attributes at once to limit db writes
@@ -528,8 +536,8 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
                 rec["user_defined"]["{uri}___associated_last_modified".format(
                     uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
-                tmp_uris = list(self.__store__.search(
-                    sina_type=self.__store__._sources_type, uri=uri, ids_only=True))
+                tmp_uris = list(self.__store__.find(
+                    types=[self.__store__._sources_type, ], uri=uri, ids_only=True))
 
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
@@ -608,72 +616,94 @@ class KoshSinaDataset(KoshSinaObject, KoshDataset):
             return kosh_files
 
     def search(self, *atts, **keys):
-        """search associated data matching some metadata
+        """
+        Deprecated use find
+        """
+        warnings.warn("The 'search' function is deprecated and now called `find`.\n"
+                      "Please update your code to use `find` as `search` might disappear in the future",
+                      DeprecationWarning)
+        return self.find(*atts, **keys)
+
+    def find(self, *atts, **keys):
+        """find associated data matching some metadata
         arguments are the metadata name we are looking for e.g
-        search("attr1", "attr2")
+        find("attr1", "attr2")
         you can further restrict by specifying exact value for a metadata
         via key=value
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
 
-        "file" is a special key that will return the kosh object associated
-        with this dataset for the given uri.  e.g store.search(file=uri)
+        "file_uri" is a special key that will return the kosh object associated
+        with this dataset for the given uri.  e.g store.find(file_uri=uri)
 
         :return: list of matching objects associated with dataset
         :rtype: list
         """
 
         if self._associated_data_ is None:
-            yield
+            return
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
-        for att in atts:
-            sina_kargs[att] = sina.utils.exists()
-        sina_kargs.update(keys)
+        # We are only interested in ids from Sina
+        sina_kargs["ids_only"] = True
 
         inter_recs = self._associated_data_
-        if len(sina_kargs) != 0:
-            file_uri = sina_kargs.pop("file", None)
-            if len(sina_kargs) == 0:
-                match = inter_recs
-            else:
-                match = list(
-                    self.__record_handler__.find_with_data(
-                        **sina_kargs))
-            # instantly restrict to associated data
-            if not self.__store__.__sync__:
-                if len(sina_kargs) == 0:
-                    match_mem = inter_recs
-                else:
-                    match_mem = list(
-                        self.__store__._added_unsync_handler.find_with_data(
-                            **sina_kargs))
-                # if file_uri is not None:
-                #     match_mem = set(match_mem).intersection(file_match)
-                # check that tweaks didn't remove a possible dataset
-                yank = []
-                for m in match:
-                    if m in self.__store__.__sync__dict__ and m not in match_mem:
-                        # Ok we changed something and it's no longer a match
-                        yank.append(m)
-                for y in yank:
-                    match.remove(y)
-                match += match_mem
-            if file_uri is not None:
-                rec = self.get_record()
-                files = rec["files"].keys()
-                if file_uri in files:
-                    match = [rec["files"][file_uri]["kosh_id"], ]
-                else:
-                    match = []
-            inter_recs = set(match).intersection(set(self._associated_data_))
+        tag = "{}__uri__".format(self.id)
+        tag_len = len(tag)
+        virtuals = [x[tag_len:] for x in inter_recs if x.startswith(tag)]
+        # Bug in sina 1.10.0 forces us to remove the virtual from the pool
+        for v_id in virtuals:
+            inter_recs.remove("{}{}".format(tag, v_id))
+        if "file" in sina_kargs and "file_uri" in sina_kargs:
+            raise ValueError(
+                "The `file` keyword is being deprecated for `file_uri` you cannot use both")
+        if "file" in sina_kargs:
+            warnings.warn(
+                "The `file` keyword has been renamed `file_uri` and may not be available in future versions",
+                DeprecationWarning)
+            file_uri = sina_kargs.pop("file")
+            sina_kargs["file_uri"] = file_uri
 
-        if ids_only:
-            for rec_id in inter_recs:
-                yield rec_id
-        else:
-            for rec_id in inter_recs:
-                yield self.__store__._load(rec_id)
+        # The data dict for sina
+        keys.pop("id_pool", None)
+        sina_kargs["query_order"] = keys.pop(
+            "query_order", ("data", "file_uri", "types"))
+        sina_data = keys.pop("data", {})
+        for att in atts:
+            sina_data[att] = sina.utils.exists()
+        sina_data.update(keys)
+        sina_kargs["data"] = sina_data
+
+        match = set(self.__record_handler__.find(id_pool=inter_recs, **sina_kargs))
+        # instantly restrict to associated data
+        if not self.__store__.__sync__:
+            match_mem = set(self.__store__._added_unsync_handler.find(
+                id_pool=inter_recs, **sina_kargs))
+            match = match.union(match_mem)
+        # ok now we need to search the data on the virtual datasets
+        rec = self.get_record()
+        for uri in virtuals:
+            file_section = rec["files"][uri]
+            tags = file_section.get("tags", [])
+            # Now let's search the tags....
+            match_it = True
+            for key in sina_kargs["data"]:
+                if key == "mime_type":
+                    if file_section.get("mimetype", file_section.get("mime_type", None)) != sina_kargs["data"][key]:
+                        match_it = False
+                        break
+                elif key not in tags or sina_kargs["data"][key] != sina.utils.exists():
+                    match_it = False
+                    break
+            if match_it:
+                # we can't have a set anymore
+                match.add(self.id)
+
+        for rec_id in match:
+            # We need to cleanup for "virtual association".
+            # e.g comes directly from a sina rec with 'file'/'mimetype' in it.
+            rec_id = rec_id.split("__uri__")[0]
+            yield rec_id if ids_only else self.__store__._load(rec_id)
 
     def export(self, file=None):
         """Exports this dataset
@@ -836,7 +866,8 @@ class KoshSinaStore(KoshStoreClass):
         if db == "sql":
             if not os.path.exists(db_uri):
                 if ("://" in db_uri and "@" in db_uri):
-                    self.__sina_store = sina_connect(db_uri, read_only=read_only)
+                    self.__sina_store = sina_connect(
+                        db_uri, read_only=read_only)
                 else:
                     raise ValueError(
                         "Kosh store could not be found at: {}".format(db_uri))
@@ -903,6 +934,14 @@ class KoshSinaStore(KoshStoreClass):
         for loader in ks:
             loader.types[self._sources_type] = loader.types["file"]
         self.loaders[self._sources_type] = self.loaders["file"]
+
+    def get_sina_store(self):
+        """Returns the sina store object"""
+        return self.__sina_store
+
+    def get_sina_records(self):
+        """Returns sina store's records"""
+        return self.__record_handler__
 
     def close(self):
         """closes store and sina related things"""
@@ -1007,7 +1046,8 @@ class KoshSinaStore(KoshStoreClass):
         if "datasetId" in kargs:
             if id is None:
                 warnings.warn(
-                    "'datasetId' has been deprecated in favor of 'id'")
+                    "'datasetId' has been deprecated in favor of 'id'",
+                    DeprecationWarning)
                 id = kargs["datasetId"]
             else:
                 raise ValueError(
@@ -1067,7 +1107,8 @@ class KoshSinaStore(KoshStoreClass):
             uri = None
         if Id_original in self._cached_loaders:
             try:
-                feats = self._cached_loaders[Id_original][0].list_features() != []
+                feats = self._cached_loaders[Id_original][0].list_features() != [
+                ]
             except Exception:
                 feats = []
             if feats != []:
@@ -1096,7 +1137,8 @@ class KoshSinaStore(KoshStoreClass):
                     feats = []
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(obj, mime_type=mime_type_passed, uri=uri), record["type"]
+            self._cached_loaders[Id_original] = ld(
+                obj, mime_type=mime_type_passed, uri=uri), record["type"]
             return self._cached_loaders[Id_original]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
@@ -1109,7 +1151,8 @@ class KoshSinaStore(KoshStoreClass):
                     feats = []
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(obj, mime_type=mime_type_passed, uri=uri), record["type"]
+            self._cached_loaders[Id_original] = ld(
+                obj, mime_type=mime_type_passed, uri=uri), record["type"]
             return self._cached_loaders[Id_original]
         return None, None
 
@@ -1168,20 +1211,29 @@ class KoshSinaStore(KoshStoreClass):
         return loader.get(feature, format, transformers=[], *args, **kargs)
 
     def search(self, *atts, **keys):
-        """search store for objects matching some metadata
+        """
+        Deprecated use find
+        """
+        warnings.warn("The 'search' function is deprecated and now called `find`.\n"
+                      "Please update your code to use `find` as `search` might disappear in the future",
+                      DeprecationWarning)
+        return self.find(*atts, **keys)
+
+    def find(self, *atts, **keys):
+        """Find objects matching some metadata in the store
         arguments are the metadata name we are looking for e.g
-        search("attr1", "attr2")
+        find("attr1", "attr2")
         you can further restrict by specifying exact value for a metadata
         via key=value
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
 
-        "file" is a reserved key that will return all records being associated
-        with the given "uri", e.g store.search(file=uri)
-         "sina_type" let you search over a specific sina record type only.
+        "file_uri" is a reserved key that will return all records being associated
+                   with the given "uri", e.g store.find(file_uri=uri)
+        "types" let you search over specific sina record types only.
 
-        :return: list of matching objects in store
-        :rtype: list
+        :return: generator of matching objects in store
+        :rtype: generator
         """
 
         mode = self.__sync__
@@ -1193,86 +1245,100 @@ class KoshSinaStore(KoshStoreClass):
             self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
-        for att in atts:
-            sina_kargs[att] = sina.utils.exists()
-        if "kosh_type" in keys and "sina_type" in keys:
+        # We only want to search sina for ids not records
+        sina_kargs["ids_only"] = True
+
+        if "kosh_type" in keys and "types" in keys:
             raise ValueError(
-                "'kosh_type' had been replaced with 'sina_type' you cannot use both at same time")
+                "`kosh_type` has been replaced with `types` you cannot use both at same time")
         if "kosh_type" in keys:
-            warnings.warn(DeprecationWarning(
-                "'kosh_type' is being deprecated in favor of 'sina_type' and will not work in a future version"))
-            search_type = keys.pop("kosh_type", None)
+            warnings.warn(
+                "`kosh_type` is being deprecated in favor of `types` and will not work in a future version",
+                DeprecationWarning)
+            record_types = keys.pop("kosh_type")
         else:
-            search_type = keys.pop("sina_type", None)
+            record_types = keys.pop("types", None)
 
-        sina_kargs.update(keys)
-        if search_type is not None:
-            ds_filter = list(self.__record_handler__.find_with_type(
-                search_type, ids_only=True))
+        if isinstance(record_types, basestring):
+            record_types = [record_types, ]
+        if record_types is not None and not isinstance(
+                record_types, (list, tuple)):
+            raise ValueError("`types` must be str or list")
 
-        # We need to get the list of ids to exclude
-        # Should we cache this in async mode?
-        excluded = []
-        for rec_type in self._kosh_reserved_record_types:
-            # Maybe we are searching specifically for one of these types
-            if rec_type != search_type:
-                excluded += self.__record_handler__.find_with_type(
-                    rec_type, ids_only=True)
-        if not self.__sync__:
-            # Need to searh our in memory db as well
-            if search_type is not None:
-                ds_filter += list(
-                    self._added_unsync_handler.find_with_type(
-                        search_type, ids_only=True))
+        if record_types is None:
+            # Ok we want anything, but we need to exclude Kosh reserved
+            record_types = self.__record_handler__.get_types(
+            ) + self._added_unsync_handler.get_types()
             for rec_type in self._kosh_reserved_record_types:
-                excluded += self._added_unsync_handler.find_with_type(
-                    rec_type, ids_only=True)
+                if rec_type in record_types:
+                    record_types.remove(rec_type)
+            if record_types == []:
+                # Ok this stores is essentially empty
+                # Before we go back turn sync mode back to what it was
+                if mode:
+                    # we need to restore sync mode
+                    self.__sync__dict__ = backup
+                    self.synchronous()
+                return
 
-        file_uri = sina_kargs.pop("file", None)
+        sina_kargs["types"] = record_types
 
-        if len(sina_kargs) == 0:
+        if 'file_uri' in keys and 'file' in keys:
+            raise ValueError("`file` has been deprecated for `file_uri` but you cannot use both at same time")
+        if 'file' in keys:
+            file_uri = keys.pop("file")
+        else:
+            file_uri = keys.pop("file_uri", None)
+
+        sina_kargs["file_uri"] = file_uri
+        sina_kargs["id_pool"] = keys.pop("id_pool", None)
+        sina_kargs["query_order"] = keys.pop(
+            "query_order", ("data", "file_uri", "types"))
+
+        # The data dict for sina
+        sina_data = keys.pop("data", {})
+        if not isinstance(sina_data, dict):
+            keys["data"] = sina_data
+            sina_data = {}
+        elif len(sina_data) != 0 and (len(keys) != 0 or len(atts) != 0):
+            warnings.warn(
+                "It is not recommended to use the find function by mixing keys and the reserved key `data`")
+
+        # Maybe user is trying to get an attribute data
+        for att in atts:
+            sina_data[att] = sina.utils.exists()
+
+        sina_data.update(keys)
+        sina_kargs["data"] = sina_data
+
+        # is it a blak search, e.g get me everything?
+        get_all = sina_kargs.get("data", {}) == {} and \
+            sina_kargs.get("file_uri", None) is None and \
+            sina_kargs.get("id_pool", None) is None and \
+            sina_kargs.get("types", []) == []
+
+        if get_all:
             match = set(self.__record_handler__.get_all(ids_only=True))
         else:
-            match = set(self.__record_handler__.find_with_data(**sina_kargs))
+            match = set(self.__record_handler__.find(**sina_kargs))
+
         if not self.__sync__:
-            if len(sina_kargs) == 0:
+            # We need to check or in memory records as well
+            if get_all:
                 match_mem = set(
                     self._added_unsync_handler.get_all(
                         ids_only=True))
             else:
-                match_mem = set(
-                    self._added_unsync_handler.find_with_data(
-                        **sina_kargs))
+                match_mem = set(self._added_unsync_handler.find(**sina_kargs))
             match = match.union(match_mem)
-        if search_type is None:
-            inter_recs = match
-        else:
-            inter_recs = match.intersection(set(ds_filter))
-
-        if file_uri is not None:
-            file_match = list(self.__record_handler__.find_with_file_uri(file_uri,
-                                                                         id_pool=inter_recs,
-                                                                         ids_only=True))
-            if not self.__sync__:
-                file_match += list(self._added_unsync_handler.find_with_file_uri(file_uri,
-                                                                                 id_pool=inter_recs,
-                                                                                 ids_only=True))
-            inter_recs = set(inter_recs).intersection(file_match)
-
-        # Ok now we need to make sure we yank reserved types
-        inter_recs = set(inter_recs).difference(set(excluded))
 
         if mode:
             # we need to restore sync mode
             self.__sync__dict__ = backup
             self.synchronous()
 
-        if ids_only:
-            for rec_id in inter_recs:
-                yield rec_id
-        else:
-            for rec_id in inter_recs:
-                yield self.open(rec_id)
+        for rec_id in match:
+            yield rec_id if ids_only else self.open(rec_id)
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
@@ -1564,7 +1630,8 @@ class KoshSinaStore(KoshStoreClass):
         self.__record_handler__.delete(names_filter[0])
         self.__record_handler__.insert(user)
 
-    def import_dataset(self, datasets, match_attributes=["name", ], merge_handler=None, merge_handler_kargs={}):
+    def import_dataset(self, datasets, match_attributes=[
+                       "name", ], merge_handler=None, merge_handler_kargs={}):
         """import datasets that were exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1600,12 +1667,14 @@ class KoshSinaStore(KoshStoreClass):
             records_in = from_file["records"]
 
         # setup merge handler
-        ok_merge_handler_values = [None, "conservative", "preserve", "overwrite"]
+        ok_merge_handler_values = [
+            None, "conservative", "preserve", "overwrite"]
         if merge_handler in ok_merge_handler_values:
             merge_handler_kargs = {"handling_method": merge_handler}
             merge_handler = merge_datasets_handler
         elif not (isfunction(merge_handler) or ismethod(merge_handler)):
-            raise ValueError("'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
+            raise ValueError(
+                "'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
 
         matches = []
         for record in records_in:
@@ -1632,7 +1701,7 @@ class KoshSinaStore(KoshStoreClass):
                     elif attribute == "id":
                         match_dict["id"] = record["id"]
 
-                matching = list(self.search(**match_dict))
+                matching = list(self.find(**match_dict))
                 if len(matching) > 1:
                     raise ValueError("dataset criterias: {} matches multiple ({}) "
                                      "datasets in store {}, try changing 'match_attributes' when calling"
@@ -1641,7 +1710,8 @@ class KoshSinaStore(KoshStoreClass):
                 elif len(matching) == 1:
                     # All right we do have a possible conflict here
                     match = matching[0]
-                    merged_attributes = merge_handler(match, atts, **merge_handler_kargs)
+                    merged_attributes = merge_handler(
+                        match, atts, **merge_handler_kargs)
                     # Ok at this point no conflict!
                     match.update(merged_attributes)
                     match_rec = match.get_record()
@@ -1660,8 +1730,8 @@ class KoshSinaStore(KoshStoreClass):
             else:  # ok it is a source
                 # Let's find the source rec that match this uri
                 current_sources = list(
-                    self.search(
-                        sina_type=self._sources_type,
+                    self.find(
+                        types=[self._sources_type, ],
                         uri=data["uri"]["value"],
                         ids_only=True))
                 if len(current_sources) > 0:

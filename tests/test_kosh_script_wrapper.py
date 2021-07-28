@@ -66,7 +66,7 @@ class KoshTestScriptWrapper(KoshTest):
             "--combined",
             mapper=lambda x,
             y: getattr(
-                next(x.search(
+                next(x.find(
                     mime_type="py")),
                 "combined"))
         wrapper.add_argument(
@@ -103,7 +103,7 @@ class KoshTestScriptWrapper(KoshTest):
             "--combined",
             mapper=lambda x,
             y: getattr(
-                next(x.search(
+                next(x.find(
                     mime_type="py")),
                 "combined"))
         # Pos arg 1
@@ -134,7 +134,7 @@ class KoshTestScriptWrapper(KoshTest):
             "--combined",
             mapper=lambda x,
             y: getattr(
-                next(x.search(
+                next(x.find(
                     mime_type="py")),
                 "combined"))
         # Pos arg 1
@@ -184,7 +184,7 @@ class KoshTestScriptWrapper(KoshTest):
             "--combined",
             mapper=lambda x,
             y: getattr(
-                next(x.search(
+                next(x.find(
                     mime_type="py")),
                 "combined"))
         wrapper.add_argument("-r", feed_attribute="name")
