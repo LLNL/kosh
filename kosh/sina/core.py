@@ -1753,7 +1753,8 @@ class KoshSinaStore(KoshStoreClass):
                 match_rec = sina.model.generate_record_from_json(match_rec)
             # User defined and files are preserved?
             for section in ["user_defined", "files"]:
-                match_rec.raw[section].update(record[section])
+                if section in record:
+                    match_rec.raw[section].update(record[section])
             # Curves are preserved
             for curve_set in record["curve_sets"]:
                 if curve_set not in match_rec.raw["curve_sets"]:

@@ -21,9 +21,6 @@
               "volume": {"value": [10, 14, 22.2], "units": "m^3"},
               "value": {"value": [10.5, 1.4, 2.2], "units": "m^3"}}
       }
-  },
-  "user_defined": {
-      "display_string": "0x477265617420636174636821"
   }
 }
     ]}
