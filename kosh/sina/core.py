@@ -1752,18 +1752,19 @@ class KoshSinaStore(KoshStoreClass):
             if isinstance(match_rec, dict):
                 match_rec = sina.model.generate_record_from_json(match_rec)
             # User defined and files are preserved?
-            for section in ["user_defined", "files"]:
+            for section in ["user_defined", "files", "library_data"]:
                 if section in record:
                     match_rec.raw[section].update(record[section])
             # Curves are preserved
-            for curve_set in record["curve_sets"]:
-                if curve_set not in match_rec.raw["curve_sets"]:
-                    match_rec.raw["curve_sets"][curve_set] = record[curve_set]
-                else:
-                    match_rec.raw["curve_sets"][curve_set]["independent"].update(
-                        record["curve_sets"][curve_set]["independent"])
-                    match_rec.raw["curve_sets"][curve_set]["dependent"].update(
-                        record["curve_sets"][curve_set]["dependent"])
+            if "curve_sets" in record:
+                for curve_set in record["curve_sets"]:
+                    if curve_set not in match_rec.raw["curve_sets"]:
+                        match_rec.raw["curve_sets"][curve_set] = record[curve_set]
+                    else:
+                        match_rec.raw["curve_sets"][curve_set]["independent"].update(
+                            record["curve_sets"][curve_set]["independent"])
+                        match_rec.raw["curve_sets"][curve_set]["dependent"].update(
+                            record["curve_sets"][curve_set]["dependent"])
             try:
                 self.__record_handler__.delete(match_rec["id"])
             except ValueError:
