@@ -910,7 +910,6 @@ Available commands are:
             description="Creates a new Kosh store",
             epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
         parser.add_argument("--uri", "-u", help="path to database", required=True) 
-        parser.add_argument("--engine", "-e", help="engine to use as Kosh backend", choices=["sina",], default="sina")
         parser.add_argument("--database", "--db", "-d", help="Database type to use as backend", choices=["sql", "cass"], default="sql")
         parser.add_argument("--token", "-t", help="Token to use (for Cassandra databases)", default="")
         parser.add_argument("--keyspace", "-k", help="keyspace to use (for Cassandra databases)")
@@ -918,7 +917,7 @@ Available commands are:
 
         args = parser.parse_args(sys.argv[2:])
 
-        kosh.create_new_db(args.uri, engine=args.engine, db=args.database,
+        kosh.create_new_db(args.uri, db=args.database,
                            token=args.token, keyspace=args.keyspace, cluster=args.cluster)
     
     def create(self):

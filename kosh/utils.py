@@ -320,15 +320,13 @@ def create_kosh_users(record_handler, users=[os.environ["USER"], "anonymous"]):
             record_handler.insert(user_record)
 
 
-def create_new_db(name, engine='sina', db='sql',
+def create_new_db(name, db='sql',
                   keyspace=None, **kargs):
     """create_new_db creates a new Kosh database, adds a single user
 
     :param name: name of database
     :type name: str
-    :param engine: engine to use, defaults to 'sina'
-    :type engine: str, optional
-    :param db: type of database for engine, defaults to 'sql', can be 'cass'
+    :param db: type of database, defaults to 'sql', can be 'cass'
     :type db: str, optional
     :param keyspace: for cassandra keyspace to use, defaults to None means [user]_k
     :type keyspace: str, optional
@@ -337,23 +335,17 @@ def create_new_db(name, engine='sina', db='sql',
     :return store: An handle to the Kosh store created
     :rtype: KoshStoreClass
     """
-    known_engines = ["sina", ]
-    if engine == "sina":
-        from kosh.sina import connect
-        kargs["keyspace"] = keyspace
-        kargs["db"] = db
-        # Let's remove the now unused arguments
-        for key in ["token", "cluster"]:
-            if key in kargs:
-                warnings.warn(
-                    "Keyword '{}' is no longer valid, will be ignored".format(key))
-                kargs.pop(key)
-        store = connect(name, **kargs)
-        store.delete_all_contents(force="SKIP PROMPT")
-    else:
-        raise RuntimeError(
-            "Unknown engine type {}, supported engines: {}".format(
-                engine, known_engines))
+    from kosh import connect
+    kargs["keyspace"] = keyspace
+    kargs["db"] = db
+    # Let's remove the now unused arguments
+    for key in ["token", "cluster"]:
+        if key in kargs:
+            warnings.warn(
+                "Keyword '{}' is no longer valid, will be ignored".format(key))
+            kargs.pop(key)
+    store = connect(name, **kargs)
+    store.delete_all_contents(force="SKIP PROMPT")
     return store
 
 
