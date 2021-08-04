@@ -125,8 +125,6 @@ KOSH DATASET
         self.assertEqual(len(list(store.find("key1"))), 4)
         self.assertEqual(len(list(store.find("key2"))), 3)
         self.assertEqual(len(list(store.find("key3"))), 2)
-        # Remove this when above passes outside of exceptions
-        from sina.utils import DataRange
         self.assertEqual(len(list(store.find(key1=DataRange(min=-1.e40)))), 4)
         self.assertEqual(len(list(store.find(key2=DataRange(min="")))), 3)
         self.assertEqual(len(list(store.find(key3=DataRange(min="")))), 2)
@@ -185,7 +183,7 @@ KOSH DATASET
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5",
             id_only=False)
-        self.assertTrue(isinstance(f, kosh.sina.core.KoshSinaObject))
+        self.assertTrue(isinstance(f, kosh.core_sina.KoshSinaObject))
         self.assertEqual(len(list(ds.find())), 2)
         self.assertEqual(len(list(ds.find(mime_type="hdf5"))), 1)
         # test passing a data dict

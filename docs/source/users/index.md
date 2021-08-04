@@ -7,7 +7,7 @@ You can create your own store to catalog your data by using
 ```python
 import kosh
 kosh_example_sql_file = "kosh_example.sql"
-kosh.create_new_db(kosh_example_sql_file)
+kosh.connect(kosh_example_sql_file, delete_all_contents=True)
 ```
 
 ## Opening an existing store
@@ -18,7 +18,7 @@ Once you have a store you can connect to it
 import kosh
 kosh_example_sql_file = "kosh_example.sql"
 # connect to store
-store = KoshStore(engine="sina", username=os.environ["USER"], db='sql', db_uri=kosh_example_sql_file)
+store = connect(kosh_example_sql_file)
 ```
 
 ## Adding datasets to the store

@@ -57,7 +57,7 @@ class KoshTestStore(KoshTest):
     def test_create(self):
         self.assertIsInstance(
             kosh.create_new_db("blah_blah_blah.sql"),
-            kosh.sina.KoshSinaStore)
+            kosh.KoshStore)
         os.remove("blah_blah_blah.sql")
 
 

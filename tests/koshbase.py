@@ -13,17 +13,14 @@ for name in ["sina.datastores.sql", "sina.model", "sina.utils", "sina.dao",
 
 
 class KoshTest(unittest.TestCase):
-    def connect(self, engine=None, db_uri=None, sync=True,
+    def connect(self, db_uri=None, sync=True,
                 dataset_record_type="blah"):
-        if engine is None:
-            engine = os.environ.get("KOSH_ENGINE", "sina")
         if db_uri is None:
             kosh_db = "kosh_test_{}.sql".format(uuid.uuid1().hex)
         else:
             kosh_db = db_uri
-        if engine == "sina":
-            # os.getlogin does not work on my WSL
-            store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
-            if db_uri is None:
-                store.delete_all_contents(force="SKIP PROMPT")
+        # os.getlogin does not work on my WSL
+        store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
+        if db_uri is None:
+            store.delete_all_contents(force="SKIP PROMPT")
         return store, os.path.abspath(kosh_db)
