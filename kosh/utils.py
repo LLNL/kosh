@@ -260,15 +260,24 @@ def compute_long_sha(uri, buff_size=65536):
 def update_store_and_get_info_record(records):
     """Obtain the sina record containing store info
     If necessary update store to latest standards
-    :returns: sina recor for store info
+    :returns: sina record for store info
     :rtype: Record
     """
     # First let's see if this store contains a dedicated record
     # describing this store specs
     store_info = list(records.find_with_type("__kosh_storeinfo__"))
     if len(store_info) > 1:
-        raise RuntimeError(
-            "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
+        # There is a small chance that the store was created on multiple processors
+        # simultaneously and that these are identical, let's try to recover
+        base_record = store_info[0]
+        for extra_record in store_info[1:]:
+            if extra_record["data"] != base_record["data"]:
+                raise RuntimeError(
+                    "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
+        # ok if we are here we have only duplicates
+        # Let's remove them from the store
+        records.delete([x.id for x in store_info[1:]])
+        store_info = base_record
     elif len(store_info) == 0:
         # ok it's the old type, well let's try to upgrade it for next time
         # and add the store info

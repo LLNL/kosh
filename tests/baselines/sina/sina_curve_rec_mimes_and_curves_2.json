@@ -1,0 +1,26 @@
+{
+  "records": [
+  {"type": "some_type",
+  "id": "obj1",
+  "files": {
+      "tests/baselines/node_extracts2/node_extracts2.hdf5": {"mimetype": "hdf5", "tags": ["summary_hdf5","output"]}
+  },
+  "data": {
+      "initial_angle": {"value": 30},
+      "max_density": { "value": 3, "units": "kg/m^3" },
+      "total_energy": { "value": 12.2, "units": "MJ", "tags": ["output"]},
+      "revision": { "value": "12-4-11", "tags": ["pedigree"]},
+      "presets": { "value": ["quickstart", "glass"]}
+  },
+  "curve_sets": {
+      "timeplot_1": {
+          "independent": {
+              "time": {"value": [0, 1, 2]}},
+          "dependent": {
+              "mass": {"value": [12, 11, 8], "tags": ["physics"]},
+              "volume": {"value": [10, 16, 22.2], "units": "m^3"},
+              "value": {"value": [10.5, 1.4, 2.2], "units": "m^3"}}
+      }
+  }
+}
+    ]}
