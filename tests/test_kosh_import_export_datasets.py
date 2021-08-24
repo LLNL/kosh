@@ -3,13 +3,15 @@ import os
 import json
 from koshbase import KoshTest
 import sina
+import numpy
 
 
 class KoshTestImportExport(KoshTest):
     def test_import_from_sina(self):
         store, kosh_test_sql_file = self.connect()
 
-        store.import_dataset("tests/baselines/sina/sina_curve_rec_mimes_and_curves.json")
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves.json")
 
         datasets = list(store.find())
         self.assertEqual(len(datasets), 1)
@@ -137,6 +139,46 @@ class KoshTestImportExport(KoshTest):
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)
         os.remove(json_name)
+
+    def test_import_merge_overwrite_curves(self):
+        store, uri = self.connect()
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves.json",
+            match_attributes=[
+                "initial_angle",
+            ])
+        self.assertEqual(len(tuple(store.find())), 1)
+        d1 = store.open("obj1")
+        self.assertTrue(numpy.allclose(
+            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+        with self.assertRaises(RuntimeError):
+            store.import_dataset(
+                "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
+                merge_handler="conservative",
+                match_attributes=[
+                    "initial_angle",
+                ])
+        self.assertEqual(len(tuple(store.find())), 1)
+        self.assertTrue(numpy.allclose(
+            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
+            merge_handler="preserve",
+            match_attributes=[
+                "initial_angle",
+            ])
+        self.assertEqual(len(tuple(store.find())), 1)
+        self.assertTrue(numpy.allclose(
+            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
+            merge_handler="overwrite",
+            match_attributes=[
+                "initial_angle",
+            ])
+        self.assertEqual(len(tuple(store.find())), 1)
+        self.assertTrue(numpy.allclose(
+            d1.get("timeplot_1/volume"), [10, 16, 22.2]))
 
 
 if __name__ == "__main__":

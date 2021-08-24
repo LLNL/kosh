@@ -199,6 +199,7 @@ class KoshSinaObject(object):
             warnings.warn(
                 "the attribute '__id__' has been deprecated in favor of 'id'",
                 DeprecationWarning)
+            name = "id"
         if name in self.__dict__["__protected__"]:
             if name == "_associated_data_":
                 record = self.get_record()
@@ -2410,17 +2411,35 @@ class KoshStore(object):
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
                 if section in record:
-                    match_rec.raw[section].update(record[section])
+                    if match_rec.raw[section] != record[section]:
+                        if merge_handler != merge_datasets_handler:
+                            raise RuntimeError("We do not know how to merge curves with custom merge handler")
+                        if merge_handler_kargs["handling_method"] == "conservative":
+                            raise RuntimeError("{} section do not match aborting under conservative merge option")
+                        elif merge_handler_kargs["handling_method"] == "overwrite":
+                            match_rec.raw[section].update(record[section])
+                        else:  # preserve
+                            pass
             # Curves are preserved
             if "curve_sets" in record:
                 for curve_set in record["curve_sets"]:
                     if curve_set not in match_rec.raw["curve_sets"]:
-                        match_rec.raw["curve_sets"][curve_set] = record[curve_set]
+                        match_rec.raw["curve_sets"][curve_set] = record["curve_sets"][curve_set]
                     else:
-                        match_rec.raw["curve_sets"][curve_set]["independent"].update(
-                            record["curve_sets"][curve_set]["independent"])
-                        match_rec.raw["curve_sets"][curve_set]["dependent"].update(
-                            record["curve_sets"][curve_set]["dependent"])
+                        if merge_handler != merge_datasets_handler:
+                            raise RuntimeError("We do not know how to merge curves with custom merge handler")
+                        if merge_handler_kargs["handling_method"] == "conservative":
+                            if match_rec.raw["curve_sets"][curve_set] != record["curve_sets"][curve_set]:
+
+                                raise RuntimeError(
+                                    "curveset {} do not match, `conservative` method used, aborting".format(curve_set))
+                        elif merge_handler_kargs["handling_method"] == "overwrite":
+                            match_rec.raw["curve_sets"][curve_set]["independent"].update(
+                                record["curve_sets"][curve_set]["independent"])
+                            match_rec.raw["curve_sets"][curve_set]["dependent"].update(
+                                record["curve_sets"][curve_set]["dependent"])
+                        else:  # preserve
+                            pass
             try:
                 self.__record_handler__.delete(match_rec["id"])
             except ValueError:
