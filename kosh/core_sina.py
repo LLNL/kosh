@@ -2415,7 +2415,7 @@ class KoshStore(object):
                         if merge_handler != merge_datasets_handler:
                             raise RuntimeError("We do not know how to merge curves with custom merge handler")
                         if merge_handler_kargs["handling_method"] == "conservative":
-                            raise RuntimeError("{} section do not match aborting under conservative merge option"i.format(section))
+                            raise RuntimeError("{} section do not match aborting under conservative merge option".format(section))
                         elif merge_handler_kargs["handling_method"] == "overwrite":
                             match_rec.raw[section].update(record[section])
                         else:  # preserve
