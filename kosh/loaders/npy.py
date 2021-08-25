@@ -6,7 +6,7 @@ class NpyLoader(KoshLoader):
     types = {"npy": ["numpy", ]}
 
     def open(self, mode='c'):
-        return numpy.load(self.obj.uri, mmap_mode=mode)
+        return numpy.load(self.uri, mmap_mode=mode)
 
     def extract(self, feature='ndarray', format='numpy'):
         return self.open()

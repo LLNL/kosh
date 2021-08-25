@@ -65,19 +65,19 @@ class KoshTestLoaders(KoshTest):
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
-        l, _ = store._find_loader(ds._associated_data_[0])
-        self.assertEqual(sorted(l.known_types()), ["hdf5"])
-        self.assertEqual(l.known_load_formats("file"), [])
+        ld, _ = store._find_loader(ds._associated_data_[0])
+        self.assertEqual(sorted(ld.known_types()), ["hdf5"])
+        self.assertEqual(ld.known_load_formats("file"), [])
         os.remove(kosh_db)
 
     def test_generic_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate("setup.py", "ascii")
-        l, _ = store._find_loader(ds._associated_data_[0])
-        self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(sorted(l.known_types()), ["file"])
-        self.assertEqual(l.known_load_formats("file"), [])
+        ld, _ = store._find_loader(ds._associated_data_[0])
+        self.assertIsInstance(ld, kosh.loaders.core.KoshFileLoader)
+        self.assertEqual(sorted(ld.known_types()), sorted(set(["file", store._sources_type])))
+        self.assertEqual(ld.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
 
@@ -121,7 +121,6 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
-        print("DATA IS:", data)
         self.assertEqual(data.shape[:-1], info["size"][::-1])
         os.remove(kosh_db)
 

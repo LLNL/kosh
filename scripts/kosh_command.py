@@ -104,11 +104,11 @@ def core_parser(description,
 
 def parse_metadata(terms):
     """
-    Parse metadata for Kosh search
+    Parse metadata for Kosh  queries
     param=value / param>value, etc...
     :param terms: list of strings conatining name/operator/value
     :term terms: list of str
-    :return: Dictionary with name as key and matching sina search object as value
+    :return: Dictionary with name as key and matching sina find object as value
     :rtype: dict
     """
     metadata = {}
@@ -218,6 +218,12 @@ class KoshCmd(object):
     def __init__(self):
         commands = "".join(
             ["" if k[0] == "_" else "\n\t" + k for k in sorted(dir(self))])
+
+        # search is deprecated let's not list it
+        index = commands.find("search")
+        if index > -1:
+            commands = commands[:index] + commands[index+8:]  # 8 because of \n\t
+
         parser = core_parser(
             description='Execute kosh operations',
             usage='''kosh <command> [<args>]
@@ -260,9 +266,17 @@ Available commands are:
         getattr(self, args.command)()
 
     def search(self):
-        """search a store command"""
+        """
+        Deprecated use find
+        """
+        warnings.warn(DeprecationWarning, "The 'search' command is deprecated and now called `find`.\n"\
+                      "Please update your code to use `find` as `search` might disappear in the future")
+        return self.find()
+
+    def find(self):
+        """find in a store command"""
         parser = core_parser(
-            description='Search Kosh store for datasets matching metadata in form key=value')
+            description='Find datasets in store that are matching metadata in form key=value')
         parser.add_argument(
             "--print",
             "-p",
@@ -273,7 +287,7 @@ Available commands are:
         store = kosh.KoshStore(db_uri=args.store,
                                dataset_record_type=args.dataset_record_type)
         metadata["ids_only"] = True
-        ids = store.search(**metadata)
+        ids = store.find(**metadata)
         if args.print:
             for Id in ids:
                 ds = store.open(Id)
@@ -301,7 +315,7 @@ Available commands are:
         metadata = parse_metadata(search_terms)
         store = kosh.KoshStore(db_uri=args.store,
                                dataset_record_type=args.dataset_record_type)
-        ids = store.search(ids_only=True)
+        ids = store.find(ids_only=True)
         for Id in ids:
             ds = store.open(Id)
             missings = ds.cleanup_files(dry_run=args.dry_run, interactive=args.interactive, **metadata)
@@ -309,7 +323,7 @@ Available commands are:
                 if not args.interactive:  # already printed in interactive
                     print(ds)
                 for uri in missings:
-                    associated = ds.search(uri=uri)
+                    associated = list(ds.find(uri=uri))
                     if len(associated) != 0:
                         print("{} (mime_type={}) is missing".format(
                             associated[0].uri, associated[0].mime_type))
@@ -325,8 +339,8 @@ Available commands are:
         metadata = parse_metadata(metadata)
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
-        ds = store.create(datasetId=args.id, metadata=metadata)
-        print(ds.__id__)
+        ds = store.create(id=args.id, metadata=metadata)
+        print(ds.id)
 
     def remove(self):
         """Remove dataset(s) from store command"""
@@ -499,7 +513,7 @@ Available commands are:
         parser.add_argument("--stores", "--store", "-s", required=True,
                             help="Kosh store(s) to use", action="append")
         parser.add_argument("--dataset_record_type", default="dataset",
-                            help="type used by sina db that Kosh will recognize as dataset")
+                            help="record type used by Kosh when adding datasets to Sina database")
         parser.add_argument("-f", "--file", help="tar file", required=True)
         parser.add_argument(
             "--no_absolute_path",
@@ -548,8 +562,8 @@ Available commands are:
                 if not args.no_absolute_path:
                     filename = os.path.abspath(filename)
                 for store in stores:
-                    store_datasets[store.db_uri] += store.search(
-                        file=filename, ids_only=True)
+                    store_datasets[store.db_uri] += list(store.find(
+                        file=filename, ids_only=True))
 
             # Ok now we need to export all the datasets to a file
             # First item is the root from where we ran the command (untar will
@@ -612,8 +626,8 @@ Available commands are:
             for dataset in datasets:
                 # Let's try to recover the correct path now..
                 delete_them = []
-                for index, associated in enumerate(dataset["associated"]):
-                    uri = associated["uri"]
+                for index, associated in enumerate(dataset["records"][1:]):
+                    uri = associated["data"]["uri"]["value"]
                     if uri in filenames:
                         new_uri = os.path.join(os.getcwd(), uri)
                     elif uri in slashed_filenames:  # tar removes leading /
@@ -624,13 +638,13 @@ Available commands are:
                             os.getcwd(), filenames[root_filenames.index(uri)])
                     else:
                         if not os.path.exists(uri):
-                            delete_them.append(index)
+                            delete_them.append(index + 1)
                         new_uri = None
-                    associated["uri"] = new_uri
+                    associated["data"]["uri"]["value"] = new_uri
 
                 # Yank uris that do not exists in this filesystem
                 for index in delete_them[::-1]:
-                    dataset["associated"].pop(index)
+                    dataset["records"].pop(index)
 
                 # Add dataset to store(s)
                 for store in stores:
@@ -691,7 +705,7 @@ Available commands are:
 
             # it worked let's remove it from stores
             for store in stores:
-                datasets = store.search(file=filename)
+                datasets = store.find(file=filename)
                 for dataset in datasets:
                     dataset.dissociate(filename)
 
@@ -815,6 +829,7 @@ Available commands are:
                 raise ValueError("kosh mv only works on local files")
 
         sources, targets = find_sources_and_targets(opts, files, target)
+        print("SOURCES TARGETS:", sources, targets)
 
         if command == "rm":
             targets = ["", ] * len(sources)
@@ -838,24 +853,24 @@ Available commands are:
         rsync_ran = []
         for i, source in enumerate(sources):
             for o_store in origin_stores:
-                datasets = o_store.search(file=source)
+                datasets = o_store.find(file=source)
                 for dataset in datasets:
                     if command == "mv":
-                        associated_uris = dataset.search(uri=source)
+                        associated_uris = dataset.find(uri=source)
                         for associated in associated_uris:
                             associated.uri = targets[i]
                     else:
                         exported = dataset.export()
-                        # Ok we need to update the uri to point t the new
+                        # Ok we need to update the uri to point to the new
                         # target
                         delte_these = []
-                        for indx, a in enumerate(exported["associated"]):
-                            if a["uri"] == source:
-                                a["uri"] = targets[i]
+                        for indx, a in enumerate(exported["records"][1:]):
+                            if a["data"]["uri"]["value"] == source:
+                                a["data"]["uri"]["value"] = targets[i]
                             else:
-                                delte_these.append(indx)
+                                delte_these.append(indx + 1)
                         for indx in delte_these[::-1]:
-                            del(exported["associated"][indx])
+                            del(exported["records"][indx])
 
                         for d_store in dest_stores:
                             d_store.import_dataset(
@@ -895,7 +910,6 @@ Available commands are:
             description="Creates a new Kosh store",
             epilog="Kosh version {kosh.__version__}".format(kosh=kosh))
         parser.add_argument("--uri", "-u", help="path to database", required=True) 
-        parser.add_argument("--engine", "-e", help="engine to use as Kosh backend", choices=["sina",], default="sina")
         parser.add_argument("--database", "--db", "-d", help="Database type to use as backend", choices=["sql", "cass"], default="sql")
         parser.add_argument("--token", "-t", help="Token to use (for Cassandra databases)", default="")
         parser.add_argument("--keyspace", "-k", help="keyspace to use (for Cassandra databases)")
@@ -903,7 +917,7 @@ Available commands are:
 
         args = parser.parse_args(sys.argv[2:])
 
-        kosh.create_new_db(args.uri, engine=args.engine, db=args.database,
+        kosh.create_new_db(args.uri, db=args.database,
                            token=args.token, keyspace=args.keyspace, cluster=args.cluster)
     
     def create(self):

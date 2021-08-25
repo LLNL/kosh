@@ -69,17 +69,32 @@ class KoshLoader(KoshExecutionGraph):
     """
     types = {"dataset": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, mime_type=None, uri=None):
         """KoshLoader generic Kosh loader
         :param obj: object the loader will try to load from
         :type obj: object
+        :param mime_type: If you want to force the mime_type to use
+        :type mime_type: str
+        :param uri: If you want/need to force the uri to use
+        :type uri: str
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
-        self.signature = self.update_signature(obj.__id__)
-        mime_type = obj.mime_type
-        if mime_type == obj.__store__._dataset_record_type:
-            mime_type = "dataset"
-        if mime_type not in self.types:
+        self.signature = self.update_signature(obj.id)
+        if mime_type is None:
+            self._mime_type = obj.mime_type
+        else:
+            self._mime_type = mime_type
+        if uri is None:
+            try:
+                self.uri = obj.uri
+            except AttributeError:  # Not uri on this
+                self.uri = None
+        else:
+            self.uri = uri
+        rec = obj.__store__.get_record(obj.id)
+        if rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None:
+            self._mime_type = "dataset"
+        if self._mime_type not in self.types:
             open_anything = False
             for t in self.types:
                 if t == "dataset":  # datasets are special skipping
@@ -87,7 +102,8 @@ class KoshLoader(KoshExecutionGraph):
                 if len(self.types[t]) == 0:
                     open_anything = True
             if not open_anything:
-                raise RuntimeError("will not be able to load object of type {mime_type}".format(mime_type=mime_type))
+                raise RuntimeError(
+                    "will not be able to load object of type {mime_type}".format(mime_type=self._mime_type))
         self.obj = obj
         self.__listed_features = None
 
@@ -146,8 +162,8 @@ class KoshLoader(KoshExecutionGraph):
         :return: execution graph to get to the possibly transformed feature
         :rtype: networkx.OrderDiGraph
         """
-        # first let's get the execution path
-        G = get_graph(self.obj.mime_type, self, transformers)
+        # Let's get the execution path
+        G = get_graph(self._mime_type, self, transformers)
         return G
 
     def get(self, feature, format=None, transformers=[],
@@ -189,9 +205,9 @@ class KoshLoader(KoshExecutionGraph):
 
     def extract_(self, format):
         if format is None:
-            format = self.types[self.obj.mime_type][0]
-        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
-            raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
+            format = self.types[self._mime_type][0]
+        if len(self.types) != 0 and format not in self.types[self._mime_type]:
+            raise ValueError("Loader cannot output type {self._mime_type} to {format} format".format(
                 self=self, format=format))
         self.format = format
         _, kargs = self._user_passed_parameters
@@ -304,7 +320,7 @@ class KoshFileLoader(KoshLoader):
     """Kosh loader to load content from files"""
     types = {"file": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **args):
         super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
@@ -314,7 +330,7 @@ class KoshFileLoader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        return KoshGenericObjectFromFile(self.obj.uri, mode)
+        return KoshGenericObjectFromFile(self.uri, mode)
 
     def extract(self, feature, format):
         """extract return a feature from the loaded object.
@@ -325,7 +341,7 @@ class KoshFileLoader(KoshLoader):
         :type format: str
         :return: data
         """
-        with open(self.obj.uri) as f:
+        with open(self.uri) as f:
             return f.read()
 
     def list_features(self, *args, **kargs):

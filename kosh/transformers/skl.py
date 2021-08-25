@@ -238,7 +238,7 @@ class DBSCAN(SKL):
     def __init__(self, *args, **kargs):
         from sklearn.cluster import DBSCAN
         kargs["skl_class"] = DBSCAN
-        super(DBSCAN, self).__init__(**kargs)
+        super().__init__(**kargs)
 
 
 class KMeans(SKL):

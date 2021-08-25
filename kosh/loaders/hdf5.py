@@ -67,7 +67,7 @@ class HDF5Loader(KoshLoader):
         """
         import h5py
         args, kargs = self._user_passed_parameters
-        f = h5py.File(self.obj.uri, "r")
+        f = h5py.File(self.uri, "r")
         features = self.feature
         if not isinstance(features, list):
             features = [self.feature, ]
@@ -114,7 +114,7 @@ class HDF5Loader(KoshLoader):
         :rtype: list
         """
         import h5py
-        with h5py.File(self.obj.uri, "r") as f:
+        with h5py.File(self.uri, "r") as f:
             features = list_hdf5(f)
         if group is not None:
             feats = []
@@ -145,7 +145,7 @@ class HDF5Loader(KoshLoader):
             raise ValueError("feature {feature} is not available".format(feature=feature))
 
         info = {}
-        with h5py.File(self.obj.uri, "r") as f:
+        with h5py.File(self.uri, "r") as f:
             feature = f[feature]
             info["size"] = feature.shape
             info["format"] = "hdf5"

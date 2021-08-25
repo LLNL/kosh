@@ -1,12 +1,14 @@
-from subprocess import Popen, PIPE
+from __future__ import absolute_import
+import pkg_resources
 import os
-import shlex
-import sys
 import kosh
 import hashlib
 import numpy
 import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
+import warnings
+from sina.model import Record
+import uuid
 from kosh.exec_graphs import find_network_ends
 
 
@@ -41,13 +43,23 @@ def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
     if not isinstance(imported_dataset, dict):
         imported_dataset = imported_dataset.list_attributes(dictionary=True)
 
+    # We cannot set _associatated_data_ anyway and if it comes last (py2) it
+    # prevents updating the db
+    imported_dataset.pop("_associated_data_", None)
+    # Creator is a pain looks like it comes with id at times and actual user name at others
+    # TODO: take a closer look in a separate MR
+    if "creator" in target_dict:
+        imported_dataset.pop("creator", None)
+
     for attribute, value in imported_dataset.items():
         if attribute in target_dict:
             if target_dict[attribute] != value:
                 if handling_method in [None, "conservative"]:
-                    msg = "Trying to import dataset with attribute '{}'".format(attribute)
+                    msg = "Trying to import dataset with attribute '{}'".format(
+                        attribute)
                     msg += " value : {}. ".format(value)
-                    msg += "But value for this attribute in target is '{}'".format(target_dict[attribute])
+                    msg += "But value for this attribute in target is '{}'".format(
+                        target_dict[attribute])
                     raise ValueError(msg)
                 elif handling_method == "overwrite":
                     # Do we want a warning here?
@@ -58,7 +70,8 @@ def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
                     # We preserve so not changing the target value
                     pass
                 else:
-                    raise ValueError("Unknown 'handling_method': {}".format(handling_method))
+                    raise ValueError(
+                        "Unknown 'handling_method': {}".format(handling_method))
         else:
             # New attribute let's add it
             target_dict[attribute] = value
@@ -155,12 +168,20 @@ def draw_execution_graph(G,
     if output_format is not None:
         starters = find_network_ends(G, start=True, end=False)
         for start in starters:
-            pth = nx.shortest_path(G, start, (output_format, None, G.seed), weight="weight")
+            pth = nx.shortest_path(
+                G, start, (output_format, None, G.seed), weight="weight")
             # build edges
             edges = []
             for i in range(len(pth) - 1):
                 edges.append((pth[i], pth[i + 1]))
-            nx.draw(G, pos=layout, with_labels=True, labels=lbls_dict, nodelist=pth, edgelist=edges, edge_color='red')
+            nx.draw(
+                G,
+                pos=layout,
+                with_labels=True,
+                labels=lbls_dict,
+                nodelist=pth,
+                edgelist=edges,
+                edge_color='red')
     try:
         if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
             import matplotlib
@@ -171,7 +192,8 @@ def draw_execution_graph(G,
         if clear:
             plt.clf()
     except ImportError:
-        raise RuntimeError("Could not import matplotlib, will not plot anything")
+        raise RuntimeError(
+            "Could not import matplotlib, will not plot anything")
 
 
 def compute_fast_sha(uri, n_samples=10):
@@ -235,48 +257,145 @@ def compute_long_sha(uri, buff_size=65536):
     return sha.hexdigest()
 
 
-def create_new_db(name, engine='sina', db='sql',
-                  token="", keyspace=None, cluster=None, **kargs):
+def update_store_and_get_info_record(records):
+    """Obtain the sina record containing store info
+    If necessary update store to latest standards
+    :returns: sina record for store info
+    :rtype: Record
+    """
+    # First let's see if this store contains a dedicated record
+    # describing this store specs
+    store_info = list(records.find_with_type("__kosh_storeinfo__"))
+    if len(store_info) > 1:
+        # There is a small chance that the store was created on multiple processors
+        # simultaneously and that these are identical, let's try to recover
+        base_record = store_info[0]
+        for extra_record in store_info[1:]:
+            if extra_record["data"] != base_record["data"]:
+                raise RuntimeError(
+                    "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
+        # ok if we are here we have only duplicates
+        # Let's remove them from the store
+        records.delete([x.id for x in store_info[1:]])
+        store_info = base_record
+    elif len(store_info) == 0:
+        # ok it's the old type, well let's try to upgrade it for next time
+        # and add the store info
+        rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
+        rec.add_data("sources_type", "file")
+        rec.add_data("users_type", "user")
+        rec.add_data("groups_type", "group")
+        rec.add_data("loaders_type", "koshloader")
+        rec.add_data("reserved_types", [
+            "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
+        rec.add_data("kosh_min_version", "1.2.1")
+        if hasattr(records, "insert"):
+            # Readonly can't insert
+            records.insert(rec)
+    else:
+        rec = store_info[0]
+        # This will fail if we get to version x.10
+        # revisit then...
+        ver = sum(
+            [float(x) / 10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
+        min_ver = rec["data"]["kosh_min_version"]["value"]
+        min_ver = sum(
+            [float(x) / 10**i for i, x in enumerate(min_ver.split("."))])
+        if ver < min_ver:
+            raise RuntimeError(
+                "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+    return rec
+
+
+def create_kosh_users(record_handler, users=[os.environ["USER"], "anonymous"]):
+    """Add Kosh user to the Kosh store
+    :param record_handler: The sina records object
+    :type record_handler: sina.records
+    :param users: list of usernames to add
+    :type users: list
+    """
+    store_info = list(record_handler.find_with_type(
+        ["__kosh_storeinfo__", ]))[0]
+
+    user_type = store_info["data"]["users_type"]["value"]
+    # Create users
+    for user in users:
+        new_user = list(record_handler.find(
+            types=[user_type, ], data={"username": user}))
+        if len(new_user) == 0:
+            uid = hashlib.md5(user.encode()).hexdigest()
+            user_record = Record(id=uid, type=user_type)
+            user_record.add_data("username", user)
+            record_handler.insert(user_record)
+
+
+def create_new_db(name, db='sql',
+                  keyspace=None, **kargs):
     """create_new_db creates a new Kosh database, adds a single user
 
     :param name: name of database
     :type name: str
-    :param engine: engine to use, defaults to 'sina'
-    :type engine: str, optional
-    :param db: type of database for engine, defaults to 'sql', can be 'cass'
+    :param db: type of database, defaults to 'sql', can be 'cass'
     :type db: str, optional
-    :param token: for cassandra connection, token to use, defaults to "" means try to retrieve from user home dir
-    :type token: str, optional
     :param keyspace: for cassandra keyspace to use, defaults to None means [user]_k
     :type keyspace: str, optional
-    :param cluster: list of Casandra clusters to use
-    :type cluster: list of str
     :param kargs: Any additional key/value pairs you need to pass to store creation
     :type kargs: dict
     :return store: An handle to the Kosh store created
     :rtype: KoshStoreClass
     """
-    user = os.environ["USER"]
-    if db == 'sql' and name[-4:].lower() != ".sql":
-        name += ".sql"
-    if engine == "sina":
-        cmd = "{}/init_sina.py --user={} --sina={} --sina_db={}".format(
-            sys.prefix + "/bin",
-            user,
-            db,
-            name)
-    elif engine == 'cassandra':
-        if keyspace is None:
-            keyspace = user + "_k"
-        cmd = "{}/init_cassandra.py --user={} --token={}" \
-            "--keyspace={} --tables_root={} --cluster={}".format(
-                sys.prefix + "/bin",
-                user,
-                token,
-                keyspace,
-                db,
-                cluster)
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
-    o, e = p.communicate()
-    if engine == "sina":
-        return kosh.KoshStore(engine="sina", db_uri=name, **kargs)
+    from kosh import connect
+    kargs["keyspace"] = keyspace
+    kargs["db"] = db
+    # Let's remove the now unused arguments
+    for key in ["token", "cluster"]:
+        if key in kargs:
+            warnings.warn(
+                "Keyword '{}' is no longer valid, will be ignored".format(key))
+            kargs.pop(key)
+    store = connect(name, **kargs)
+    store.delete_all_contents(force="SKIP PROMPT")
+    return store
+
+
+def version(comparable=False):
+    """Returns version string
+    :param comparable: returns version as a tuple of ints so it can be compared
+    :type comparable: bool
+    :returns: version string or tuple
+    :rtype: str or tuple
+    """
+    try:
+        __version__ = pkg_resources.get_distribution("kosh").version
+    except Exception:
+        __version__ = "???"
+    if comparable:
+        tuple_version = ()
+        for number in __version__.split("."):
+            try:
+                tuple_version += (int(number),)
+            except ValueError:  # Probably some letter or symbol in here
+                pass
+        __version__ = tuple_version
+    return __version__
+
+
+def walk_dictionary_keys(dictionary, separator="/"):
+    """Walks through a dictionary and return all levels of keys
+    sub dictionary keys are append to parent key with the 'separator'
+    :param dictionary: The dictionary to walk
+    :type dictionary: dict
+    :param separator: The string to use between a parent key and its children
+    :type separator: str
+    :returns: generator of keys and possibly their sub keys
+    :rtype: generator
+    """
+    out = []
+    for key in sorted(dictionary.keys(), key=lambda x: str(x)):
+        out.append(str(key))
+        if isinstance(dictionary[key], dict):
+            yld = walk_dictionary_keys(dictionary[key], separator)
+            for y in yld:
+                st = "{}{}{}".format(key, separator, y)
+                out.append(st)
+    return out
