@@ -277,8 +277,7 @@ def update_store_and_get_info_record(records):
         # ok if we are here we have only duplicates
         # Let's remove them from the store
         records.delete([x.id for x in store_info[1:]])
-        store_info = base_record
-        rec = store_info[0]
+        rec = base_record
     elif len(store_info) == 0:
         # ok it's the old type, well let's try to upgrade it for next time
         # and add the store info
