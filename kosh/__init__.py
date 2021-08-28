@@ -1,12 +1,12 @@
 import os
 kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
-from .loaders import KoshLoader  # noqa
+from .loaders import KoshLoader, KoshSinaLoader  # noqa
 from .utils import create_new_db, walk_dictionary_keys, version  # noqa
 from .schema import KoshSchema  # noqa
 from .operators import KoshOperator  # noqa
 import pkg_resources  # noqa
-from .core_sina import KoshDataset, KoshStore, connect  # noqa
-
+from .store import KoshStore, connect  # noqa
+from .dataset import KoshDataset  # noqa
 try:
     d = pkg_resources.get_distribution("kosh")
     __version__ = d.version

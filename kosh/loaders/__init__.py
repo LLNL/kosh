@@ -1,4 +1,4 @@
-from .core import KoshLoader, KoshFileLoader, get_graph  # noqa
+from .core import KoshLoader, KoshFileLoader, get_graph, KoshSinaLoader  # noqa
 from .jsons import JSONLoader  # noqa
 from .pil import PILLoader  # noqa
 from .pgm import PGMLoader  # noqa

@@ -4,12 +4,13 @@ import os
 import kosh
 import hashlib
 import numpy
+import random
 import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
 import warnings
 from sina.model import Record
 import uuid
-from kosh.exec_graphs import find_network_ends
+from kosh.exec_graphs import find_network_ends, populate
 
 
 try:
@@ -399,3 +400,37 @@ def walk_dictionary_keys(dictionary, separator="/"):
                 st = "{}{}{}".format(key, separator, y)
                 out.append(st)
     return out
+
+
+def get_graph(input_type, loader, transformers):
+    """Given a loader and its transformer return path to desired format
+    e.g which output format should each transformer pick to be chained to the following one
+    in order to obtain the desired outcome for format
+    :param input_type: input type of first node
+    :type input_type: str
+    :param loader: original loader
+    :type loader: KoshLoader
+    :param transformers: set of transformers to be added after loader exits
+    :type transformers: list of KoshTransformer
+    :returns: execution graph
+    :rtype: networkx.OrderDiGraph
+    """
+    if input_type not in loader.types:
+        raise RuntimeError(
+            "loader cannot load mime_type {}".format(input_type))
+    G = nx.OrderedDiGraph()
+    G.seed = random.random()
+    start_node = (input_type, loader, G.seed)  # so each graph is unique
+    G.add_node(start_node)
+    if len(transformers) == 0:
+        # No transformer
+        for out_format in loader.types[input_type]:
+            node = (out_format, None, G.seed)
+            G.add_edge(start_node, node)
+    else:
+        populate(
+            G,
+            start_node,
+            loader.types[input_type],
+            transformers)
+    return G

@@ -2,43 +2,11 @@ from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
-from kosh.exec_graphs import KoshExecutionGraph, populate
-import networkx as nx
-import random
-
-
-def get_graph(input_type, loader, transformers):
-    """Given a loader and its transformer return path to desired format
-    e.g which output format should each transformer pick to be chained to the following one
-    in order to obtain the desired outcome for format
-    :param input_type: input type of first node
-    :type input_type: str
-    :param loader: original loader
-    :type loader: KoshLoader
-    :param transformers: set of transformers to be added after loader exits
-    :type transformers: list of KoshTransformer
-    :returns: execution graph
-    :rtype: networkx.OrderDiGraph
-    """
-    if input_type not in loader.types:
-        raise RuntimeError(
-            "loader cannot load mime_type {}".format(input_type))
-    G = nx.OrderedDiGraph()
-    G.seed = random.random()
-    start_node = (input_type, loader, G.seed)  # so each graph is unique
-    G.add_node(start_node)
-    if len(transformers) == 0:
-        # No transformer
-        for out_format in loader.types[input_type]:
-            node = (out_format, None, G.seed)
-            G.add_edge(start_node, node)
-    else:
-        populate(
-            G,
-            start_node,
-            loader.types[input_type],
-            transformers)
-    return G
+from kosh.exec_graphs import KoshExecutionGraph
+import numpy
+from ..core_sina import KoshSinaObject, KoshSinaFile
+from ..utils import get_graph
+from ..dataset import KoshDataset
 
 
 class KoshGenericObjectFromFile(object):
@@ -363,3 +331,72 @@ class KoshFileLoader(KoshLoader):
         if feature not in self.list_features():
             raise ValueError("feature {feature} is not available".format(feature=feature))
         return {}
+
+
+class KoshSinaLoader(KoshLoader):
+    """Sina base class for loaders"""
+    types = {"dataset": ["numpy", ]}
+
+    def __init__(self, obj, **kargs):
+        """KoshSinaLoader generic sina-based loader
+        """
+        super(KoshSinaLoader, self).__init__(obj, **kargs)
+
+    def open(self, *args, **kargs):
+        """open the object
+        """
+        record = self.obj.__store__.get_record(self.obj.id)
+        if record["type"] not in self.obj.__store__._kosh_reserved_record_types:
+            return KoshDataset(
+                self.obj.id, store=self.obj.__store__, record=record)
+        if record["type"] == "file":
+            return KoshSinaFile(
+                self.obj.id, store=self.obj.__store__, record=record)
+        else:
+            return KoshSinaObject(self.obj.id, record["type"], protected=[
+            ], record_handler=self.obj.__store__.__record_handler__, record=record)
+
+    def list_features(self):
+        record = self.obj.__store__.get_record(self.obj.id)
+        # Using set in case a variable is both in independent and dependent
+        # Dependent would win when getting the data
+        curves = set()
+        for curve in record["curve_sets"]:
+            curves.add(curve)
+            for curve_type in ["independent", "dependent"]:
+                for name in record["curve_sets"][curve][curve_type]:
+                    curves.add("{}/{}".format(curve, name))
+        return sorted(curves)
+
+    def extract(self, *args, **kargs):
+        features = self.feature
+        if not isinstance(features, list):
+            features = [self.feature, ]
+        record = self.obj.__store__.get_record(self.obj.id)
+        out = []
+        for feature in features:
+            sp = feature.split("/")
+            # Here we are assuming the curve root name cannot have "/" in it
+            curve_root = record["curve_sets"][sp[0]]
+            if len(sp) > 1:
+                curve_name = "/".join(sp[1:])
+                if curve_name in curve_root["dependent"]:
+                    curve = curve_root["dependent"][curve_name]["value"]
+                else:
+                    curve = curve_root["independent"][curve_name]["value"]
+                out.append(numpy.array(curve))
+            else:
+                # we want all curves
+                all = []
+                # Matching order (indep/dep) that we used in list_features
+                for curve_type in ["independent", "dependent"]:
+                    # Same order as list_features()
+                    for curve_name in sorted(curve_root[curve_type].keys()):
+                        curve = curve_root[curve_type][curve_name]["value"]
+                        all.append(numpy.array(curve))
+                out.append(all)
+
+        if not isinstance(self.feature, list):
+            return out[0]
+        else:
+            return out
