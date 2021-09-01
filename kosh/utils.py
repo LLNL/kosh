@@ -9,7 +9,6 @@ import networkx as nx
 from .wrapper import KoshScriptWrapper  # noqa
 import warnings
 from sina.model import Record
-import uuid
 from kosh.exec_graphs import find_network_ends, populate
 
 
@@ -270,19 +269,13 @@ def update_store_and_get_info_record(records):
     if len(store_info) > 1:
         # There is a small chance that the store was created on multiple processors
         # simultaneously and that these are identical, let's try to recover
-        base_record = store_info[0]
-        for extra_record in store_info[1:]:
-            if extra_record["data"] != base_record["data"]:
-                raise RuntimeError(
-                    "Your store has many entries describing its Kosh internals\nLikely it is corrupted. Aborting")
-        # ok if we are here we have only duplicates
-        # Let's remove them from the store
-        records.delete([x.id for x in store_info[1:]])
-        rec = base_record
+        # that was true for a small period in Kosh dev branch
+        rec = store_info[0]
     elif len(store_info) == 0:
-        # ok it's the old type, well let's try to upgrade it for next time
+        # ok it's the old type or a new store, let's try to upgrade it for next time
         # and add the store info
-        rec = Record(id=uuid.uuid4().hex, type="__kosh_storeinfo__")
+        # Because of mpi ranks issues let's fix the id
+        rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__")
         rec.add_data("sources_type", "file")
         rec.add_data("users_type", "user")
         rec.add_data("groups_type", "group")
@@ -290,9 +283,13 @@ def update_store_and_get_info_record(records):
         rec.add_data("reserved_types", [
             "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
         rec.add_data("kosh_min_version", "1.2.1")
-        if hasattr(records, "insert"):
-            # Readonly can't insert
-            records.insert(rec)
+        if hasattr(records, "insert"):  # Readonly can't insert
+            # It's possible many ranks will try to create this record
+            # They are all identical, let's allow the error
+            try:
+                records.insert(rec)
+            except Exception:
+                pass
     else:
         rec = store_info[0]
         # This will fail if we get to version x.10
