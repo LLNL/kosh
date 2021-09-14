@@ -18,7 +18,7 @@ except AttributeError:  # planar is available from nx version 2.5
     default_nx_layout = nx.circular_layout
 
 
-def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
+def merge_datasets_handler(target_dataset, imported_dataset, section="data", **kargs):
     """When importing a dataset, checks if the imported dataset has
     attributes that match the one in the datset already in this store.
     If attributes values conflict then we use 'handling_method to resolve the conflict
@@ -29,6 +29,8 @@ def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
     :type target_dataset: kosh.KoshDataset
     :param imported_dataset: The dataset we are trying to merge into target_dataset or its attributes/values dictionary
     :type imported_dataset: kosh.KoshDataset or dict
+    :param section: The section being updated (data, user_defined, curves, etc...)
+    :type section: str
     :param handling_method: How do we handle conflicts?
                             None, "conservative": Error exit
                             "preserve": Keep value from target_dataset
@@ -36,6 +38,9 @@ def merge_datasets_handler(target_dataset, imported_dataset, **kargs):
     :returns: Dictionary of attribute/value that the target_dataset should have
     :rtype: dict
     """
+    if section != "data":
+        raise ValueError("This handler cannot handle non 'data' section")
+
     handling_method = kargs.pop("handling_method", None)
 
     target_dict = target_dataset.list_attributes(dictionary=True)
