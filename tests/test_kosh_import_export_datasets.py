@@ -98,8 +98,10 @@ class KoshTestImportExport(KoshTest):
         # Let's make sure associated files are transfered
         ds = store.create(name="foo_association")
         ds.associate("setup.py", "py")
+        self.assertEqual(len(ds2._associated_data_), 0)
         store2.import_dataset(ds)
         ds2 = list(store2.find(name=ds.name))[0]
+        print(ds2)
         self.assertEqual(len(ds2._associated_data_), 1)
         self.assertEqual(
             store2._load(
@@ -183,6 +185,67 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
             d1.get("timeplot_1/volume"), [10, 16, 22.2]))
+
+    def test_custom_handler(self):
+        source_store, db_source = self.connect()
+        target_store, db_target = self.connect()
+
+        # Now custom dataset
+        dataset2 = source_store.create(name="example")
+        dataset2.bar = "foo"
+        dataset2.foo = "bar2"
+        dataset2.foosome = "foo1"
+
+        dataset3 = target_store.create(name="example")
+        dataset3.bar = "foo"
+        dataset3.foo = "bar3"
+        dataset3.foosome = "foo2"
+
+        target_store.import_dataset(dataset2, match_attributes=["bar", "name"],
+                                    merge_handler=my_handler,
+                                    merge_handler_kargs={"overwrite_attributes": ["foo", ]})
+
+        os.remove(db_source)
+        os.remove(db_target)
+
+    def test_associated_import(self):
+        source_store, db_source = self.connect()
+        target_store, db_target = self.connect()
+
+        # Now custom dataset
+        dataset = source_store.create(name="example")
+        dataset.bar = "foo"
+        dataset.foo = "bar2"
+        dataset.associate("setup.py", "py")
+
+        dataset_t = target_store.create(name="example")
+        dataset_t.bar = "foo"
+        dataset_t.foosome = "foo2"
+
+        target_store.import_dataset(dataset, match_attributes=["bar", "name"])
+        self.assertEqual(dataset_t.bar, "foo")
+        self.assertEqual(dataset_t.foo, "bar2")
+        self.assertEqual(dataset_t.foosome, "foo2")
+        self.assertEqual(len(dataset_t._associated_data_), 1)
+
+        os.remove(db_source)
+        os.remove(db_target)
+
+
+def my_handler(store_dataset, imported_dataset_dict,
+               section, overwrite_attributes=[], **kargs):
+    # prepare the target dict
+    imported_attributes = imported_dataset_dict
+    target_attributes = {}
+    if section == "data":
+        store_attributes = store_dataset.list_attributes(dictionary=True)
+        target_attributes.update(imported_attributes)
+        target_attributes.update(store_attributes)
+        for attribute, value in imported_attributes.items():
+            if attribute in store_attributes:
+                if attribute in overwrite_attributes:
+                    target_attributes[attribute] = value
+    return target_attributes
 
 
 if __name__ == "__main__":

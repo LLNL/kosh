@@ -1068,7 +1068,17 @@ class KoshStore(object):
         :param merge_handler: If found dataset has attributes with different values from imported dataset
                                  how do we handle this? Accept values are: None, "conservative", "overwrite",
                                  "preserve", or a function.
-                                 A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
+                              The function decalartion should be:
+                                        foo(store_dataset,
+                                            imported_dataset_attributes_dict,
+                                            section,
+                                            **merge_handler_kargs)
+                              Where `store_dataset` is the destination kosh dataset or its non-data dictionary section
+                                    `imported_dataset_attributes_dict` is a dictionary of attributes/values
+                                                                       of the dataset being imported
+                                    `section` is the section of the record being updated
+                                    `merge_handler_kargs` is a dict of passed for this function
+                              And return a dictionary of attributes/values the target_dataset should have.
         :type merge_handler: None, str, func
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addtion to this store dataset and the imported dataset.
@@ -1089,7 +1099,7 @@ class KoshStore(object):
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}):
+            "name", ], merge_handler=None, merge_handler_kargs={}):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1138,6 +1148,7 @@ class KoshStore(object):
                 "'merge_handler' must be one {} or a function/method".format(ok_merge_handler_values))
 
         matches = []
+        remapped = {}
         for record in records_in:
             data = record["data"]
             if record["type"] == from_file.get("sources_type", "file"):
@@ -1172,10 +1183,11 @@ class KoshStore(object):
                     # All right we do have a possible conflict here
                     match = matching[0]
                     merged_attributes = merge_handler(
-                        match, atts, **merge_handler_kargs)
+                        match, atts, "data", **merge_handler_kargs)
                     # Ok at this point no conflict!
                     match.update(merged_attributes)
                     match_rec = match.get_record()
+                    remapped[record["id"]] = match_rec.id
                 else:  # Non existent dataset
                     cont = True
                     while cont:
@@ -1215,13 +1227,16 @@ class KoshStore(object):
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
                 if section in record:
-                    if match_rec.raw[section] != record[section]:
+                    if match_rec.raw[section] != record[section] and record[section] != {
+                    }:
                         if merge_handler != merge_datasets_handler:
+                            match_rec.raw[section].update(
+                                merge_handler(match_rec, record[section],
+                                              section, **merge_handler_kargs))
+                        elif merge_handler_kargs["handling_method"] == "conservative":
                             raise RuntimeError(
-                                "We do not know how to merge curves with custom merge handler")
-                        if merge_handler_kargs["handling_method"] == "conservative":
-                            raise RuntimeError(
-                                "{} section do not match aborting under conservative merge option".format(section))
+                                "{} section do not match aborting under conservative merge option"
+                                "\nImport: {}\nInstore: {}".format(section, record[section], match_rec.raw[section]))
                         elif merge_handler_kargs["handling_method"] == "overwrite":
                             match_rec.raw[section].update(record[section])
                         else:  # preserve
@@ -1253,6 +1268,30 @@ class KoshStore(object):
                 pass
             self.__record_handler__.insert(match_rec)
             matches.append(match_rec["id"])
+        # We need to make sure any merged (remapped) datset is still properly
+        # associated
+        for id_ in matches:
+            rec = self.get_record(id_)
+            if rec["type"] == self._sources_type == from_file.get(
+                    "sources_type", "file"):
+                associated = rec["data"]["associated"]["value"]
+                altered = False
+                for rem in remapped:
+                    if rem in associated:
+                        index = associated.index(rem)
+                        associated[index] = remapped[rem]
+                        d = self.open(remapped[rem])
+                        d.associate(
+                            rec["data"]["uri"]["value"],
+                            rec["data"]["mime_type"]["value"])
+                        altered = True
+                if altered:
+                    try:
+                        self.__record_handler__.delete(rec["id"])
+                    except ValueError:
+                        pass
+                    self.__record_handler__.insert(rec)
+
         return [self._load(x) for x in matches]
 
     def reassociate(self, target, source=None, absolute_path=True):

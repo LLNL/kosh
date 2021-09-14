@@ -3,6 +3,7 @@
 # This implements Kosh's CLI
 from __future__ import print_function
 import argparse
+from kosh.utils import merge_datasets_handler
 import kosh
 import sys
 from sina.utils import DataRange
@@ -522,6 +523,7 @@ Available commands are:
         parser.add_argument("--dataset_matching_attributes", default=["name", ],
                             help="List of attributes used to identify if two datasets are identical",
                             type=ast.literal_eval)
+        parser.add_argument("--merge_strategy", help="When importing dataset, how do we handle conflict", default=None, choices=["conservative", "preserve", "overwrite"])
         args, opts = parser.parse_known_args(sys.argv[2:])
 
         # Ok are we creating or extracting?
@@ -649,7 +651,8 @@ Available commands are:
                 # Add dataset to store(s)
                 for store in stores:
                     store.import_dataset(
-                        dataset, args.dataset_matching_attributes)
+                        dataset, args.dataset_matching_attributes,
+                        merge_handler=args.merge_strategy)
 
     def rm(self):
         """rm files command"""
@@ -806,6 +809,7 @@ Available commands are:
                                 help="destination (file or directory) name", required=True)
         parser.add_argument("--version", action="store_true",
                             help="print version and exit")
+        parser.add_argument("--merge_strategy", help="When importing dataset, how do we handle conflict", default=None, choices=["conservative", "preserve", "overwrite"])
         args, opts = parser.parse_known_args(sys.argv[2:])
         files = []
         for source in args.sources:
@@ -874,7 +878,8 @@ Available commands are:
 
                         for d_store in dest_stores:
                             d_store.import_dataset(
-                                exported, args.dataset_matching_attributes)
+                                exported, args.dataset_matching_attributes,
+                                merge_handler=args.merge_strategy)
 
             # Now let's run the command and see if it worked
             # But only if not ran for directory before
