@@ -36,6 +36,7 @@ class KoshTestImportExport(KoshTest):
     def test_import_export_datsets(self):
         store, kosh_test_sql_file = self.connect()
         store2, kosh_test_sql_file2 = self.connect()
+        store3, kosh_test_sql_file3 = self.connect()
 
         ds1 = store.create(name="one", metadata={"param1": 5, "param2": 6})
         # import via dataset.export
@@ -136,8 +137,11 @@ class KoshTestImportExport(KoshTest):
                               "a", "b"], merge_handler="preserve")
         self.assertEqual(ds2.c, 4)
 
+        store3.import_dataset([ds, ds2])
+        self.assertEqual(len(list(store3.find())), 2)
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)
+        os.remove(kosh_test_sql_file3)
         os.remove(json_name)
 
     def test_import_merge_overwrite_curves(self):

@@ -1052,8 +1052,45 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}):
+            "name", ], merge_handler=None, merge_handler_kargs={}):
         """import datasets that were exported from another store, or load them from a json file
+        :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
+        :type datasets: json file, json loaded object or kosh.KoshDataset
+        :param match_attributes: parameters on a dataset to use if this it is already in the store
+                                 in general we can't use 'id' since it is randomly generated at creation
+                                 If the "same" dataset was created in two different stores
+                                 (e.g running the same code twice but with different Kosh store)
+                                 the dataset would be identical in both store but with different ids.
+                                 This helps you make sure you do not end up with duplicate entries.
+                                 Warning, if this parameter is too lose too many datasets will match
+                                 and the import will abort, if it's too tight duplicates will not be identified.
+        :type match_attributes: list of str
+        :param merge_handler: If found dataset has attributes with different values from imported dataset
+                                 how do we handle this? Accept values are: None, "conservative", "overwrite",
+                                 "preserve", or a function.
+                                 A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
+        :type merge_handler: None, str, func
+        :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
+                                    will be passed in addtion to this store dataset and the imported dataset.
+        :type merge_handler_kargs: dict
+        :return: list of datasets
+        :rtype: list of KoshSinaDataset
+        """
+        out = []
+        if not isinstance(datasets, (list, tuple, types.GeneratorType)):
+            return self._import_dataset(datasets, match_attributes=match_attributes,
+                                        merge_handler=merge_handler,
+                                        merge_handler_kargs=merge_handler_kargs)
+        else:
+            for dataset in datasets:
+                out.append(self._import_dataset(dataset, match_attributes=match_attributes,
+                                                merge_handler=merge_handler,
+                                                merge_handler_kargs=merge_handler_kargs))
+        return out
+
+    def _import_dataset(self, datasets, match_attributes=[
+                       "name", ], merge_handler=None, merge_handler_kargs={}):
+        """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
         :param match_attributes: parameters on a dataset to use if this it is already in the store
@@ -1086,6 +1123,9 @@ class KoshStore(object):
         elif isinstance(datasets, KoshDataset):
             from_file = datasets.export()
             records_in = from_file["records"]
+        else:
+            raise ValueError(
+                "`datasets` must be a Kosh importable object or a file or dict containing json-ized datasets")
 
         # setup merge handler
         ok_merge_handler_values = [
@@ -1177,7 +1217,8 @@ class KoshStore(object):
                 if section in record:
                     if match_rec.raw[section] != record[section]:
                         if merge_handler != merge_datasets_handler:
-                            raise RuntimeError("We do not know how to merge curves with custom merge handler")
+                            raise RuntimeError(
+                                "We do not know how to merge curves with custom merge handler")
                         if merge_handler_kargs["handling_method"] == "conservative":
                             raise RuntimeError(
                                 "{} section do not match aborting under conservative merge option".format(section))
@@ -1192,7 +1233,8 @@ class KoshStore(object):
                         match_rec.raw["curve_sets"][curve_set] = record["curve_sets"][curve_set]
                     else:
                         if merge_handler != merge_datasets_handler:
-                            raise RuntimeError("We do not know how to merge curves with custom merge handler")
+                            raise RuntimeError(
+                                "We do not know how to merge curves with custom merge handler")
                         if merge_handler_kargs["handling_method"] == "conservative":
                             if match_rec.raw["curve_sets"][curve_set] != record["curve_sets"][curve_set]:
 
@@ -1258,7 +1300,7 @@ class KoshStore(object):
                 ids_only=True))
         # And it's quite possible it's a long_sha too
         matches += list(self.find(types=[self._sources_type, ],
-                        long_sha=source, ids_only=True))
+                                  long_sha=source, ids_only=True))
 
         # And now let's do the work
         for match_id in matches:
