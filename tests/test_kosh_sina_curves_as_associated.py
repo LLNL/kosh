@@ -25,9 +25,10 @@ class KoshTestSinaCurves(KoshTest):
             "tests/baselines/sina/sina_curve_rec.json")[0][0]
         store.__record_handler__.insert(rec)
         dataset = list(store.find())[0]
+        self.maxDiff = None
         print_str = """KOSH DATASET
 	id: obj1
-	name:???
+	name: ???
 	creator: ???
 
 --- Attributes ---
@@ -41,8 +42,9 @@ class KoshTestSinaCurves(KoshTest):
 		foo.png ( obj1 )
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
-""".format(dataset.presets)  # noqa
-        self.assertEqual(str(dataset), print_str)
+--- Ensembles (0)---
+\t[]""".format(dataset.presets)  # noqa
+        self.assertEqual(str(dataset).strip(), print_str.strip())
         features = dataset.list_features()
         self.assertEqual(features, ['timeplot_1',
                                     'timeplot_1/mass',

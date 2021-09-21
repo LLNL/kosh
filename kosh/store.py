@@ -1,6 +1,7 @@
 import os
 import uuid
 import sina.utils
+from sina.model import Relationship
 import fcntl
 import collections
 import grp
@@ -13,6 +14,7 @@ from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
 from .loaders import NpyLoader
 from .dataset import KoshDataset
+from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject
 from .utils import create_kosh_users
 from .utils import update_store_and_get_info_record
@@ -109,7 +111,7 @@ class KoshStore(object):
     def __init__(self, db_uri=None, username=os.environ["USER"], db=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
-                 read_only=False, allow_connection_pooling=False):
+                 read_only=False, allow_connection_pooling=False, ensemble_predicate=None):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -138,6 +140,8 @@ class KoshStore(object):
                                         which may prevent them from closing fully on .close().
                                         Only used for the sql backend.
         :type allow_connection_pooling: bool
+        :param ensemble_predicate: The predicate for the relationship to an ensemble
+        :type ensemble_predicate: str
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
@@ -207,12 +211,14 @@ class KoshStore(object):
         from sina.utils import DataRange
         global Record, DataRange
 
-        rec = update_store_and_get_info_record(self.__sina_store.records)
+        rec = update_store_and_get_info_record(self.__sina_store.records, ensemble_predicate)
 
         self._sources_type = rec["data"]["sources_type"]["value"]
         self._users_type = rec["data"]["users_type"]["value"]
         self._groups_type = rec["data"]["groups_type"]["value"]
         self._loaders_type = rec["data"]["loaders_type"]["value"]
+        self._ensembles_type = rec["data"]["ensembles_type"]["value"]
+        self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
         self._kosh_reserved_record_types = kosh_reserved_record_types + \
             rec["data"]["reserved_types"]["value"]
 
@@ -244,8 +250,7 @@ class KoshStore(object):
             pickled_code = rec_loader.data["code"]["value"].encode("latin1")
             loader = pickle.loads(pickled_code)
             self.add_loader(loader)
-        mem = sina_connect(None)
-        self._added_unsync_handler = mem.records
+        self._added_unsync_mem_store = sina_connect(None)
         self._cached_loaders = {}
 
         # Ok we need to map the KoshFileLoader back to whatever the source_type is
@@ -393,13 +398,31 @@ class KoshStore(object):
                 # Let's dissociate to remove unused kosh objects as well
                 kosh_obj.dissociate(uri)
         if not self.__sync__:
-            self._added_unsync_handler.delete(Id)
+            self._added_unsync_mem_store.records.delete(Id)
             if Id in self.__sync__dict__:
                 del(self.__sync__dict__[Id])
                 self.__sync__deleted__[Id] = rec
                 rec["user_defined"]["deleted_time"] = time.time()
         else:
             self.__record_handler__.delete(Id)
+
+    def create_ensemble(self, name="Unnamed Ensemble", id=None, metadata={}, schema=None, **kargs):
+        """Create a Kosh ensemble object
+        :param name: name for the dataset, defaults to None
+        :type name: str, optional
+        :param id: unique Id, defaults to None which means use uuid4()
+        :type id: str, optional
+        :param metadata: dictionary of attribute/value pair for the dataset, defaults to {}
+        :type metadata: dict, optional
+        :param schema: a KoshSchema object to validate datasets and when setting attributes
+        :type schema: KoshSchema
+        :param kargs: extra keyword arguments (ignored)
+        :type kargs: dict
+        :raises RuntimeError: Dataset already exists
+        :return: KoshEnsemble
+        :rtype: KoshEnsemble
+        """
+        return self.create(name=name, id=id, metadata=metadata, schema=schema, sina_type=self._ensembles_type, **kargs)
 
     def create(self, name="Unnamed Dataset", id=None,
                metadata={}, schema=None, sina_type=None, **kargs):
@@ -456,9 +479,12 @@ class KoshStore(object):
             self.unlock()
         else:
             self.__sync__dict__[Id] = rec
-            self._added_unsync_handler.insert(rec)
+            self._added_unsync_mem_store.records.insert(rec)
         try:
-            ds = KoshDataset(Id, store=self, schema=schema, record=rec)
+            if sina_type == self._ensembles_type:
+                out = KoshEnsemble(Id, store=self, schema=schema, record=rec)
+            else:
+                out = KoshDataset(Id, store=self, schema=schema, record=rec)
         except Exception as err:  # probably schema validation error
             if self.__sync__:
                 self.lock()
@@ -466,9 +492,9 @@ class KoshStore(object):
                 self.unlock()
             else:
                 del(self.__sync__dict__[Id])
-                self._added_unsync_handler.delete(rec)
+                self._added_unsync_mem_store.records.delete(rec)
             raise err
-        return ds
+        return out
 
     def _find_loader(self, Id, format=None, transformers=[]):
         """_find_loader returns a loader that can open Id
@@ -494,7 +520,8 @@ class KoshStore(object):
         record = self.get_record(Id)
         obj = self._load(Id)
         # uri not none means it is pure sina record with file and mime_type
-        if record["type"] not in self._kosh_reserved_record_types and uri is None:
+        if (record["type"] not in self._kosh_reserved_record_types and uri is None)\
+                or record["type"] == self._ensembles_type:
             # Not reserved means dataset
             return KoshSinaLoader(obj), record["type"]
         # Ok special type
@@ -557,12 +584,12 @@ class KoshStore(object):
         :return: loaded object
         """
         record = self.get_record(Id)
-        if record["type"] == "file":
-            return KoshSinaFile(Id, koshType=record["type"],
+        if record["type"] == self._sources_type:
+            return KoshSinaFile(Id, kosh_type=record["type"],
                                 record_handler=self.__record_handler__,
                                 store=self, record=record)
         else:
-            return KoshSinaObject(Id, koshType=record["type"],
+            return KoshSinaObject(Id, kosh_type=record["type"],
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
@@ -596,6 +623,20 @@ class KoshStore(object):
                       "Please update your code to use `find` as `search` might disappear in the future",
                       DeprecationWarning)
         return self.find(*atts, **keys)
+
+    def find_ensembles(self, *atts, **keys):
+        """Find ensembles matching some metadata in the store
+        arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        :return: generator of matching ensembles in store
+        :rtype: generator
+        """
+        return self.find(types=self._ensembles_type, *atts, **keys)
 
     def find(self, *atts, **keys):
         """Find objects matching some metadata in the store
@@ -646,7 +687,7 @@ class KoshStore(object):
         if record_types is None:
             # Ok we want anything, but we need to exclude Kosh reserved
             record_types = self.__record_handler__.get_types(
-            ) + self._added_unsync_handler.get_types()
+            ) + self._added_unsync_mem_store.records.get_types()
             for rec_type in self._kosh_reserved_record_types:
                 if rec_type in record_types:
                     record_types.remove(rec_type)
@@ -705,10 +746,10 @@ class KoshStore(object):
             # We need to check or in memory records as well
             if get_all:
                 match_mem = set(
-                    self._added_unsync_handler.get_all(
+                    self._added_unsync_mem_store.records.get_all(
                         ids_only=True))
             else:
-                match_mem = set(self._added_unsync_handler.find(**sina_kargs))
+                match_mem = set(self._added_unsync_mem_store.records.find(**sina_kargs))
             match = match.union(match_mem)
 
         if mode:
@@ -936,11 +977,18 @@ class KoshStore(object):
                 del_keys.append(key)
             except Exception:
                 update_records.append(local)
+
+        rels = []
+        relationships = self.get_sina_store().relationships
+        for id_ in update_records:
+            rels += relationships.find(id_.id, None, None)
+            rels += relationships.find(None, None, id_.id)
         self.__record_handler__.delete(del_keys)
         self.__record_handler__.insert(update_records)
+        relationships.insert(rels)
         for key in list(keys):
             try:
-                self._added_unsync_handler.delete(key)
+                self._added_unsync_mem_store.records.delete(key)
             except Exception:
                 pass
             try:
@@ -1052,10 +1100,11 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}):
-        """import datasets that were exported from another store, or load them from a json file
-        :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
-        :type datasets: json file, json loaded object or kosh.KoshDataset
+                       "name", ], merge_handler=None, merge_handler_kargs={}):
+        """import datasets and ensembles that were exported from another store, or load them from a json file
+        :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
+                         or a json file containing these.
+        :type datasets: json file, json loaded object, KoshDataset or KoshEnsemble
         :param match_attributes: parameters on a dataset to use if this it is already in the store
                                  in general we can't use 'id' since it is randomly generated at creation
                                  If the "same" dataset was created in two different stores
@@ -1127,12 +1176,15 @@ class KoshStore(object):
             with open(datasets) as f:
                 from_file = orjson.loads(f.read())
                 records_in = from_file.get("records", [])
+                relationships_in = from_file.get("relationships", [])
         elif isinstance(datasets, dict):
             from_file = datasets
             records_in = from_file["records"]
-        elif isinstance(datasets, KoshDataset):
+            relationships_in = from_file.get("relationships", [])
+        elif isinstance(datasets, (KoshDataset, KoshEnsemble)):
             from_file = datasets.export()
             records_in = from_file["records"]
+            relationships_in = []
         else:
             raise ValueError(
                 "`datasets` must be a Kosh importable object or a file or dict containing json-ized datasets")
@@ -1262,12 +1314,25 @@ class KoshStore(object):
                                 record["curve_sets"][curve_set]["dependent"])
                         else:  # preserve
                             pass
+            relationships = self.get_sina_store().relationships
+            rels = relationships.find(match_rec["id"], None, None)
+            rels += relationships.find(None, None, match_rec["id"])
             try:
                 self.__record_handler__.delete(match_rec["id"])
             except ValueError:
                 pass
             self.__record_handler__.insert(match_rec)
+            relationships.insert(rels)
             matches.append(match_rec["id"])
+
+        for relationship in relationships_in:
+            try:
+                rel = Relationship(subject_id=relationship.subject,
+                                   predicate=relationship.predicate,
+                                   object_id=relationship.object)
+                self.get_sina_store().relationships.insert(rel)
+            except Exception:  # sqlalchemy.exc.IntegrityError
+                pass
         # We need to make sure any merged (remapped) datset is still properly
         # associated
         for id_ in matches:
