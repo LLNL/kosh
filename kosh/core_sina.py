@@ -17,7 +17,7 @@ class KoshSinaObject(object):
     def get_record(self):
         return self.__store__.get_record(self.id)
 
-    def __init__(self, Id, store, koshType,
+    def __init__(self, Id, store, kosh_type,
                  record_handler, protected=[], metadata={}, schema=None,
                  record=None):
         """__init__ sina object base class
@@ -26,8 +26,8 @@ class KoshSinaObject(object):
         :type Id: str
         :param store: Kosh store associated
         :type store: KoshSinaStore
-        :param koshType: type of Kosh object (dataset, file, project, ...)
-        :type koshType: str
+        :param kosh_type: type of Kosh object (dataset, file, project, ...)
+        :type kosh_type: str
         :param record_handler: sina record handler object
         :type record_handler: RecordDAO
         :param protected: list of protected parameters, e.g internal params not to be stored
@@ -43,10 +43,10 @@ class KoshSinaObject(object):
         self.__dict__["__protected__"] = [
             "id", "__type__", "__protected__",
             "__record_handler__", "__store__", "id", "__schema__"] + protected
-        self.__dict__["__type__"] = koshType
+        self.__dict__["__type__"] = kosh_type
         if Id is None:
             Id = uuid.uuid4().hex
-            record = Record(id=Id, type=koshType)
+            record = Record(id=Id, type=kosh_type)
             if store.__sync__:
                 store.lock()
                 store.__record_handler__.insert(record)
@@ -61,7 +61,7 @@ class KoshSinaObject(object):
                 try:
                     record = self.get_record()
                 except BaseException:  # record exists nowhere
-                    record = Record(id=Id, type=koshType)
+                    record = Record(id=Id, type=kosh_type)
                     if store.__sync__:
                         store.lock()
                         store.__record_handler__.insert(record)
@@ -87,7 +87,12 @@ class KoshSinaObject(object):
                 DeprecationWarning)
             name = "id"
         if name in self.__dict__["__protected__"]:
+            if name == "_associated_datasets_" and self.__type__ == self.__store__._ensembles_type:
+                rels = self.get_sina_store().relationships.find(
+                    None, "is a member of ensemble", self.id)
+                return [str(x.subject_id) for x in rels]
             if name == "_associated_data_":
+                from kosh.dataset import KoshDataset
                 record = self.get_record()
                 # Any curve sets?
                 if len(record["curve_sets"]) != 0:
@@ -106,6 +111,10 @@ class KoshSinaObject(object):
                         # did  the user added a mime_type?
                         if "mimetype" in file_entry:
                             out.append("{}__uri__{}".format(self.id, file_rec))
+                # Now we need to add the parent ensembles associated data
+                if isinstance(self, KoshDataset):
+                    for ensemble in self.get_ensembles():
+                        out += ensemble._associated_data_
                 return out
             else:
                 return self.__dict__[name]
@@ -168,7 +177,8 @@ class KoshSinaObject(object):
         """
         self.___setattr___(name, value)
 
-    def ___setattr___(self, name, value, record=None, update_db=True):
+    def ___setattr___(self, name, value, record=None,
+                      update_db=True, force=False):
         """__setattr__ set an attribute on an object
 
         :param name: name of attribute
@@ -177,6 +187,8 @@ class KoshSinaObject(object):
         :type value: object
         :param record: sina record if already extracted before, save db access
         :type record: sina.model.Record
+        :param force: force datset attribute setting (when sent from ensemble)
+        :type force: bool
         :return: sina record updated
         :rtype: sina.model.Record
         """
@@ -189,6 +201,46 @@ class KoshSinaObject(object):
             value.validate(self)
         elif self.schema is not None:
             self.schema.validate_attribute(name, value)
+
+        # For datasets we need to check if the att comes from ensemble
+        from kosh.dataset import KoshDataset
+        if isinstance(self, KoshDataset) and not force:
+            sina_store = self.get_sina_store()
+            # Let's get the relationships it's in
+            relationships = sina_store.relationships.find(
+                self.id, self.__store__._ensemble_predicate, None)
+            for relationship in relationships:
+                ensemble = self.__store__.open(relationship.object_id)
+                if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
+                    raise KeyError(
+                        "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
+                            name, relationship.object_id))
+
+        # For Ensembles we need to set it on all members
+        from kosh.ensemble import KoshEnsemble
+        if isinstance(self, KoshEnsemble):
+            # First we make a pass to collect all other ensembles datasets are
+            # part of
+            other_ensembles = set()
+            for dataset in self.get_members():
+                for e in dataset.get_ensembles():
+                    other_ensembles.add(e)
+            for ensemble in other_ensembles:
+                if ensemble.id == self.id:
+                    continue
+                for att in ensemble.list_attributes():
+                    if att in self.__dict__["__ok_duplicates__"]:
+                        continue
+                    if att == name:
+                        raise NameError("A member of this ensemble belongs to ensemble {} "
+                                        "which already controls attribute {}".format(ensemble.id, att))
+            for dataset in self.get_members():
+                dataset.___setattr___(
+                    name=name,
+                    value=value,
+                    record=None,
+                    update_db=update_db,
+                    force=True)
 
         # Did it change on db since we last read it?
         last_modif_att = "{name}_last_modified".format(name=name)
@@ -221,11 +273,25 @@ class KoshSinaObject(object):
             value = pickle.dumps(value).decode("latin1")
         record["data"][name] = {"value": value}
         if update_db and self.__store__.__sync__:
-            self.__store__.lock()
-            self.__record_handler__.delete(self.id)
-            self.__record_handler__.insert(record)
-            self.__store__.unlock()
+            self._update_record(record)
         return record
+
+    def _update_record(self, record, store=None):
+        """Updates a record in the sina store
+        :param record: The record to update
+        :type record: sina.model.Record
+        :param store: sina store to update
+        :type store: sina.datastore.DataStore"""
+        self.__store__.lock()
+        if store is None:
+            store = self.__store__.get_sina_store()
+        id_ = record.id
+        rels = store.relationships.find(id_, None, None)
+        rels += store.relationships.find(None, None, id_)
+        store.records.delete(id_)
+        store.records.insert(record)
+        store.relationships.insert(rels)
+        self.__store__.unlock()
 
     def __delattr__(self, name):
         """__delattr__ deletes an attribute
@@ -241,10 +307,7 @@ class KoshSinaObject(object):
         record["user_defined"][last_modif_att] = now
         del(record["data"][name])
         if self.__store__.__sync__:
-            self.__store__.lock()
-            self.__record_handler__.delete(self.id)
-            self.__record_handler__.insert(record)
-            self.__store__.unlock()
+            self._update_record(record)
 
     def sync(self):
         """sync this object with database"""

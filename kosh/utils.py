@@ -10,6 +10,10 @@ from .wrapper import KoshScriptWrapper  # noqa
 import warnings
 from sina.model import Record
 from kosh.exec_graphs import find_network_ends, populate
+try:
+    import orjson
+except ImportError:
+    import json as orjson  # noqa
 
 
 try:
@@ -262,9 +266,13 @@ def compute_long_sha(uri, buff_size=65536):
     return sha.hexdigest()
 
 
-def update_store_and_get_info_record(records):
+def update_store_and_get_info_record(records, ensemble_predicate=None):
     """Obtain the sina record containing store info
     If necessary update store to latest standards
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param ensemble_predicate: The predicate for the relationship to an ensemble
+    :type ensemble_predicate: str
     :returns: sina record for store info
     :rtype: Record
     """
@@ -281,13 +289,6 @@ def update_store_and_get_info_record(records):
         # and add the store info
         # Because of mpi ranks issues let's fix the id
         rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__")
-        rec.add_data("sources_type", "file")
-        rec.add_data("users_type", "user")
-        rec.add_data("groups_type", "group")
-        rec.add_data("loaders_type", "koshloader")
-        rec.add_data("reserved_types", [
-            "__kosh_storeinfo__", "file", "user", "group", "koshloader"])
-        rec.add_data("kosh_min_version", "1.2.1")
         if hasattr(records, "insert"):  # Readonly can't insert
             # It's possible many ranks will try to create this record
             # They are all identical, let's allow the error
@@ -307,6 +308,43 @@ def update_store_and_get_info_record(records):
         if ver < min_ver:
             raise RuntimeError(
                 "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+    need_update = False
+    if "sources_type" not in rec["data"]:
+        rec.add_data("sources_type", "file")
+        need_update = True
+    if "users_type" not in rec["data"]:
+        rec.add_data("users_type", "user")
+        need_update = True
+    if "groups_type" not in rec["data"]:
+        rec.add_data("groups_type", "group")
+        need_update = True
+    if "loaders_type" not in rec["data"]:
+        rec.add_data("loaders_type", "koshloader")
+        need_update = True
+    if "ensembles_type" not in rec["data"]:
+        rec.add_data("ensembles_type", "kosh_ensemble")
+        need_update = True
+    if "ensemble_predicate" not in rec["data"]:
+        if ensemble_predicate is None:
+            rec.add_data("ensemble_predicate", "is a member of ensemble")
+        else:
+            rec.add_data("ensemble_predicate", ensemble_predicate)
+        need_update = True
+    if "kosh_min_version" not in rec["data"]:
+        rec.add_data("kosh_min_version", "1.2.1")
+        need_update = True
+    if "reserved_types" not in rec["data"]:
+        rec.add_data("reserved_types", [
+            "__kosh_storeinfo__", "file", "user", "group", "kosh_ensemble", "koshloader"])
+        need_update = True
+    if sorted(rec["data"]["reserved_types"]["value"]) != ['__kosh_storeinfo__', 'file',
+                                                          'group', 'kosh_ensemble',
+                                                          'koshloader', 'user']:
+        rec["data"]["reserved_types"] = ['__kosh_storeinfo__', 'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
+        need_update = True
+    if need_update and hasattr(records, "insert"):
+        records.delete(rec.id)
+        records.insert(rec)
     return rec
 
 
@@ -436,3 +474,41 @@ def get_graph(input_type, loader, transformers):
             loader.types[input_type],
             transformers)
     return G
+
+
+def cleanup_sina_record_from_kosh_sync(record):
+    """Kosh adds data in the 'user_defined' section of records to keep track of syncing
+    This removes these attributes
+    :param record: The Sina record to cleanup
+    :type record: sina.model.Record
+    :return: json loaded representation of the record
+    :rtype: dict"""
+    # cleanup the record
+    record["user_defined"].pop("last_update_from_db", None)
+    for key in list(record["user_defined"].keys()):
+        if key.endswith("last_modified"):
+            record["user_defined"].pop(key)
+    return orjson.loads(record.to_json())
+
+
+def update_json_file_with_records_and_relationships(file, output_dict):
+    if file is not None:
+        if os.path.exists(file):
+            with open(file) as f:
+                file_dict = orjson.loads(f.read())
+            records_already_in_file = file_dict["records"]
+            # You can't "set" records
+            # This erased records
+            file_dict.update(output_dict)
+            # ids that are now in file_dict
+            new_dataset_rec_ids = [x["id"] for x in output_dict["records"]]
+            # Make sure we put the records that were in the file back in
+            for record in records_already_in_file:
+                if record["id"] not in new_dataset_rec_ids:
+                    file_dict["records"].append(record)
+        else:
+            file_dict = output_dict
+
+        with open(file, "w") as f:
+            f.write(orjson.dumps(file_dict).decode())
+    return output_dict

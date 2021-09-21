@@ -8,6 +8,8 @@ from .core_sina import KoshSinaObject
 from .utils import get_graph
 from .utils import compute_fast_sha
 from .utils import compute_long_sha
+from .utils import cleanup_sina_record_from_kosh_sync
+from .utils import update_json_file_with_records_and_relationships
 import kosh
 try:
     import orjson
@@ -20,7 +22,7 @@ except NameError:
 
 
 class KoshDataset(KoshSinaObject):
-    def __init__(self, id, store, schema=None, record=None):
+    def __init__(self, id, store, schema=None, record=None, kosh_type=None):
         """KoshSinaDataset Sina representation of Kosh Dataset
 
         :param id: dataset's unique Id
@@ -31,8 +33,12 @@ class KoshDataset(KoshSinaObject):
         :type schema: KoshSchema
         :param record: to avoid looking up in sina pass sina record
         :type record: Record
+        :param kosh_type: type of Kosh object (dataset, file, project, ...)
+        :type kosh_type: str
         """
-        super(KoshDataset, self).__init__(id, koshType=store._dataset_record_type,
+        if kosh_type is None:
+            kosh_type = store._dataset_record_type
+        super(KoshDataset, self).__init__(id, kosh_type=kosh_type,
                                           protected=[
                                               "__name__", "__creator__", "__store__",
                                               "_associated_data_", "__features__"],
@@ -59,9 +65,9 @@ class KoshDataset(KoshSinaObject):
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.id)
         try:
-            st += "\tname:{}\n".format(self.__name__)
+            st += "\tname: {}\n".format(self.__name__)
         except Exception:
-            st += "\tname:???\n"
+            st += "\tname: ???\n"
         try:
             st += "\tcreator: {}\n".format(self.creator)
         except Exception:
@@ -107,6 +113,9 @@ class KoshDataset(KoshSinaObject):
                 for uri in sorted(associated[mime]):
                     st += "\n\t\t{uri}".format(uri=uri)
                 st += "\n"
+        ensembles = list(self.get_ensembles(ids_only=True))
+        st += "--- Ensembles ({})---".format(len(ensembles))
+        st += "\n\t"+str([str(x) for x in ensembles])
         return st
 
     def _repr_pretty_(self, p, cycle):
@@ -569,10 +578,7 @@ class KoshDataset(KoshSinaObject):
         rec["user_defined"]["{uri}___associated_last_modified".format(
             uri=uri)] = now
         if self.__store__.__sync__:
-            self.__store__.lock()
-            self.__record_handler__.delete(rec.id)
-            self.__record_handler__.insert(rec)
-            self.__store__.unlock()
+            self._update_record(rec)
         # Get all object that have been associated with this uri
         rec = self.__store__.get_record(kosh_id)
         if (not hasattr(rec, "associated")) or len(
@@ -690,12 +696,10 @@ class KoshDataset(KoshSinaObject):
         if self.__store__.__sync__:
             self.__store__.lock()
             self.__store__.__record_handler__.insert(new_recs)
-            self.__store__.__record_handler__.delete(self.id)
-            self.__store__.__record_handler__.insert(rec)
             self.__store__.unlock()
+            self._update_record(rec)
         else:
-            self.__store__._added_unsync_handler.delete(self.id)
-            self.__store__._added_unsync_handler.insert(rec)
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -711,7 +715,7 @@ class KoshDataset(KoshSinaObject):
         for Id in kosh_file_ids:
             self.__dict__["__features__"][Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
-                                       koshType=self.__store__._sources_type,
+                                       kosh_type=self.__store__._sources_type,
                                        store=self.__store__,
                                        metadata=metadata,
                                        record_handler=self.__record_handler__)
@@ -787,7 +791,7 @@ class KoshDataset(KoshSinaObject):
                 **sina_kargs))
         # instantly restrict to associated data
         if not self.__store__.__sync__:
-            match_mem = set(self.__store__._added_unsync_handler.find(
+            match_mem = set(self.__store__._added_unsync_mem_store.records.find(
                 id_pool=inter_recs, **sina_kargs))
             match = match.union(match_mem)
         # ok now we need to search the data on the virtual datasets
@@ -840,38 +844,42 @@ class KoshDataset(KoshSinaObject):
             "records": jsns
         }
 
-        if file is not None:
-            if os.path.exists(file):
-                with open(file) as f:
-                    file_dict = orjson.loads(f.read())
-                records_already_in_file = file_dict["records"]
-                # You can't "set" records
-                # This erased records
-                file_dict.update(output_dict)
-                # ids that are now in file_dict
-                new_dataset_rec_ids = [x["id"] for x in output_dict["records"]]
-                # Make sure we put the records that were in the file back in
-                for record in records_already_in_file:
-                    if record["id"] not in new_dataset_rec_ids:
-                        file_dict["records"].append(record)
-            else:
-                file_dict = output_dict
-
-            with open(file, "w") as f:
-                f.write(orjson.dumps(file_dict).decode())
+        update_json_file_with_records_and_relationships(file, output_dict)
         return output_dict
 
+    def get_associated_data(self, ids_only=False):
+        """Generator of associated data
+        :param ids_only: generator will return ids if True Kosh object otherwise
+        :type ids_only: bool
+        :returns: generator
+        :rtype: str or Kosh objects
+        """
+        for id in self._associated_data_:
+            if ids_only:
+                yield id
+            else:
+                yield self.__store__._load(id)
 
-def cleanup_sina_record_from_kosh_sync(record):
-    """Kosh adds data in the 'user_defined' section of records to keep track of syncing
-    This removes these attributes
-    :param record: The Sina record to cleanup
-    :type record: sina.model.Record
-    :return: json loaded representation of the record
-    :rtype: dict"""
-    # cleanup the record
-    record["user_defined"].pop("last_update_from_db", None)
-    for key in list(record["user_defined"].keys()):
-        if key.endswith("last_modified"):
-            record["user_defined"].pop(key)
-    return orjson.loads(record.to_json())
+    def get_ensembles(self, ids_only=False):
+        """Returns the ensembles this dataset is part of
+        :param ids_only: return ids or objects
+        :type ids_only: bool
+        """
+        for rel in self.get_sina_store().relationships.find(self.id, self.__store__._ensemble_predicate, None):
+            if ids_only:
+                yield rel.object_id
+            else:
+                yield self.__store__.open(rel.object_id)
+
+    def join_ensemble(self, ensemble):
+        """Adds this dataset to an ensemble
+        :param ensemble: The ensemble to join
+        :type ensemble: str or KoshEnsemble
+        """
+        from kosh.ensemble import KoshEnsemble
+        if isinstance(ensemble, basestring):
+            ensemble = self.__store__.open(ensemble)
+        if not isinstance(ensemble, KoshEnsemble):
+            raise ValueError("cannot join `ensebmle` since object `{}` does not map to an ensemble".format(ensemble))
+
+        ensemble.add(self)

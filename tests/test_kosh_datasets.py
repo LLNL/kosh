@@ -88,16 +88,18 @@ class KoshTestDataset(KoshTest):
         printTestResults = """\
 KOSH DATASET
         id: {id}
-        name:Unnamed Dataset
+        name: Unnamed Dataset
         creator: {creator}
 
 --- Attributes ---
         creator: {creator}
         name: Unnamed Dataset
 --- Associated Data (0)---
+--- Ensembles (0)---
+        []
 """.format(id=ds.id, creator=ds.creator)
-        print(ds)
-        self.assertEqual(str(ds).replace("\t", "        "), printTestResults)
+        print(str(ds).replace("\t", "        "))
+        self.assertEqual(str(ds).replace("\t", "        ").strip(), printTestResults.strip())
         # Set/update many attributes at once
         ds.update({"creator": "a new creator!",
                    "some_new_attribute": "a new one",

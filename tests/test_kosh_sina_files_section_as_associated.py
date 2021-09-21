@@ -36,10 +36,10 @@ class KoshTestSinaFiles(KoshTest):
         self.assertTrue(numpy.allclose(zmet, [[63.823303, 30.278461, 53.4284, 41.42346],
                                               [88.843475, 13.9937315, 53.60822, 58.209667]]))
 
-
+        self.maxDiff = None
         print_str = """KOSH DATASET
 	id: obj1
-	name:???
+	name: ???
 	creator: ???
 
 --- Attributes ---
@@ -53,6 +53,8 @@ class KoshTestSinaFiles(KoshTest):
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
 	Mime_type: png
 		/g/g19/cdoutrix/git/kosh/tests/baselines/images/LLNLiconWHITE.png ( {} )
+--- Ensemble (0)---
+\t[]
 """.format(dataset.presets, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
 
     def test_sina_files_section_with_curves(self):
@@ -88,10 +90,10 @@ class KoshTestSinaFiles(KoshTest):
         self.assertTrue(numpy.allclose(zmet, [[63.823303, 30.278461, 53.4284, 41.42346],
                                               [88.843475, 13.9937315, 53.60822, 58.209667]]))
 
-
+        self.maxDiff = None
         print_str = """KOSH DATASET
 	id: obj1
-	name:???
+	name: ???
 	creator: ???
 
 --- Attributes ---
@@ -105,9 +107,11 @@ class KoshTestSinaFiles(KoshTest):
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
+--- Ensembles (0)---
+\t[]
 """.format(dataset.presets)  # noqa
 
-        self.assertEqual(print_str, str(dataset))
+        self.assertEqual(print_str.strip(), str(dataset).strip())
 
     def test_sina_files_section_with_curves_and_badmime(self):
         store, kosh_db = self.connect()
@@ -140,10 +144,9 @@ class KoshTestSinaFiles(KoshTest):
         self.assertTrue(numpy.allclose(zmet, [[63.823303, 30.278461, 53.4284, 41.42346],
                                               [88.843475, 13.9937315, 53.60822, 58.209667]]))
 
-
         print_str = """KOSH DATASET
 	id: obj1
-	name:???
+	name: ???
 	creator: ???
 
 --- Attributes ---
@@ -159,8 +162,10 @@ class KoshTestSinaFiles(KoshTest):
 		foo.png ( obj1 )
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
+--- Ensembles (0)---
+\t[]
 """.format(dataset.presets)  # noqa
-        self.assertEqual(print_str, str(dataset))
+        self.assertEqual(print_str.strip(), str(dataset).strip())
 
 
 if __name__ == "__main__":

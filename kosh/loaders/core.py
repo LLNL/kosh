@@ -7,6 +7,7 @@ import numpy
 from ..core_sina import KoshSinaObject, KoshSinaFile
 from ..utils import get_graph
 from ..dataset import KoshDataset
+from ..ensemble import KoshEnsemble
 
 
 class KoshGenericObjectFromFile(object):
@@ -60,7 +61,8 @@ class KoshLoader(KoshExecutionGraph):
         else:
             self.uri = uri
         rec = obj.__store__.get_record(obj.id)
-        if rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None:
+        if (rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None)\
+                or rec["type"] == obj.__store__._ensembles_type:
             self._mime_type = "dataset"
         if self._mime_type not in self.types:
             open_anything = False
@@ -349,8 +351,11 @@ class KoshSinaLoader(KoshLoader):
         if record["type"] not in self.obj.__store__._kosh_reserved_record_types:
             return KoshDataset(
                 self.obj.id, store=self.obj.__store__, record=record)
-        if record["type"] == "file":
+        if record["type"] == self.obj.__store__._sources_type:
             return KoshSinaFile(
+                self.obj.id, store=self.obj.__store__, record=record)
+        elif record["type"] == self.obj.__store__._ensembles_type:
+            return KoshEnsemble(
                 self.obj.id, store=self.obj.__store__, record=record)
         else:
             return KoshSinaObject(self.obj.id, record["type"], protected=[
