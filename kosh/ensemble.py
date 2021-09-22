@@ -237,3 +237,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
 
         members_ids = list(self.get_members(ids_only=True))
         return self.__store__.find(id_pool=members_ids, *atts, **keys)
+
+    def clone(self, *atts, **keys):
+        """We cannot clone an ensemble"""
+        raise NotImplementedError("Ensembles objects cannot clone themselves")

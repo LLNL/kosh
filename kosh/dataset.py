@@ -883,3 +883,29 @@ class KoshDataset(KoshSinaObject):
             raise ValueError("cannot join `ensebmle` since object `{}` does not map to an ensemble".format(ensemble))
 
         ensemble.add(self)
+
+    def clone(self, preserve_ensembles_memberships=False, id_only=False):
+        """Clones the dataset, e.g makes an identical copy.
+
+        :param preserve_ensembles_memberships: Add the new dataset to the ensembles this dataset belongs to?
+        :type preserve_ensembles_membership: bool
+
+        :param id_only: returns id rather than new dataset
+        :type id_only: bool
+
+        :returns: The cloned dataset or its id
+        :rtype: KoshDataset or str
+        """
+        attributes = self.list_attributes(True)
+        cloned_dataset = self.__store__.create(metadata=attributes)
+        for associated in self.get_associated_data():
+            cloned_dataset.associate(associated.uri, associated.mime_type, metadata=associated.list_attributes(True))
+
+        if preserve_ensembles_memberships:
+            for ensemble in self.get_ensembles():
+                ensemble.add(cloned_dataset)
+
+        if id_only:
+            return cloned_dataset.id
+        else:
+            return cloned_dataset
