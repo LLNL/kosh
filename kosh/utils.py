@@ -343,8 +343,14 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         rec["data"]["reserved_types"] = ['__kosh_storeinfo__', 'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
         need_update = True
     if need_update and hasattr(records, "insert"):
-        records.delete(rec.id)
-        records.insert(rec)
+        try:
+            records.delete(rec.id)
+        except Exception:  # in case multi-processors interfer with each others
+            pass
+        try:
+            records.insert(rec)
+        except Exception:  # in case multi-processors interfer with each others
+            pass
     return rec
 
 
