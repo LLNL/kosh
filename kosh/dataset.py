@@ -871,6 +871,21 @@ class KoshDataset(KoshSinaObject):
             else:
                 yield self.__store__.open(rel.object_id)
 
+    def leave_ensemble(self, ensemble):
+        """Removes this dataset to an ensemble
+        :param ensemble: The ensemble to leave
+        :type ensemble: str or KoshEnsemble
+        """
+        from kosh.ensemble import KoshEnsemble
+        if isinstance(ensemble, basestring):
+            ensemble = self.__store__.open(ensemble)
+        if not isinstance(ensemble, KoshEnsemble):
+            raise ValueError("cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
+        if self.id in ensemble.get_members(ids_only=True):
+            ensemble.remove(self.id)
+        else:
+            warnings.warn("{} is not part of ensemble {}. Ignoring request to leave it.".format(self.id, ensemble.id))
+
     def join_ensemble(self, ensemble):
         """Adds this dataset to an ensemble
         :param ensemble: The ensemble to join
@@ -881,7 +896,6 @@ class KoshDataset(KoshSinaObject):
             ensemble = self.__store__.open(ensemble)
         if not isinstance(ensemble, KoshEnsemble):
             raise ValueError("cannot join `ensebmle` since object `{}` does not map to an ensemble".format(ensemble))
-
         ensemble.add(self)
 
     def clone(self, preserve_ensembles_memberships=False, id_only=False):
