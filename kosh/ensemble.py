@@ -207,7 +207,9 @@ These datasets will inherit attributes and associated sources from the ensemble.
             return
 
         rel = relationships[0]
-        self.get_sina_store().relationships.delete(rel)
+        self.get_sina_store().relationships.delete(rel.subject_id, rel.predicate, rel.object_id)
+
+    delete = remove
 
     def get_members(self, ids_only=False):
         """Generator for member datasets

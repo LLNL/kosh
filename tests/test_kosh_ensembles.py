@@ -173,20 +173,41 @@ KOSH ENSEMBLE
         self.assertEqual(len(list(e1.find_datasets(param1=4))), 1)
         os.remove(db)
 
-    def import_creator(self):
+    def test_add_remove(self):
+
+        store, db_uri = self.connect()
+
+        ensemble = store.create_ensemble()
+        _ = ensemble.create()
+
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 1)
+
+        d1 = store.create()
+        d1.join_ensemble(ensemble)
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 2)
+        d1.leave_ensemble(ensemble)
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 1)
+        ensemble.add(d1)
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 2)
+        ensemble.delete(d1)
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 1)
+        ensemble.add(d1)
+        ensemble.remove(d1)
+        self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 1)
+
+    def test_import_creator(self):
         a, dba = self.connect()
         b, dbb = self.connect()
         a_en = a.create_ensemble('a_en')
         a_ds = a.create('a_ds', metadata={'attr1': 10})
-        self.assertEqual(a.attrt1, 10)
+        self.assertEqual(a_ds.attr1, 10)
         a_en.add(a_ds)
         # Create a dataset with the same name as a_ds so that it will merge
         # when imported
         b_ds = b.create('a_ds', metadata={'attr1': 500})
-        # Error happens here
         a.import_dataset(b.export_dataset(b_ds), merge_handler='overwrite')
 
-        self.assertEqual(a.attrt1, 500)
+        self.assertEqual(a_ds.attr1, 500)
 
         os.remove(dba)
         os.remove(dbb)
