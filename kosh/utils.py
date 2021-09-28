@@ -340,7 +340,8 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
     if sorted(rec["data"]["reserved_types"]["value"]) != ['__kosh_storeinfo__', 'file',
                                                           'group', 'kosh_ensemble',
                                                           'koshloader', 'user']:
-        rec["data"]["reserved_types"] = ['__kosh_storeinfo__', 'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
+        rec["data"]["reserved_types"]["value"] = ['__kosh_storeinfo__',
+                                                  'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
         need_update = True
     if need_update and hasattr(records, "insert"):
         try:
