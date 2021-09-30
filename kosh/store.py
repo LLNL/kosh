@@ -545,7 +545,7 @@ class KoshStore(object):
         if mime_type in self.loaders:
             for ld in self.loaders[mime_type]:
                 try:
-                    feats = ld.list_features()
+                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
                 except Exception:
                     # Something happened can't list features
                     feats = []
@@ -559,7 +559,7 @@ class KoshStore(object):
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
             for ld in self.loaders[record["type"]]:
                 try:
-                    feats = ld.list_features()
+                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
                 except Exception:
                     # Something happened can't list features
                     feats = []

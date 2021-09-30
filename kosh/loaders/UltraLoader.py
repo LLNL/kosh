@@ -10,7 +10,7 @@ class UltraLoader(KoshLoader):
     types = {"ultra": ["numpy", ]}
 
     def __init__(self, obj, **kargs):
-        super(UltraLoader, self).__init__(obj)
+        super(UltraLoader, self).__init__(obj, **kargs)
         self.curves = None
 
     def load_curves(self):
@@ -66,7 +66,7 @@ class UltraLoader(KoshLoader):
         if self.curves is None:
             self.load_curves()
         for curve in self.curves:
-            variables.append(curve.name.split()[0])
+            variables.append(curve.name)
         return variables
 
     def describe_feature(self, feature):

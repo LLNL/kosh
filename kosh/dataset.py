@@ -218,7 +218,7 @@ class KoshDataset(KoshSinaObject):
                 else:
                     if associated not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated] = loader(
-                            self.__store__._load(associated))
+                            self.__store__._load(associated)), None
                     ld, _ = self.__store__._cached_loaders[associated]
                 loaders.append(ld)
                 try:
@@ -231,14 +231,20 @@ class KoshDataset(KoshSinaObject):
                 # Adding uri to feature name
                 ided_features = []
                 for index, associated in enumerate(associated_data):
-                    obj = self.__store__._load(associated)
                     ld = loaders[index]
+                    if ld is None:
+                        continue
+                    sp = associated.split("__uri__")
+                    if len(sp) > 1:
+                        uri = sp[1]
+                    else:
+                        uri = ld.uri
                     these_features = ld._list_features(
                         *args, use_cache=use_cache, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
                             ided_features.append(
-                                "{feature}_@_{obj.uri}".format(feature=feature, obj=obj))
+                                "{feature}_@_{uri}".format(feature=feature, uri=uri))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
