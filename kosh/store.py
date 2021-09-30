@@ -90,6 +90,8 @@ figures out which backend is required.
                               allow_connection_pooling=allow_connection_pooling,
                               read_only=read_only)
     if not read_only:
+        if delete_all_contents:
+            sina_store.delete_all_contents(force="SKIP PROMPT")
         update_store_and_get_info_record(sina_store.records)
         create_kosh_users(sina_store.records)
     sina_store.close()
@@ -100,8 +102,6 @@ figures out which backend is required.
                       db=database_type,
                       allow_connection_pooling=allow_connection_pooling,
                       **kargs)
-    if delete_all_contents:
-        store.delete_all_contents(force="SKIP PROMPT")
     return store
 
 
@@ -221,6 +221,15 @@ class KoshStore(object):
         self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
         self._kosh_reserved_record_types = kosh_reserved_record_types + \
             rec["data"]["reserved_types"]["value"]
+
+        # Associated stores
+        self._associated_stores_ = []
+        if "associated_stores" in rec["data"]:
+            for store in rec["data"]["associated_stores"]["value"]:
+                try:
+                    self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync))
+                except Exception:  # mostl likely a sqlalchemy.exc.DatabaseError
+                    warnings.warn("Could not open associated store: {}".format(store))
 
         self.lock()
         self.__dict__["__record_handler__"] = self.__sina_store.records
@@ -639,6 +648,50 @@ class KoshStore(object):
         return self.find(types=self._ensembles_type, *atts, **keys)
 
     def find(self, *atts, **keys):
+        """Find objects matching some metadata in the store
+        and its associated stores.
+
+        Arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a reserved key that will return all records being associated
+                   with the given "uri", e.g store.find(file_uri=uri)
+        "types" let you search over specific sina record types only.
+
+        :return: generator of matching objects in store
+        :rtype: generator
+        """
+
+        for result in self._find(*atts, **keys):
+            yield result
+
+        searched_stores = [self.db_uri]
+        if hasattr(self, "searched_stores"):
+            self.searched_stores += list(searched_stores)
+        else:
+            self.searched_stores = list(searched_stores)
+        for store in self._associated_stores_:
+            if hasattr(store, "searched_stores"):
+                if store.db_uri in store.searched_stores:
+                    continue
+                else:
+                    store.searched_stores += list(searched_stores)
+            else:
+                store.searched_stores = list(searched_stores)
+            searched_stores += [store.db_uri, ]
+            for result in store.find(*atts, **keys):
+                yield result
+        # cleanup searched store uris
+        for store in self._associated_stores_ + [self, ]:
+            for id_ in list(searched_stores):
+                if id_ in store.searched_stores:
+                    store.searched_stores.remove(id_)
+
+    def _find(self, *atts, **keys):
         """Find objects matching some metadata in the store
         arguments are the metadata name we are looking for e.g
         find("attr1", "attr2")
@@ -1435,3 +1488,112 @@ class KoshStore(object):
             missings += dataset.cleanup_files(dry_run=dry_run,
                                               interactive=interactive, **dataset_search_keys)
         return missings
+
+    def associate(self, store, reciprocal=False):
+        """Associate another store
+
+        All associated stores will be used for queries purposes.
+
+        WARNING: While associating stores will make them look like one big store,
+                 ensembles' members MUST belong to the same store as the ensemble.
+
+        :param store: The store to associate
+        :type store: KoshStore
+
+        :param reciprocal: By default, this is a one way relationship.
+                           The associated store will NOT be aware of
+                           this association, turning this on create
+                           the association in both stores.
+        :type reciprocal: bool
+        """
+        if not isinstance(store, KoshStore):
+            raise TypeError("store must be a KoshStore or path to one")
+
+        sina_recs = self.get_sina_records()
+        store_info = list(sina_recs.find_with_type("__kosh_storeinfo__"))[0]
+        if "associated_stores" not in store_info["data"]:
+            store_info.add_data("associated_stores", [])
+        stores = store_info["data"]["associated_stores"]["value"]
+        if store.db_uri not in stores:
+            stores.append(store.db_uri)
+            store_info["data"]["associated_stores"]["value"] = stores
+            sina_recs.delete(store_info["id"])
+            sina_recs.insert(store_info)
+            self._associated_stores_.append(store)
+        if reciprocal:
+            store.associate(self)
+
+    def dissociate(self, store, reciprocal=False):
+        """Dissociate another store
+
+        :param store: The store to associate
+        :type store: KoshStore or basestring
+
+        :param reciprocal: By default, this is a one way relationship.
+                           The disssociated store will NOT be aware of
+                           this action, turning this on create
+                           the dissociation in both stores.
+        :type reciprocal: bool
+        """
+        if not isinstance(store, (basestring, KoshStore)):
+            raise TypeError("store must be a KoshStore or path to one")
+
+        sina_recs = self.get_sina_records()
+        store_info = list(sina_recs.find_with_type("__kosh_storeinfo__"))[0]
+        if "associated_stores" not in store_info["data"]:
+            warnings.warn("No store is associated with this store: {}".format(self.db_uri))
+            return
+        # refresh value
+        stores = store_info["data"]["associated_stores"]["value"]
+
+        if isinstance(store, basestring):
+            try:
+                store_path = store
+                store = self.get_associated_store(store_path)
+            except Exception:
+                raise ValueError("Could not open store at: {}".format(store_path))
+
+        if store.db_uri in stores:
+            stores.remove(store.db_uri)
+            store_info["data"]["associated_stores"]["value"] = stores
+            sina_recs.delete(store_info["id"])
+            sina_recs.insert(store_info)
+            self._associated_stores_.remove(store)
+        else:
+            warnings.warn("store {} does not seem to be associated with this store ({})".format(
+                store.db_uri, self.db_uri))
+
+        if reciprocal:
+            store.dissociate(self)
+
+    def get_associated_store(self, uri):
+        """Returns the associated store based on its uri.
+
+        :param uri: uri to the desired store
+        :type uri: basestring
+        :returns: Associated kosh store
+        :rtype: KoshStore
+        """
+
+        if not isinstance(uri, basestring):
+            raise TypeError("uri must be string")
+
+        for store in self._associated_stores_:
+            if store.db_uri == uri:
+                return store
+        raise ValueError(
+            "{} store does not seem to be associated with this store: {}".format(uri, store.db_uri))
+
+    def get_associated_stores(self, uris=True):
+        """Return the list of associated stores
+        :param uris: Return the list of uri pointing to the store if True,
+                     or the actual stores otherwise.
+        :type uris: bool
+        :returns: generator to stores
+        :rtype: generator
+        """
+        for store in self._associated_stores_:
+            if uris:
+                yield store.db_uri
+            else:
+                yield store
