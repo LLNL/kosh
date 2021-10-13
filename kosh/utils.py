@@ -355,7 +355,7 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
     return rec
 
 
-def create_kosh_users(record_handler, users=[os.environ["USER"], "anonymous"]):
+def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), "anonymous"]):
     """Add Kosh user to the Kosh store
     :param record_handler: The sina records object
     :type record_handler: sina.records
