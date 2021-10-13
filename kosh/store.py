@@ -108,7 +108,7 @@ figures out which backend is required.
 class KoshStore(object):
     """Kosh store, relies on Sina"""
 
-    def __init__(self, db_uri=None, username=os.environ["USER"], db=None,
+    def __init__(self, db_uri=None, username=os.environ.get("USER", "default"), db=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
                  read_only=False, allow_connection_pooling=False, ensemble_predicate=None):

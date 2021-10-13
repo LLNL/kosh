@@ -8,7 +8,7 @@ class TestUsersGroups(koshbase.KoshTest):
         store, uri = self.connect()
 
         with self.assertRaises(ValueError):
-            store.add_user(os.environ["USER"])
+            store.add_user(os.environ.get("USER", "default"))
 
         store.add_user("kosh_test")
         self.assertEqual(len((list(store.find(kosh_type=store._users_type, ids_only=True)))), 3)
