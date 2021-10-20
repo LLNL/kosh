@@ -112,7 +112,7 @@ stages:
 .deploy_to_gapps:
   variables:
     DEPLOY_PATH: "/usr/apps/kosh"
-    DEPLOY_USER: "aml_user"
+    DEPLOY_USER: "kosh_usr"
 
 .deploy_docs:
   script:
