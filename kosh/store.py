@@ -739,19 +739,7 @@ class KoshStore(object):
 
         if record_types is None:
             # Ok we want anything, but we need to exclude Kosh reserved
-            record_types = self.__record_handler__.get_types(
-            ) + self._added_unsync_mem_store.records.get_types()
-            for rec_type in self._kosh_reserved_record_types:
-                if rec_type in record_types:
-                    record_types.remove(rec_type)
-            if record_types == []:
-                # Ok this stores is essentially empty
-                # Before we go back turn sync mode back to what it was
-                if mode:
-                    # we need to restore sync mode
-                    self.__sync__dict__ = backup
-                    self.synchronous()
-                return
+            record_types = sina.utils.not_(self._kosh_reserved_record_types)
 
         sina_kargs["types"] = record_types
 
@@ -1367,15 +1355,10 @@ class KoshStore(object):
                                 record["curve_sets"][curve_set]["dependent"])
                         else:  # preserve
                             pass
-            relationships = self.get_sina_store().relationships
-            rels = relationships.find(match_rec["id"], None, None)
-            rels += relationships.find(None, None, match_rec["id"])
             try:
-                self.__record_handler__.delete(match_rec["id"])
+                self.__record_handler__.update(match_rec)
             except ValueError:
-                pass
-            self.__record_handler__.insert(match_rec)
-            relationships.insert(rels)
+                self.__record_handler__.insert(match_rec)
             matches.append(match_rec["id"])
 
         for relationship in relationships_in:

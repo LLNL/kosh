@@ -202,11 +202,12 @@ KOSH ENSEMBLE
         a_ds = a.create('a_ds', metadata={'attr1': 10})
         self.assertEqual(a_ds.attr1, 10)
         a_en.add(a_ds)
+        self.assertTrue(a_ds.is_member_of(a_en))
         # Create a dataset with the same name as a_ds so that it will merge
         # when imported
         b_ds = b.create('a_ds', metadata={'attr1': 500})
         a.import_dataset(b.export_dataset(b_ds), merge_handler='overwrite')
-
+        self.assertTrue(a_ds.is_member_of(a_en))
         self.assertEqual(a_ds.attr1, 500)
 
         os.remove(dba)
