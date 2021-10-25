@@ -551,7 +551,21 @@ Available commands are:
             # We need to figure out the list of files first
             # They should all be in opts and the tar file is not because of -f
             # option
+            no_tarred_files = False
             tarred_files = get_all_files(opts)
+            if tarred_files == []:
+                no_tarred_files = True
+                # Ok user did not pass files
+                # that means we need to tar
+                # all files in store
+                for store in stores:
+                    recs = store.get_sina_records()
+                    file_type = recs.get("__kosh_store_info__")["data"]["sources_type"]["value"]
+                    # Could check the file exists
+                    tarred_files += [x["data"]["uri"]["value"] for x in recs.find_with_type(file_type)]
+
+            print("FILES TO TAR:", len(tarred_files))
+
 
             # Prepare dictionary to hold list of datasets to export (per store)
             store_datasets = {}
@@ -564,8 +578,11 @@ Available commands are:
                 if not args.no_absolute_path:
                     filename = os.path.abspath(filename)
                 for store in stores:
-                    store_datasets[store.db_uri] += list(store.find(
-                        file=filename, ids_only=True))
+                    recs = store.get_sina_records()
+                    file_type = recs.get("__kosh_store_info__")["data"]["sources_type"]["value"]
+                    store_ds = [x["data"]["associated"]["value"] for x in recs.find(data={"uri":filename}, types=[file_type,])]
+                    for ds in store_ds:
+                        store_datasets[store.db_uri] += ds
 
             # Ok now we need to export all the datasets to a file
             # First item is the root from where we ran the command (untar will
@@ -579,15 +596,18 @@ Available commands are:
             # Ok let's dump this
             tmp_json = tempfile.NamedTemporaryFile(prefix="__kosh_export__",
                                                    suffix=".json",
-                                                   dir=os.getcwd(),
+                                                   dir=os.path.abspath(os.path.dirname(args.file)),
                                                    mode="w")
             json.dump(datasets_jsons, tmp_json)
             # Make sure it's all in the file before tarring it
             tmp_json.file.flush()
 
+            if no_tarred_files:
+                tarred_files = [os.path.relpath(x) for x in tarred_files]
+                opts += tarred_files
+
             # Let's tar this!
-            cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts),
-                                           os.path.basename(tmp_json.name))
+            cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts), tmp_json.name)
         else:  # ok we are extracting
             cmd = "{} -f {} {}".format(tar_command, args.file, " ".join(opts))
 
@@ -611,8 +631,8 @@ Available commands are:
             # tar removes leading slah from full path
             slashed_filenames = ["/" + x for x in filenames]
             for filename in filenames:
-                if filename[:15] == "__kosh_export__" and filename[-5:] == ".json":
-                    found = True
+                base = os.path.basename(filename)
+                if base.startswith("__kosh_export__") and base.endswith(".json"):
                     break
             with open(filename) as f:
                 datasets = json.load(f)
@@ -625,6 +645,7 @@ Available commands are:
             root_filenames = [os.path.join(root, x) for x in filenames]
 
             # Step 3 let's put these datasets into the stores
+            orphans = []
             for dataset in datasets:
                 # Let's try to recover the correct path now..
                 delete_them = []
@@ -641,8 +662,11 @@ Available commands are:
                     else:
                         if not os.path.exists(uri):
                             delete_them.append(index + 1)
-                        new_uri = None
+                        else:
+                            orphans.append(uri)
+                        new_uri = uri
                     associated["data"]["uri"]["value"] = new_uri
+
 
                 # Yank uris that do not exists in this filesystem
                 for index in delete_them[::-1]:
@@ -653,6 +677,27 @@ Available commands are:
                     store.import_dataset(
                         dataset, args.dataset_matching_attributes,
                         merge_handler=args.merge_strategy)
+
+            # Trying to reassocite these orphan files
+            # path aliases might cause them to appear
+            matches = {}
+            for orphan in orphans:
+                matches[orphan] = []
+                # now let's try to find a possible match
+                for myfile in files:
+                    if len(myfile) < 2:
+                        continue
+                    if orphan.endswith(myfile):
+                        matches[orphan].append(myfile)
+
+            # go through the matches
+            for match in matches:
+                for dataset in s.find(file=match):
+                    # If fast_sha changed we're hosed
+                    # Trying to fix this
+                    dataset.cleanup_files(clean_fastsha=True)
+                    for possible in matches[match]:
+                        dataset.reassociate(possible)
 
     def rm(self):
         """rm files command"""
@@ -833,7 +878,6 @@ Available commands are:
                 raise ValueError("kosh mv only works on local files")
 
         sources, targets = find_sources_and_targets(opts, files, target)
-        print("SOURCES TARGETS:", sources, targets)
 
         if command == "rm":
             targets = ["", ] * len(sources)

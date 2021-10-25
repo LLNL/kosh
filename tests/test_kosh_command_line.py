@@ -27,7 +27,7 @@ def run_cmd(cmd, verbose=False):
         "utf-8").strip().split("\n"), e.decode("utf-8").strip().split("\n")
 
 
-class KoshTestDataset(KoshTest):
+class KoshTestCmdLine(KoshTest):
 
     def _tar(self, tar_command):
         store, kosh_db = self.connect(dataset_record_type="dataset")
@@ -57,6 +57,31 @@ class KoshTestDataset(KoshTest):
 
     def test_tar(self):
         self._tar("tar")
+
+    def test_tar_store(self):
+        store, db = self.connect()
+        d = store.create()
+        d.associate("setup.py", "py")
+
+        seed = random.randint(0, 100000)
+        cmd = "kosh tar --store {} -c -v -f my_kosh_test_tar_{}.tar.gz".format(db, seed)
+        o, e = run_cmd(cmd, verbose=True)
+        self.assertTrue(os.path.exists("my_kosh_test_tar_{}.tar.gz".format(seed)))
+
+        os.makedirs("{}".format(seed))
+        os.chdir("{}".format(seed))
+        new_store, db2 = self.connect()
+        print(db2)
+        cmd = "kosh tar --store {} -x -v -f ../my_kosh_test_tar_{}.tar.gz".format(db2, seed)
+        o, e = run_cmd(cmd, verbose=True)
+        print(o, e)
+        self.assertTrue(os.path.exists("setup.py"))
+        self.assertEqual(len(tuple(new_store.find())), 1)
+
+        os.chdir("..")
+        shutil.rmtree("{}".format(seed), ignore_errors=True)
+        os.remove(db)
+        os.remove("my_kosh_test_tar_{}.tar.gz".format(seed))
 
     def test_create_dataset(self):
         store, kosh_db = self.connect(dataset_record_type="dataset")
@@ -197,7 +222,7 @@ class KoshTestDataset(KoshTest):
 
 
 if __name__ == "__main__":
-    A = KoshTestDataset()
+    A = KoshTestCmdLine()
     for nm in dir(A):
         if nm[:4] == "test":
             fn = getattr(A, nm)

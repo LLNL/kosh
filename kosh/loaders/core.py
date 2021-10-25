@@ -62,12 +62,12 @@ class KoshLoader(KoshExecutionGraph):
             self.uri = uri
         rec = obj.__store__.get_record(obj.id)
         if (rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None)\
-                or rec["type"] == obj.__store__._ensembles_type:
+                or rec["type"] in ["__kosh_storeinfo__", obj.__store__._ensembles_type]:
             self._mime_type = "dataset"
         if self._mime_type not in self.types:
             open_anything = False
             for t in self.types:
-                if t == "dataset":  # datasets are special skipping
+                if t == "dataset":  # special skipping
                     continue
                 if len(self.types[t]) == 0:
                     open_anything = True
@@ -358,7 +358,7 @@ class KoshSinaLoader(KoshLoader):
             return KoshEnsemble(
                 self.obj.id, store=self.obj.__store__, record=record)
         else:
-            return KoshSinaObject(self.obj.id, record["type"], protected=[
+            return KoshSinaObject(self.obj.id, self.obj.__store__, record["type"], protected=[
             ], record_handler=self.obj.__store__.__record_handler__, record=record)
 
     def list_features(self):

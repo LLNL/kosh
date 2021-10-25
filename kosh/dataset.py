@@ -122,8 +122,9 @@ class KoshDataset(KoshSinaObject):
         """Pretty display in Ipython"""
         p.text(self.__str__())
 
-    def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
+    def cleanup_files(self, dry_run=False, interactive=False, clean_fastsha=False, **search_keys):
         """Cleanup the dataset from references to dead files
+        Also updates the fast_shas if necessary
         You can filter associated objects by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
         some_att=some_val will only dissociate non-exisiting files associated and having the attribute
@@ -133,17 +134,16 @@ class KoshDataset(KoshSinaObject):
         :type dry_run: bool
         :param interactive: interactive mode, ask before dissociating
         :type interactive: bool
-        :returns: list of uris (to be) removed.
+        :param clean_fastsha: Do we want to update fast_sha if it changed?
+        :type clean_fastsha: bool
+        :returns: list of uris (to be) removed or updated
         :rtype: list
         """
-        print_some = False
-        missings = []
+        bads = []
         for associated in self.find(**search_keys):
             clean = 'n'
             if not os.path.exists(associated.uri):  # Ok this is gone
-                missings.append(associated.uri)
-                if not print_some and (interactive or dry_run):
-                    print_some = True
+                bads.append(associated.uri)
                 if dry_run:  # Dry run
                     clean = 'n'
                 elif interactive:
@@ -158,7 +158,35 @@ class KoshDataset(KoshSinaObject):
                     clean = 'y'
                 if clean == 'y':
                     self.dissociate(associated.uri)
-        return missings
+            elif clean_fastsha:
+                # file still exists
+                # We might want to update its fast sha
+                fast_sha = compute_fast_sha(associated.uri)
+                if fast_sha != associated.fast_sha:
+                    bads.append(associated.uri)
+                    if dry_run:  # Dry run
+                        clean = 'n'
+                    elif interactive:
+                        clean = input("\tfast_sha for {} seems to have changed from {}"
+                                      " to {}, do you wish to update?".format(
+                                          associated.uri, associated.fast_sha, fast_sha))
+                        if len(clean) > 0:
+                            clean = clean[0]
+                            clean = clean.lower()
+                        else:
+                            clean = 'y'
+                    else:
+                        clean = "y"
+                    if clean == "y":
+                        associated.fast_sha = fast_sha
+        return bads
+
+    def check_integrity(self):
+        """Runs a sanity check on the datasets:
+        1- Are associated files reachable?
+        2- Did fast_shas change since file was associated
+        """
+        return self.cleanup_files(dry_run=True, clean_fastsha=True)
 
     def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
@@ -506,6 +534,7 @@ class KoshDataset(KoshSinaObject):
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha
         matches = list(self.find(fast_sha=source, ids_only=True))
+        print("MATCHES FROM SHA:", matches)
         # Now it could be simply a uri
         matches += list(self.find(uri=source, ids_only=True))
 

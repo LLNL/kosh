@@ -530,7 +530,7 @@ class KoshStore(object):
         obj = self._load(Id)
         # uri not none means it is pure sina record with file and mime_type
         if (record["type"] not in self._kosh_reserved_record_types and uri is None)\
-                or record["type"] == self._ensembles_type:
+                or record["type"] in [self._ensembles_type, "__kosh_storeinfo__"]:
             # Not reserved means dataset
             return KoshSinaLoader(obj), record["type"]
         # Ok special type
@@ -1450,9 +1450,10 @@ class KoshStore(object):
             except Exception:
                 pass
 
-    def cleanup_files(self, dry_run=False, interactive=False,
+    def cleanup_files(self, dry_run=False, interactive=False, clean_fastsha=False,
                       **dataset_search_keys):
         """Cleanup the store from references to dead files
+        Also updates the fast_shas if necessary
         You can filter associated objects for each dataset by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
         some_att=some_val will only dissociate non-exisiting files associated and having the attribute
@@ -1462,6 +1463,8 @@ class KoshStore(object):
         :type dry_run: bool
         :param interactive: interactive mode, ask before dissociating
         :type interactive: bool
+        :param clean_fastsha: Do we want to update fast_sha if it changed?
+        :type clean_fastsha: bool
         :returns: list of uris (to be) removed.
         :rtype: list
         """
@@ -1469,8 +1472,17 @@ class KoshStore(object):
         datasets = self.find()
         for dataset in datasets:
             missings += dataset.cleanup_files(dry_run=dry_run,
-                                              interactive=interactive, **dataset_search_keys)
+                                              interactive=interactive,
+                                              clean_fastsha=clean_fastsha,
+                                              **dataset_search_keys)
         return missings
+
+    def check_integrity(self):
+        """Runs a sanity check on the store:
+        1- Are associated files reachable?
+        2- Did fast_shas change since file was associated
+        """
+        return self.cleanup_files(dry_run=True, clean_fastsha=True)
 
     def associate(self, store, reciprocal=False):
         """Associate another store
