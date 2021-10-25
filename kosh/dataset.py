@@ -508,6 +508,7 @@ class KoshDataset(KoshSinaObject):
         matches = list(self.find(fast_sha=source, ids_only=True))
         # Now it could be simply a uri
         matches += list(self.find(uri=source, ids_only=True))
+
         # And it's quite possible it's a long_sha too
         matches += list(self.find(long_sha=source, ids_only=True))
 
@@ -865,6 +866,20 @@ class KoshDataset(KoshSinaObject):
                 yield id
             else:
                 yield self.__store__._load(id)
+
+    def is_member_of(self, ensemble):
+        """Determines if this dataset is a member of the passed ensemble
+        :param ensemble: ensemble we need to determine if this dataset is part of
+        :type ensemble: str or KoshEnsemble
+
+        :returns: Appartenance to the ensemble
+        :rtype: bool"""
+        if not isinstance(ensemble, (basestring, kosh.ensemble.KoshEnsemble)):
+            raise TypeError("ensemble must be id or KoshEnsemble object")
+        if isinstance(ensemble, kosh.ensemble.KoshEnsemble):
+            ensemble = ensemble.id
+
+        return ensemble in self.get_ensembles(ids_only=True)
 
     def get_ensembles(self, ids_only=False):
         """Returns the ensembles this dataset is part of

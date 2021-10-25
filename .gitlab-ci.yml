@@ -17,8 +17,8 @@ stages:
     - echo "Activating venv p3"
     - source /usr/workspace/${USER}/gitlab/gitlab_kosh_py3/bin/activate
     - echo "Cloning sina"
-    - GIT_SSH_COMMAND='/usr/bin/ssh -v -i ~/.ssh/gitlab' /usr/tce/bin/git clone ssh://git@cz-bitbucket.llnl.gov:7999/sibo/sina.git
-    - cd sina/python
+    - GIT_SSH_COMMAND='/usr/bin/ssh -v -i ~/.ssh/gitlab' /usr/tce/bin/git clone ssh://git@czgitlab.llnl.gov:7999/siboka/Sina.git
+    - cd Sina/python
     - echo "building sina"
     - pip install .
     - echo "Activating env py2"
