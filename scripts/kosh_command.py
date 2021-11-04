@@ -907,6 +907,11 @@ Available commands are:
                         associated_uris = dataset.find(uri=source)
                         for associated in associated_uris:
                             associated.uri = targets[i]
+                        # we also need to update the file section of our record
+                        rec = dataset.get_record()
+                        rec["files"][targets[i]] = rec["files"][source]
+                        del(rec["files"][source])
+                        o_store.get_sina_records().update(rec)
                     else:
                         exported = dataset.export()
                         # Ok we need to update the uri to point to the new
