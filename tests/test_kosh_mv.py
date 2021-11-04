@@ -69,6 +69,10 @@ class KoshTestMv(KoshTest):
         for ds in [ds1, ds2]:
             associated = next(ds.find(mime_type="py"))
             self.assertEqual(associated.uri, dest_name_orig)
+            # Now dissociate files
+            self.assertEqual(1, len(tuple(ds.find(mime_type="py"))))
+            ds.dissociate(dest_name_orig)
+            self.assertEqual(0, len(tuple(ds.find(mime_type="py"))))
 
         # cleanup file
         os.remove(dest_name_orig)

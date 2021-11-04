@@ -31,6 +31,8 @@ class KoshTestRm(KoshTest):
         create_file(filename)
         ds.associate(filename, "text")
         ds.associate("fake_one.text", "text")
+        associated = list(ds.find(mime_type="text"))
+        self.assertEqual(len(associated), 2)
         run_rm([filename, ], [db_uri, ])
 
         associated = list(ds.find(mime_type="text"))
