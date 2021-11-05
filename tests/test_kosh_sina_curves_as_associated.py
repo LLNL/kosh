@@ -6,6 +6,16 @@ import numpy
 import os
 
 
+class DIVIDE(kosh.KoshOperator):
+    types = {"numpy": ["numpy", ]}
+
+    def operate(self, *inputs, ** kargs):
+        out = numpy.array(inputs[0], dtype=numpy.float64)
+        for input_ in inputs[1:]:
+            out /= numpy.array(input_, dtype=numpy.float64)
+        return out
+
+
 class KoshTestSinaCurves(KoshTest):
     def test_walk_function(self):
         my_dict = {"a": 1, "c": 2, "b": {"aa": 5, "a": 6, 5: {"t": 7}}}
@@ -67,6 +77,16 @@ class KoshTestSinaCurves(KoshTest):
         self.assertTrue(numpy.allclose(dataset[["timeplot_1/value", "timeplot_1/time", "timeplot_1/mass"]][:],
                                        [[10.5, 1.4, 2.2], [0, 1, 2], [12, 11, 8]]))
 
+        os.remove(kosh_db)
+
+    def test_operators_on_curves(self):
+        store, kosh_db = self.connect()
+        store.import_dataset("tests/baselines/sina/sina_curve_rec.json")
+        dataset = list(store.find())[0]
+        mass = dataset["timeplot_1/mass"]
+        volume = dataset["timeplot_1/volume"]
+        rho = DIVIDE(mass, volume)
+        self.assertTrue(numpy.allclose(rho[:], [1.2, 0.78571429, 0.36036036]))
         os.remove(kosh_db)
 
 
