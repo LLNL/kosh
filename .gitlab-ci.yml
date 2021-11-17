@@ -17,7 +17,7 @@ stages:
     - echo "Activating venv p3"
     - source /usr/workspace/${USER}/gitlab/gitlab_kosh_py3/bin/activate
     - echo "Cloning sina"
-    - GIT_SSH_COMMAND='/usr/bin/ssh -v -i ~/.ssh/gitlab' /usr/tce/bin/git clone ssh://git@czgitlab.llnl.gov:7999/siboka/Sina.git
+    - GIT_SSH_COMMAND='/usr/bin/ssh -v -i ~/.ssh/gitlab' /usr/tce/bin/git clone ${SINA_REPO}
     - cd Sina/python
     - echo "building sina"
     - pip install .
@@ -125,6 +125,8 @@ stages:
 
 # CI on CZ
 .on_cz:
+  variables:
+    SINA_REPO: "ssh://git@czgitlab.llnl.gov:7999/siboka/Sina.git"
   tags:
     - shell
     - surface
@@ -160,6 +162,8 @@ deploy_doc_on_cz:
 
 # CI on RZ
 .on_rz:
+  variables:
+    SINA_REPO: "ssh://git@czgitlab.llnl.gov:7999/siboka/Sina.git"
   tags:
     - shell
     - rzalastor
@@ -201,6 +205,8 @@ deploy_doc_on_rz:
 
 # CI on SCF
 .on_scf:
+  variables:
+    SINA_REPO: "ssh://git@scf-bitbucket/scm/sibo/sina.git"
   tags:
     - shell
     - jade
