@@ -13,7 +13,7 @@ import kosh
 class KoshEnsemble(KoshDataset):
     def __init__(self, id, store, schema=None, record=None):
         """Kosh Ensemble
-Ensemble allows to link together many datsets.
+Ensemble allows to link together many datasets.
 These datasets will inherit attributes and associated sources from the ensemble.
 
         :param id: dataset's unique Id
@@ -31,7 +31,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         self.__dict__["__protected__"] = ["__name__", "__creator__", "__store__",
                                           "_associated_data_", "__features__",
                                           "_associated_datasets_", "__ok_duplicates__"]
-        # Attriubtes that the memebers can have on their own
+        # Attributes that the members can have on their own
         self.__dict__["__ok_duplicates__"] = ["creator", "id", "name"]
 
     def __str__(self):
@@ -46,10 +46,10 @@ These datasets will inherit attributes and associated sources from the ensemble.
         return st
 
     def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
-        """Cleanup the dataset from references to dead files
+        """Cleanup the ensemble's members from references to dead files.
         You can filter associated objects by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
-        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        some_att=some_val will only dissociate non-existing files associated and having the attribute
         'some_att' with value of 'some_val'
         returns list of uris to be removed.
         :param dry_run: Only does a dry_run
@@ -100,7 +100,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
 
     def create(self, name="Unnamed Dataset", id=None,
                metadata={}, schema=None, sina_type=None, **kargs):
-        """create a new (possibly named) dataset
+        """create a new (possibly named) dataset as a member of this ensemble.
 
         :param name: name for the dataset, defaults to None
         :type name: str, optional
@@ -110,7 +110,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :type metadata: dict, optional
         :param schema: a KoshSchema object to validate datasets and when setting attributes
         :type schema: KoshSchema
-        :param sina_type: If you want to query the store for a specific sina record type, not just a datset
+        :param sina_type: If you want to query the store for a specific sina record type, not just a dataset
         :type sina_type: str
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
@@ -126,7 +126,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             if key in attributes:
                 raise ValueError(
                     "'{}' is an attribute of this ensemble and "
-                    "therefore cannot be an attribute of its descendents".format(key))
+                    "therefore cannot be an attribute of its descendants".format(key))
         ds = self.__store__.create(
             name=name,
             id=id,
@@ -188,7 +188,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         self.get_sina_store().relationships.insert(rel)
 
     def remove(self, dataset):
-        """Removes a dataset from this ensemble
+        """Removes a dataset from this ensemble. Does not delete the dataset.
         :param dataset: The dataset to remove
         :type dataset: KoshDataset or str
         """
@@ -213,7 +213,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
 
     def get_members(self, ids_only=False):
         """Generator for member datasets
-        :param ids_only: generator will return ids if True Kosh datsets otherwise
+        :param ids_only: generator will return ids if True Kosh datasets otherwise
         :type ids_only: bool
         :returns: generator of dataset (or ids)
         :rtype: str or KoshDataset
@@ -225,8 +225,8 @@ These datasets will inherit attributes and associated sources from the ensemble.
                 yield self.__store__.open(id)
 
     def find_datasets(self, *atts, **keys):
-        """Find datasets matching some metadata in this ensemble
-        arguments are the metadata name we are looking for e.g
+        """Find datasets members of this ensemble that are matching some metadata.
+        Arguments are the metadata names we are looking for e.g
         find("attr1", "attr2")
         you can further restrict by specifying exact value for a metadata
         via key=value

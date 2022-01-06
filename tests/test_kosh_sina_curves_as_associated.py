@@ -42,28 +42,28 @@ class KoshTestSinaCurves(KoshTest):
 	creator: ???
 
 --- Attributes ---
-	initial_angle: 30
-	max_density: 3
-	presets: {}
-	revision: 12-4-11
-	total_energy: 12.2
+	param1: 1
+	param2: 2
+	param3: 3.3
+	param4: string
+	param5: {}
 --- Associated Data (2)---
 	Mime_type: image/png
 		foo.png ( obj1 )
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
 --- Ensembles (0)---
-\t[]""".format(dataset.presets)  # noqa
+\t[]""".format(dataset.param5)  # noqa
         self.assertEqual(str(dataset).strip(), print_str.strip())
         features = dataset.list_features()
         self.assertEqual(features, ['timeplot_1',
-                                    'timeplot_1/mass',
+                                    'timeplot_1/feature_a',
+                                    'timeplot_1/feature_b',
                                     'timeplot_1/time',
                                     'timeplot_1/value',
-                                    'timeplot_1/volume',
                                     ]
                          )
-        # Curve not exisiting
+        # Curve not existing
         with self.assertRaises(ValueError):
             dataset["timeplot_1/tiime"]
 
@@ -72,10 +72,10 @@ class KoshTestSinaCurves(KoshTest):
             dataset["timeplot_1/time"][:], [0, 1, 2]))
         # all curves
         self.assertTrue(numpy.allclose(dataset["timeplot_1"][:], [
-                        [0, 1, 2], [12, 11, 8], [10.5, 1.4, 2.2], [10., 14, 22.2]]))
+                        [0, 1, 2], [1, 2, 3], [10., 20, 30.3], [10., 15, 20.]]))
         # some curves out of order
-        self.assertTrue(numpy.allclose(dataset[["timeplot_1/value", "timeplot_1/time", "timeplot_1/mass"]][:],
-                                       [[10.5, 1.4, 2.2], [0, 1, 2], [12, 11, 8]]))
+        self.assertTrue(numpy.allclose(dataset[["timeplot_1/value", "timeplot_1/time", "timeplot_1/feature_a"]][:],
+                                       [[10., 15., 20.], [0, 1, 2], [1, 2, 3]]))
 
         os.remove(kosh_db)
 
@@ -83,10 +83,10 @@ class KoshTestSinaCurves(KoshTest):
         store, kosh_db = self.connect()
         store.import_dataset("tests/baselines/sina/sina_curve_rec.json")
         dataset = list(store.find())[0]
-        mass = dataset["timeplot_1/mass"]
-        volume = dataset["timeplot_1/volume"]
-        rho = DIVIDE(mass, volume)
-        self.assertTrue(numpy.allclose(rho[:], [1.2, 0.78571429, 0.36036036]))
+        fa = dataset["timeplot_1/feature_a"]
+        fb = dataset["timeplot_1/feature_b"]
+        dv = DIVIDE(fa, fb)
+        self.assertTrue(numpy.allclose(dv[:], [0.1, 0.1, 0.0990099]))
         os.remove(kosh_db)
 
 

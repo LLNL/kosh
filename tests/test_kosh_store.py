@@ -73,11 +73,11 @@ class KoshTestStore(KoshTest):
         store.associate(store_2)
         self.assertEqual(len(list(store.find(ids_only=True))), 2)
 
-        # Single disso should work
+        # Single dissociation should work
         store.dissociate(store_2)
         self.assertEqual(len(list(store.find(ids_only=True))), 1)
 
-        # double diss shouldn't matter
+        # double dissociation shouldn't matter
         store.dissociate(store_2)
         self.assertEqual(len(list(store.find(ids_only=True))), 1)
 
@@ -160,7 +160,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(asso[0], store)
 
         # Chained store should lead to discovery of both datasets
-        # even though this store itself is empy
+        # even though this store itself is empty
         self.assertEqual(len(list(store_3.find())), 0)
         store_3.associate(store_2)
         store_2_copy = store_3.get_associated_store(store_2.db_uri)
@@ -200,7 +200,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(list(store_2.find(ids_only=True))), 2)
         self.assertEqual(len(list(store_3.find(ids_only=True))), 2)
 
-        # reciprocal associate and unliateral dissociate
+        # reciprocal associate and unilateral dissociate
         store.associate(store_2, reciprocal=True)
         store_2.dissociate(store)
         store_3.dissociate(store_2)
@@ -225,7 +225,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(list(store.find(ids_only=True))), 1)
         self.assertEqual(len(list(store_2.find(ids_only=True))), 1)
         self.assertEqual(len(list(store_3.find(ids_only=True))), 1)
-        # Make sure all ds are in the correct store
+        # Make sure all datasets are in the correct store
         self.assertEqual(
             len(list(store.find(name="associated", ids_only=True))), 0)
         self.assertEqual(
@@ -236,7 +236,7 @@ class KoshTestStore(KoshTest):
             len(list(store_3.find(name="associated_2", ids_only=True))), 1)
 
         # Now associate a store with the main
-        # Main should find ds of associated
+        # Main should find datasets of associated store
         # but not other way around
         # other store should be unchanged
         store.associate(store_2)
@@ -271,7 +271,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(list(store.find(ids_only=True))), 2)
         self.assertEqual(len(list(store_2.find(ids_only=True))), 1)
         self.assertEqual(len(list(store_3.find(ids_only=True))), 1)
-        # Make sure the correct new ds is found
+        # Make sure the correct new dataset is found
         self.assertEqual(
             len(list(store.find(name="associated", ids_only=True))), 1)
         self.assertEqual(
@@ -283,7 +283,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(list(store.find(ids_only=True))), 1)
         self.assertEqual(len(list(store_2.find(ids_only=True))), 1)
         self.assertEqual(len(list(store_3.find(ids_only=True))), 1)
-        # Make sure all ds are in the correct store
+        # Make sure all datasets are in the correct store
         self.assertEqual(
             len(list(store.find(name="associated", ids_only=True))), 0)
         self.assertEqual(

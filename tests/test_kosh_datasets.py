@@ -49,11 +49,11 @@ class KoshTestDataset(KoshTest):
 
     def test_add_dataset(self):
         store, kosh_db = self.connect()
-        # Check it's empy
+        # Check the store is empty
         self.assertEqual(len(list(store.find())), 0)
-        # Create dataset
+        # Create a dataset
         ds = store.create()
-        # Check it's in db
+        # Check datset was created
         all_ds = list(store.find())
         self.assertEqual(len(all_ds), 1)
         self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
@@ -104,7 +104,7 @@ KOSH DATASET
         ds.update({"creator": "a new creator!",
                    "some_new_attribute": "a new one",
                    "some_int_attribute": 5})
-        # check they are all here
+        # Check they are all here
         self.assertEqual(
             ds.listattributes(), [
                 "creator", "id", "name", "some_int_attribute", "some_new_attribute"])
@@ -135,12 +135,11 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = list(store.find())
         self.assertEqual(len(all_ds), 4)
-        # Search for attribute that exists
         os.remove(kosh_db)
 
     def test_associate(self):
         store, kosh_db = self.connect()
-        # Create many datasets
+        # Create a dataset
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         self.assertEqual(len(list(ds.find())), 0)
         ds.associate(
@@ -154,14 +153,14 @@ KOSH DATASET
             "something",
             absolute_path=False)
         self.assertEqual(len(list(ds.find())), 1)
-        # adding again does not create additional entry
+        # Adding again does not create additional entry
         with self.assertRaises(TypeError):
             ds.associate(
                 "tests/baselines/node_extracts2",
                 "something_else",
                 absolute_path=False)
         self.assertEqual(len(list(ds.find())), 1)
-        # Associating with another dataset does not create another obj in db
+        # Associating with another dataset does not create another object in the db
         n_files = len(
             list(
                 store.find(
@@ -188,7 +187,7 @@ KOSH DATASET
         self.assertTrue(isinstance(f, kosh.core_sina.KoshSinaObject))
         self.assertEqual(len(list(ds.find())), 2)
         self.assertEqual(len(list(ds.find(mime_type="hdf5"))), 1)
-        # test passing a data dict
+        # test passing a data dictionary (Sina style)
         self.assertEqual(len(list(ds.find(data={'mime_type': "hdf5"}))), 1)
         self.assertEqual(len(list(ds.find(mime_type="something"))), 1)
         self.assertEqual(len(list(ds.find(mime_type="somemimetype"))), 0)
@@ -204,7 +203,7 @@ KOSH DATASET
         self.assertEqual(len(list(ds.find(name="13"))), 1)
         self.assertEqual(len(list(ds.find("name"))), 200)
 
-        # Ok list completion tests
+        # List completion tests
         ds = store.create()
         ds.associate([str(i + 300) for i in range(200)],
                      metadata=[{"name": str(i)} for i in range(200)],
@@ -218,14 +217,14 @@ KOSH DATASET
         self.assertEqual(len(ds._associated_data_), 200)
         self.assertEqual(len(list(ds.find(name="my name"))), 200)
 
-        # Make sure you cannot assoicate with different type
+        # Make sure you cannot assocaate with different types
         ds.associate("some_uri", "some_mime_type")
         with self.assertRaises(TypeError):
             ds.associate("some_uri", "some_other_mime_type")
         with self.assertRaises(TypeError):
             ds_2.associate("some_uri", "some_other_mime_type")
 
-        # make sure dissociate fully removes obj from store
+        # Make sure dissociate fully removes dataset from the store
         n_files = len(
             list(
                 store.find(
@@ -308,8 +307,6 @@ KOSH DATASET
         self.assertEqual(len(list(store2.find())), 3)
         store2, kosh_db = self.connect(db_uri=kosh_db)
         self.assertEqual(len(list(store2.find())), 3)
-        # 04b6d302f33d00a5701a42b333c845832a5e6d65
-        # sina 8c1b2cc21dc84ad32a6ff03a742ecef70ab89551
         ds_associated = ds2._associated_data_[0]
         _ = store.open(ds_associated)
         store.delete(ds2.id)

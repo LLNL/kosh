@@ -127,7 +127,7 @@ class KoshDataset(KoshSinaObject):
         Also updates the fast_shas if necessary
         You can filter associated objects by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
-        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        some_att=some_val will only dissociate non-existing files associated and having the attribute
         'some_att' with value of 'some_val'
         returns list of uris to be removed.
         :param dry_run: Only does a dry_run
@@ -182,7 +182,7 @@ class KoshDataset(KoshSinaObject):
         return bads
 
     def check_integrity(self):
-        """Runs a sanity check on the datasets:
+        """Runs a sanity check on the dataset:
         1- Are associated files reachable?
         2- Did fast_shas change since file was associated
         """
@@ -231,8 +231,8 @@ class KoshDataset(KoshSinaObject):
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
         if saved_sync:
-            # we will not update any rec in here, turnin off sync
-            # it makes things much d=faster
+            # we will not update any rec in here, turning off sync
+            # it makes things much faster
             backup = self.__store__.__sync__dict__
             self.__store__.__sync__dict__ = {}
             self.__store__.synchronous()
@@ -346,7 +346,7 @@ class KoshDataset(KoshSinaObject):
                             ld = loader(a_obj)
                         else:
                             continue
-                    # Dataset with urve have themsleves as uri
+                    # Dataset with curve have themselves as uri
                     obj_uri = getattr(ld.obj, "uri", "self")
                     if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
                             feature_ is None or\
@@ -388,7 +388,7 @@ class KoshDataset(KoshSinaObject):
 
         ids = {}
         # Now let's go through each possible uri
-        # and group features in thems
+        # and group features in them
         for id_ in union:
             matching_features = []
             for feature_ in features:
@@ -415,7 +415,7 @@ class KoshDataset(KoshSinaObject):
                         ld = self.__store__._cached_loaders[Id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
-                    # But lets not lose the cached list_features
+                    # But let's not lose the cached list_features
                     saved_listed_features = ld.__dict__[
                         "_KoshLoader__listed_features"]
                     ld_uri = getattr(ld, "uri", None)
@@ -872,7 +872,7 @@ class KoshDataset(KoshSinaObject):
             rec_json = cleanup_sina_record_from_kosh_sync(rec)
             jsns.append(rec_json)
 
-        # returns a dict that should be ingestable by sina
+        # returns a dict that should be ingestible by sina
         output_dict = {
             "minimum_kosh_version": None,
             "kosh_version": kosh.version(comparable=True),
@@ -901,7 +901,7 @@ class KoshDataset(KoshSinaObject):
         :param ensemble: ensemble we need to determine if this dataset is part of
         :type ensemble: str or KoshEnsemble
 
-        :returns: Appartenance to the ensemble
+        :returns: True if member of the ensemble, False otherwise
         :rtype: bool"""
         if not isinstance(ensemble, (basestring, kosh.ensemble.KoshEnsemble)):
             raise TypeError("ensemble must be id or KoshEnsemble object")
@@ -922,7 +922,7 @@ class KoshDataset(KoshSinaObject):
                 yield self.__store__.open(rel.object_id)
 
     def leave_ensemble(self, ensemble):
-        """Removes this dataset to an ensemble
+        """Removes this dataset from an ensemble
         :param ensemble: The ensemble to leave
         :type ensemble: str or KoshEnsemble
         """

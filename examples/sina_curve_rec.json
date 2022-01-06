@@ -6,23 +6,21 @@
       "foo.png": {"mimetype": "image/png", "tags": ["summary_image","output"]}
   },
   "data": {
-      "initial_angle": {"value": 30},
-      "max_density": { "value": 3, "units": "kg/m^3" },
-      "total_energy": { "value": 12.2, "units": "MJ", "tags": ["output"]},
-      "revision": { "value": "12-4-11", "tags": ["pedigree"]},
-      "presets": { "value": ["quickstart", "glass"]}
-  },
-  "curve_sets": {
+    "param1": {"value": 1},
+    "param2": { "value": 2, "units": "s" },
+    "param3": { "value": 3.3, "units": "m", "tags": ["output"]}
+},
+"curve_sets": {
       "timeplot_1": {
           "independent": {
               "time": {"value": [0, 1, 2]}},
-          "dependent": {
-              "mass": {"value": [12, 11, 8], "tags": ["physics"]},
-              "volume": {"value": [10, 14, 22.2], "units": "m^3"}}
-      }
-  },
+              "dependent": {
+                "feature_a": {"value": [15, 25, 35], "tags": ["tag1"]},
+                "feature_b": {"value": [10.1, 25.2, 40.3], "units": "m"}}
+        }
+    },
   "user_defined": {
-      "display_string": "0x477265617420636174636821"
+      "display_string": "str_id"
   }
 }
     ]}

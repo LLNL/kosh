@@ -73,7 +73,7 @@ Yes Kosh offers many option to manipulate the files directly and update your Kos
 
 Look for `kosh cp`, `kosh mv`, `kosh rm`, `kosh tar`
 
-In particular take a closer look at [this notebook](../jupyter/Example_06_Transfering_Datasets.ipynb)
+In particular take a closer look at [this notebook](../jupyter/Example_07_Transferring_Datasets.ipynb)
 
 
 ## What loaders come with Kosh by default?

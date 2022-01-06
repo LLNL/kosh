@@ -82,6 +82,7 @@ class KoshTestOperators(KoshTest):
         nb = ds.get_execution_graph("numbers", transformers=[MyT(), ])
 
         # Now with the transformer we should be good
+        # string are transformed to int
         A = ADD(nb, nb)
 
         self.assertEqual(numpy.allclose(

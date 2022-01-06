@@ -25,7 +25,7 @@ try:
 except Exception:
     pass
 
-description="Machine Learning Data Store"
+description="Manages Data Store with External Bulk Data"
 if sha is not None:
     description += " (sha: {})".format(sha)
 

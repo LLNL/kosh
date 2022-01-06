@@ -3,7 +3,7 @@ from .core import KoshLoader
 
 
 def walk_hdf5(dataset, prefix=""):
-    """Walk through hdf5 groups to find all datsets and return their paths
+    """Walk through hdf5 groups to find all datasets and return their paths
     return generator
     :param dataset: hdf5 dataset to start walking from
     :type dataset: h5py._hl.dataset.Dataset

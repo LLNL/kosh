@@ -12,7 +12,7 @@ def create_file(filename):
         print("whatever", file=f)
 
 
-def run_mv(sources, dest, store_sources, store_destinations=None):
+def run_mv(sources, dest, store_sources, store_destinations=None, verbose=False):
     cmd = "python scripts/kosh_command.py mv --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
@@ -24,7 +24,8 @@ def run_mv(sources, dest, store_sources, store_destinations=None):
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
-    print("CMD:", cmd)
+    if verbose:
+        print("CMD:", cmd)
     return p, out
 
 

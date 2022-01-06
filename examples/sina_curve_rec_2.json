@@ -6,23 +6,21 @@
       "foo.png": {"mimetype": "image/png", "tags": ["summary_image","output"]}
   },
   "data": {
-      "initial_angle": {"value": 30},
-      "max_density": { "value": 30, "units": "g/m^3" },
-      "total_energy": { "value": 2.2, "units": "MJ", "tags": ["output"]},
-      "revision": { "value": "4-1-21", "tags": ["pedigree"]},
-      "presets": { "value": ["quickstart", "glasses"]}
+      "param1": {"value": 1},
+      "param2": { "value": 2, "units": "s" },
+      "param3": { "value": 3.3, "units": "m", "tags": ["output"]}
   },
   "curve_sets": {
       "timeplot_1": {
           "independent": {
               "time": {"value": [1, 2, 3]}},
           "dependent": {
-              "mass": {"value": [12, 1, 18], "tags": ["physics"]},
-              "volume": {"value": [1, 24, 22.2], "units": "m^3"}}
+              "feature_a": {"value": [1, 2, 3], "tags": ["tag1"]},
+              "feature_b": {"value": [1.1, 2.2, 3.3], "units": "m"}}
       }
   },
   "user_defined": {
-      "display_string": "0x477265617840636174636821"
+      "display_string": "str_id"
   }
 }
     ]}
