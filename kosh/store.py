@@ -82,7 +82,7 @@ figures out which backend is required.
     if db is not None:
         if database_type is not None and db != database_type:
             raise ValueError(
-                "You cannot specifiy `db` and `database_type` with different values")
+                "You cannot specify `db` and `database_type` with different values")
         database_type = db
     sina_store = sina_connect(database=database,
                               keyspace=keyspace,
@@ -116,7 +116,7 @@ class KoshStore(object):
 
         :param db: type of database, defaults to 'sql', can be 'cass'
         :type db: str, optional
-        :param username: user name defautl to user id
+        :param username: user name defaults to user id
         :type username: str
         :param db_uri: uri to sql file or list of cassandra node ips, defaults to None
         :type db_uri: str or list, optional
@@ -125,7 +125,7 @@ class KoshStore(object):
         :param sync: Does Kosh sync automatically to the db (True) or on demand (False)
         :type sync: bool
         :param dataset_record_type: Kosh element type is "dataset" this can change the default
-                                    This is usefull if reading in other sina db
+                                    This is useful if reading in other sina db
         :type dataset_record_type: str
         :param verbose: verbose message
         :type verbose: bool
@@ -228,7 +228,7 @@ class KoshStore(object):
             for store in rec["data"]["associated_stores"]["value"]:
                 try:
                     self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync))
-                except Exception:  # mostl likely a sqlalchemy.exc.DatabaseError
+                except Exception:  # most likely a sqlalchemy.exc.DatabaseError
                     warnings.warn("Could not open associated store: {}".format(store))
 
         self.lock()
@@ -445,7 +445,7 @@ class KoshStore(object):
         :type metadata: dict, optional
         :param schema: a KoshSchema object to validate datasets and when setting attributes
         :type schema: KoshSchema
-        :param sina_type: If you want to query the store for a specific sina record type, not just a datset
+        :param sina_type: If you want to query the store for a specific sina record type, not just a dataset
         :type sina_type: str
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
@@ -711,7 +711,7 @@ class KoshStore(object):
         mode = self.__sync__
         if mode:
             # we will not update any rec in here, turnin off sync
-            # it makes things much d=faster
+            # it makes things much faster
             backup = self.__sync__dict__
             self.__sync__dict__ = {}
             self.synchronous()
@@ -772,7 +772,7 @@ class KoshStore(object):
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
 
-        # is it a blak search, e.g get me everything?
+        # is it a blank search, e.g get me everything?
         get_all = sina_kargs.get("data", {}) == {} and \
             sina_kargs.get("file_uri", None) is None and \
             sina_kargs.get("id_pool", None) is None and \
@@ -1129,7 +1129,7 @@ class KoshStore(object):
 
         :param datasets: dataset (or their ids) to export
         :type datasets: list or str
-        :param file: optional file to dump datset to
+        :param file: optional file to dump dataset to
         :type file: None or str
         """
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
@@ -1171,7 +1171,7 @@ class KoshStore(object):
                               And return a dictionary of attributes/values the target_dataset should have.
         :type merge_handler: None, str, func
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
-                                    will be passed in addtion to this store dataset and the imported dataset.
+                                    will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
         :return: list of datasets
         :rtype: list of KoshSinaDataset
@@ -1208,7 +1208,7 @@ class KoshStore(object):
                                  A function should take in foo(store_dataset, imported_dataset, **merge_handler_kargs)
         :type merge_handler: None, str, func
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
-                                    will be passed in addtion to this store dataset and the imported dataset.
+                                    will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
         :return: list of datasets
         :rtype: list of KoshSinaDataset
@@ -1268,7 +1268,7 @@ class KoshStore(object):
 
                 matching = list(self.find(**match_dict))
                 if len(matching) > 1:
-                    raise ValueError("dataset criterias: {} matches multiple ({}) "
+                    raise ValueError("dataset criteria: {} matches multiple ({}) "
                                      "datasets in store {}, try changing 'match_attributes' when calling"
                                      " this function".format(
                                          match_dict, len(matching), self.db_uri))
@@ -1369,7 +1369,7 @@ class KoshStore(object):
                 self.get_sina_store().relationships.insert(rel)
             except Exception:  # sqlalchemy.exc.IntegrityError
                 pass
-        # We need to make sure any merged (remapped) datset is still properly
+        # We need to make sure any merged (remapped) dataset is still properly
         # associated
         for id_ in matches:
             rec = self.get_record(id_)
@@ -1456,7 +1456,7 @@ class KoshStore(object):
         Also updates the fast_shas if necessary
         You can filter associated objects for each dataset by passing key=values
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
-        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        some_att=some_val will only dissociate non-existing files associated and having the attribute
         'some_att' with value of 'some_val'
         returns list of uris to be removed.
         :param dry_run: Only does a dry_run

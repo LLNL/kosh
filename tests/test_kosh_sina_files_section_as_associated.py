@@ -43,11 +43,11 @@ class KoshTestSinaFiles(KoshTest):
 	creator: ???
 
 --- Attributes ---
-	initial_angle: 30
-	max_density: 3
-	presets: {}
-	revision: 12-4-11
-	total_energy: 12.2
+	param1: 1
+	param2: 2
+	param3: 3.3
+	param4: string
+	param5: {}
 --- Associated Data (2)---
 	Mime_type: hdf5
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
@@ -55,7 +55,7 @@ class KoshTestSinaFiles(KoshTest):
 		/g/g19/cdoutrix/git/kosh/tests/baselines/images/LLNLiconWHITE.png ( {} )
 --- Ensemble (0)---
 \t[]
-""".format(dataset.presets, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
+""".format(dataset.param5, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
 
     def test_sina_files_section_with_curves(self):
         store, kosh_db = self.connect()
@@ -75,8 +75,8 @@ class KoshTestSinaFiles(KoshTest):
                           'node/metrics_3', 'node/metrics_4', 'node/metrics_5',
                           'node/metrics_6', 'node/metrics_7', 'node/metrics_8',
                           'node/metrics_9',
-                          'timeplot_1', 'timeplot_1/mass', 'timeplot_1/time',
-                          'timeplot_1/value', 'timeplot_1/volume',
+                          'timeplot_1', 'timeplot_1/feature_a', 'timeplot_1/feature_b',
+                          'timeplot_1/time', 'timeplot_1/value',
                           'zone', 'zone/metrics_0', 'zone/metrics_1',
                           'zone/metrics_2', 'zone/metrics_3', 'zone/metrics_4'])
         zmet = dataset["zone/metrics_2"][:][:]
@@ -97,11 +97,11 @@ class KoshTestSinaFiles(KoshTest):
 	creator: ???
 
 --- Attributes ---
-	initial_angle: 30
-	max_density: 3
-	presets: {}
-	revision: 12-4-11
-	total_energy: 12.2
+	param1: 1
+	param2: 2
+	param3: 3.3
+	param4: string
+	param5: {}
 --- Associated Data (2)---
 	Mime_type: hdf5
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
@@ -109,7 +109,7 @@ class KoshTestSinaFiles(KoshTest):
 		internal ( timeplot_1 )
 --- Ensembles (0)---
 \t[]
-""".format(dataset.presets)  # noqa
+""".format(dataset.param5)  # noqa
 
         self.assertEqual(print_str.strip(), str(dataset).strip())
 
@@ -131,8 +131,8 @@ class KoshTestSinaFiles(KoshTest):
                           'node/metrics_3', 'node/metrics_4', 'node/metrics_5',
                           'node/metrics_6', 'node/metrics_7', 'node/metrics_8',
                           'node/metrics_9',
-                          'timeplot_1', 'timeplot_1/mass', 'timeplot_1/time',
-                          'timeplot_1/value', 'timeplot_1/volume',
+                          'timeplot_1', 'timeplot_1/feature_a', 'timeplot_1/feature_b',
+                          'timeplot_1/time', 'timeplot_1/value',
                           'zone', 'zone/metrics_0', 'zone/metrics_1',
                           'zone/metrics_2', 'zone/metrics_3', 'zone/metrics_4'])
         zmet = dataset["zone/metrics_2"][:][:]
@@ -150,11 +150,11 @@ class KoshTestSinaFiles(KoshTest):
 	creator: ???
 
 --- Attributes ---
-	initial_angle: 30
-	max_density: 3
-	presets: {}
-	revision: 12-4-11
-	total_energy: 12.2
+	param1: 1
+	param2: 2
+	param3: 3.3
+	param4: string
+	param5: {}
 --- Associated Data (3)---
 	Mime_type: hdf5
 		tests/baselines/node_extracts2/node_extracts2.hdf5 ( obj1 )
@@ -164,7 +164,7 @@ class KoshTestSinaFiles(KoshTest):
 		internal ( timeplot_1 )
 --- Ensembles (0)---
 \t[]
-""".format(dataset.presets)  # noqa
+""".format(dataset.param5)  # noqa
         self.assertEqual(print_str.strip(), str(dataset).strip())
 
 

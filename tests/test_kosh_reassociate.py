@@ -29,7 +29,6 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
     if original_uris != []:
         cmd += " --original_uris {}".format(" ".join(original_uris))
 
-    print("TESTING :", cmd)
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e

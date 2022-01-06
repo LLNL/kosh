@@ -7,14 +7,14 @@
       "foo.png": {"tags": ["summary_hdf5","output"]}
   },
   "data": {
-      "initial_angle": {"value": 30},
-      "max_density": { "value": 3, "units": "kg/m^3" },
-      "total_energy": { "value": 12.2, "units": "MJ", "tags": ["output"]},
-      "revision": { "value": "12-4-11", "tags": ["pedigree"]},
-      "presets": { "value": ["quickstart", "glass"]}
-  },
-  "user_defined": {
-      "display_string": "0x477265617420636174636821"
-  }
+    "param1": {"value": 1},
+    "param2": { "value": 2, "units": "g" },
+    "param3": { "value": 3.3, "units": "s", "tags": ["output"]},
+    "param4": { "value": "string", "tags": ["string"]},
+    "param5": { "value": ["item_a", "item_b"]}
+},
+"user_defined": {
+    "display_string": "str_id"
+}
 }
     ]}

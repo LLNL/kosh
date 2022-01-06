@@ -13,10 +13,10 @@ class KoshTestFixFastSha(KoshTest):
         # change the fast_sha
         asso.fast_sha = "blah"
 
-        # Le'ts also associate an non existing uri
+        # Let's also associate an non existing uri
         asso_not_here = store._load(d.associate("I_don_not_exit.txt", "txt"))
 
-        # Now let's check store sanity
+        # Now let's check store integrity
         bad = store.check_integrity()
         self.assertTrue(asso.uri in bad)
         self.assertTrue(asso_not_here.uri in bad)

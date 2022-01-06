@@ -187,7 +187,7 @@ class KoshSinaObject(object):
         :type value: object
         :param record: sina record if already extracted before, save db access
         :type record: sina.model.Record
-        :param force: force datset attribute setting (when sent from ensemble)
+        :param force: force dataset attribute setting (when sent from ensemble)
         :type force: bool
         :return: sina record updated
         :rtype: sina.model.Record

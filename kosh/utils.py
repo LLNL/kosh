@@ -24,7 +24,7 @@ except AttributeError:  # planar is available from nx version 2.5
 
 def merge_datasets_handler(target_dataset, imported_dataset, section="data", **kargs):
     """When importing a dataset, checks if the imported dataset has
-    attributes that match the one in the datset already in this store.
+    attributes that match the one in the dataset already in this store.
     If attributes values conflict then we use 'handling_method to resolve the conflict
 
     The store_dataset is not updated here, we return a list of attributes/values pairs resolving the conflict
@@ -346,11 +346,11 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
     if need_update and hasattr(records, "insert"):
         try:
             records.delete(rec.id)
-        except Exception:  # in case multi-processors interfer with each others
+        except Exception:  # in case multi-processors interfere with each others
             pass
         try:
             records.insert(rec)
-        except Exception:  # in case multi-processors interfer with each others
+        except Exception:  # in case multi-processors interfere with each others
             pass
     return rec
 

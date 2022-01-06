@@ -33,7 +33,7 @@ class KoshTestImportExport(KoshTest):
 
         os.remove(kosh_test_sql_file)
 
-    def test_import_export_datsets(self):
+    def test_import_export_datasets(self):
         store, kosh_test_sql_file = self.connect()
         store2, kosh_test_sql_file2 = self.connect()
         store3, kosh_test_sql_file3 = self.connect()
@@ -49,18 +49,20 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(len(list(store2.find(name="two"))), 1)
 
         # Import again should work
+        # but not add a dataset
         store2.import_dataset(ds2)
         d2 = list(store2.find(name="two"))
         self.assertEqual(len(d2), 1)
 
         # Import again should work even though we added an attribute
+        # the dataset in store2 should be updated
         ds2.param3 = "blah"
         store2.import_dataset(ds2)
         d2 = list(store2.find(name="two"))
         self.assertEqual(len(d2), 1)
         self.assertEqual(d2[0].param3, "blah")
 
-        # if we alter it should not work though
+        # if we alter it should not work by default though
         ds2.param2 = 7
         with self.assertRaises(ValueError) as context:
             store2.import_dataset(ds2)
@@ -70,7 +72,7 @@ class KoshTestImportExport(KoshTest):
                 context.exception))
 
         # now let's create another dataset named 'one'
-        # Should prevent re-importing it
+        # Should prevent re-importing it since conflict
         ds1b = store2.create("one", metadata={"p1": 6})
         self.assertEqual(len(list(store2.find(name="one"))), 2)
 
@@ -95,7 +97,7 @@ class KoshTestImportExport(KoshTest):
         d1 = list(store2.find(param1='b', name="one"))
         self.assertEqual(len(d1), 1)
 
-        # Let's make sure associated files are transfered
+        # Let's make sure associated files are transferred
         ds = store.create(name="foo_association")
         ds.associate("setup.py", "py")
         self.assertEqual(len(ds2._associated_data_), 0)
@@ -126,15 +128,17 @@ class KoshTestImportExport(KoshTest):
 
         # len 2 because of  associated data
         self.assertEqual(len(data["records"]), 2)
-        # Now test that we can overwrite exisitng dataset with new one
+        # Now test that we can overwrite existing dataset with a new one
         ds1 = store.create(metadata={"a": 1, "b": 2, "c": 3, "d": 4})
         ds2 = store2.create(metadata={"a": 1, "b": 2, "c": 4})
+        # import in overwrite mode 'c' should become 3
         store2.import_dataset(ds1.export(), match_attributes=[
                               "a", "b"], merge_handler="overwrite")
         self.assertEqual(ds2.c, 3)
         self.assertEqual(ds2.d, 4)
         # revert to test preserve
         ds2.c = 4
+        # Now import again but in preserve mode 'c' shouldn't change
         store2.import_dataset(ds1.export(), match_attributes=[
                               "a", "b"], merge_handler="preserve")
         self.assertEqual(ds2.c, 4)
@@ -151,46 +155,45 @@ class KoshTestImportExport(KoshTest):
         store.import_dataset(
             "tests/baselines/sina/sina_curve_rec_mimes_and_curves.json",
             match_attributes=[
-                "initial_angle",
+                "param1",
             ])
         self.assertEqual(len(tuple(store.find())), 1)
         d1 = store.open("obj1")
         self.assertTrue(numpy.allclose(
-            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+            d1.get("timeplot_1/feature_b"), [10, 20, 30.3]))
         with self.assertRaises(RuntimeError):
             store.import_dataset(
                 "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
                 merge_handler="conservative",
                 match_attributes=[
-                    "initial_angle",
+                    "param1",
                 ])
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
-            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+            d1.get("timeplot_1/feature_b"), [10, 20, 30.3]))
         store.import_dataset(
             "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
             merge_handler="preserve",
             match_attributes=[
-                "initial_angle",
+                "param1",
             ])
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
-            d1.get("timeplot_1/volume"), [10, 14, 22.2]))
+            d1.get("timeplot_1/feature_b"), [10, 20, 30.3]))
         store.import_dataset(
             "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
             merge_handler="overwrite",
             match_attributes=[
-                "initial_angle",
+                "param1",
             ])
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
-            d1.get("timeplot_1/volume"), [10, 16, 22.2]))
+            d1.get("timeplot_1/feature_a"), [1, 2, 3]))
 
     def test_custom_handler(self):
         source_store, db_source = self.connect()
         target_store, db_target = self.connect()
 
-        # Now custom dataset
         dataset2 = source_store.create(name="example")
         dataset2.bar = "foo"
         dataset2.foo = "bar2"
@@ -201,9 +204,14 @@ class KoshTestImportExport(KoshTest):
         dataset3.foo = "bar3"
         dataset3.foosome = "foo2"
 
+        # Now custom merge handler
         target_store.import_dataset(dataset2, match_attributes=["bar", "name"],
                                     merge_handler=my_handler,
                                     merge_handler_kargs={"overwrite_attributes": ["foo", ]})
+        target_ds = tuple(target_store.find())
+        self.assertEqual(len(target_ds), 1)
+        self.assertEqual(target_ds[0].foo, "bar2")
+        self.assertEqual(target_ds[0].foosome, "foo2")
 
         os.remove(db_source)
         os.remove(db_target)

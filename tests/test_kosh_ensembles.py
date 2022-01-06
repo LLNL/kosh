@@ -78,7 +78,7 @@ KOSH ENSEMBLE
         ok_ds = store.create(metadata={"root": "foo"})
         ok_ds.join_ensemble(e1)
         e1.root = "foobar"
-        # check it propagates
+        # check it propagates to all members
         self.assertEqual([x.root for x in e1.get_members()],
                          ["foobar", "foobar", "foobar"])
         e1.new_att = "bar"
@@ -144,7 +144,7 @@ KOSH ENSEMBLE
         e2.code = "new code"
         self.assertEqual(d1.code, "new code")
 
-        # ok now let's make sure we cannot add to uncompatible ensemble
+        # ok now let's make sure we cannot add to incompatible ensemble
         e3 = s.create_ensemble(metadata={"root": "/some/root3"})
         with self.assertRaises(Exception) as err:
             d1.join_ensemble(e3)
@@ -163,7 +163,7 @@ KOSH ENSEMBLE
         e1 = s.create_ensemble(metadata={"root": "/some/root1"})
         e1.create(metadata={"param1": 4})
         e1.create(metadata={"param1": 3})
-        # Same datasets but not in ensemble
+        # Create datasets with same attributes but not in ensemble
         s.create(metadata={"param1": 4})
         s.create(metadata={"param1": 3})
 

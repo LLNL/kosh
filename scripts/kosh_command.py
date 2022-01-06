@@ -302,13 +302,13 @@ Available commands are:
         """Cleanup a store from references to dead files
         You can filter associated object by matching metadata in form key=value
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
-        some_att=some_val will only dissociate non-exisiting files associated and having the attribute "some_att" with value of "some_val"""
+        some_att=some_val will only dissociate non-existing files associated and having the attribute "some_att" with value of "some_val"""
         parser = core_parser(
             prog="kosh clean",
             description="""Cleanup a store from references to dead files
         You can filter associated object by matching metadata in form key=value
         e.g mime_type=hdf5 will only dissociate non-existing files associated with mime_type hdf5
-        some_att=some_val will only dissociate non-exisiting files associated and having the attribute
+        some_att=some_val will only dissociate non-existing files associated and having the attribute
         'some_att' with value of 'some_val'""")
         parser.add_argument("--dry-run", "--rehearsal", "-r", "-D", help="Dry run only, list ids of dataset that would be cleaned up and path of files", action='store_true')
         parser.add_argument("--interactive", "-i", help="interactive mode, ask before dissociating", action="store_true")
@@ -564,16 +564,13 @@ Available commands are:
                     # Could check the file exists
                     tarred_files += [x["data"]["uri"]["value"] for x in recs.find_with_type(file_type)]
 
-            print("FILES TO TAR:", len(tarred_files))
-
-
             # Prepare dictionary to hold list of datasets to export (per store)
             store_datasets = {}
             for store in stores:
                 store_datasets[store.db_uri] = []
 
             # for each tar file let's see if it's associated to a/many
-            # datset(s) in the store
+            # dataset(s) in the store
             for filename in tarred_files:
                 if not args.no_absolute_path:
                     filename = os.path.abspath(filename)
@@ -622,7 +619,7 @@ Available commands are:
             # ok we extracted that's nice
             # Now let's populate the stores
 
-            # Step 1 figure out the json file that contains our datsets
+            # Step 1 figure out the json file that contains our datasets
             filenames = out.decode().split("\n")
             if "HTAR" in filenames[0]:
                 # htar used
@@ -678,7 +675,7 @@ Available commands are:
                         dataset, args.dataset_matching_attributes,
                         merge_handler=args.merge_strategy)
 
-            # Trying to reassocite these orphan files
+            # Trying to reassociate these orphan files
             # path aliases might cause them to appear
             matches = {}
             for orphan in orphans:
