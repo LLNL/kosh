@@ -1,5 +1,3 @@
-import conduit
-import conduit.relay
 import numpy
 from .core import KoshLoader
 
@@ -9,13 +7,15 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
              ["numpy", "sidre/path"]}
 
     def extract(self, *args, **kargs):
+        import conduit
+        import conduit.relay
         if not isinstance(self.feature, list):
             features = [self.feature]
         else:
             features = self.feature
 
         ioh = conduit.relay.io.IOHandle()
-        ioh.open(self.obj.uri, "sidre_hdf5")
+        ioh.open(self.uri, "sidre_hdf5")
         # look for self.feature
         bp_idx = conduit.Node()
         ioh.read(bp_idx, "root/blueprint_index")
@@ -59,8 +59,10 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
             return out
 
     def list_features(self):
+        import conduit
+        import conduit.relay
         ioh = conduit.relay.io.IOHandle()
-        ioh.open(self.obj.uri, "sidre_hdf5")
+        ioh.open(self.uri, "sidre_hdf5")
         # get the blueprint index
         bp_idx = conduit.Node()
         ioh.read(bp_idx, "root/blueprint_index")

@@ -64,7 +64,7 @@ Given a unique id or a Kosh-understood object, associates this object to the dat
 
 ## File Objects
 
-File objects are to be associated to datsets, they should have a unique id, and the following two attributes:
+File objects are to be associated to datasets, they should have a unique id, and the following two attributes:
 
 `uri`: Describing how to get to the data.
 `mime_type`: what kind of data is in this file.
@@ -73,7 +73,7 @@ Loader will rely on this information to be accessible in order to deal with file
 
 ## Data Object
 
-Data Object are returned by the loader, this allows for a pseudo constant representation accross formats
+Data Object are returned by the loader, this allows for a pseudo constant representation across formats
 common attributes are:
 `mime_type`: what kind of data
 

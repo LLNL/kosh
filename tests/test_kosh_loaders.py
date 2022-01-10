@@ -51,9 +51,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(ct, {"A": "a", "B": "b", "C": "c"})
         ct = ds.get("A")
         self.assertEqual(ct, "a")
-        print("*******")
         ct = ds.get(["B", "A"])
-        print("*******")
         self.assertEqual(ct, ["b", "a"])
         ct = ds.get(["B", "A"], format="dict", group=True)
         self.assertEqual(ct, {"B": "b", "A": "a"})
@@ -65,19 +63,19 @@ class KoshTestLoaders(KoshTest):
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
-        l, _ = store._find_loader(ds._associated_data_[0])
-        self.assertEqual(sorted(l.known_types()), ["hdf5"])
-        self.assertEqual(l.known_load_formats("file"), [])
+        ld, _ = store._find_loader(ds._associated_data_[0])
+        self.assertEqual(sorted(ld.known_types()), ["hdf5"])
+        self.assertEqual(ld.known_load_formats("file"), [])
         os.remove(kosh_db)
 
     def test_generic_loader(self):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate("setup.py", "ascii")
-        l, _ = store._find_loader(ds._associated_data_[0])
-        self.assertIsInstance(l, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(sorted(l.known_types()), ["file"])
-        self.assertEqual(l.known_load_formats("file"), [])
+        ld, _ = store._find_loader(ds._associated_data_[0])
+        self.assertIsInstance(ld, kosh.loaders.core.KoshFileLoader)
+        self.assertEqual(sorted(ld.known_types()), sorted(set(["file", store._sources_type])))
+        self.assertEqual(ld.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
 
@@ -121,7 +119,6 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
             "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
-        print("DATA IS:", data)
         self.assertEqual(data.shape[:-1], info["size"][::-1])
         os.remove(kosh_db)
 
@@ -248,6 +245,23 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(h5.mode, "r+")
         h5.close()
         os.remove(kosh_db)
+
+    def test_npy(self):
+        a = numpy.array([[1, 2, 3], [4, 5, 6]])
+        name = "kosh_random_npy_{}.npy".format(random.randint(0, 23434434))
+        numpy.save(name, a)
+
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate(name, "npy")
+        self.assertEqual(ds.list_features(), ["ndarray", ])
+        data = ds.get("ndarray")
+        self.assertEqual(data.shape, (2, 3))
+        self.assertTrue(numpy.allclose(a, data))
+        info = ds.describe_feature("ndarray")
+        self.assertEqual(info["size"], (2, 3))
+        self.assertEqual(info["format"], "numpy")
+        self.assertEqual(info["type"], a.dtype)
 
 
 if __name__ == "__main__":

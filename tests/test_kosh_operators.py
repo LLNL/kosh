@@ -19,19 +19,43 @@ class MyT(kosh.transformers.KoshTransformer):
     types = collections.OrderedDict(
         [("numlist", ["numpy", ]), ("some_format", ["pandas", ])])
 
+    def __init__(self, *args, **kargs):
+        super(MyT, self).__init__(*args, **kargs)
+        self.log_file = kargs.pop("log_file", "")
+        if self._verbose:
+            with open(self.log_file, "w") as f:
+                f.write("Log from MyT\n")
+
     def transform(self, input, format):
         return numpy.array(input)
+
+    def _print(self, message):
+        with open(self.log_file, "r+") as f:
+            f.seek(0, os.SEEK_END)
+            f.write(message)
 
 
 class ADD(kosh.operators.KoshOperator):
     types = collections.OrderedDict(
         [("numpy", ["numpy", "pandas"]), ("pandas", ["numpy", "pandas"])])
 
+    def __init__(self, *args, **kargs):
+        super(ADD, self).__init__(*args, **kargs)
+        self.log_file = kargs.pop("log_file", "")
+        if self._verbose and not os.path.exists(self.log_file):
+            with open(self.log_file, "w") as f:
+                f.write("Log from ADD\n")
+
     def operate(self, *inputs, **kargs):
         out = inputs[0]
         for input_ in inputs[1:]:
             out += input_
         return out
+
+    def _print(self, message):
+        with open(self.log_file, "r+") as f:
+            f.seek(0, os.SEEK_END)
+            f.write(message)
 
 
 class KoshTestOperators(KoshTest):
@@ -58,9 +82,9 @@ class KoshTestOperators(KoshTest):
         nb = ds.get_execution_graph("numbers", transformers=[MyT(), ])
 
         # Now with the transformer we should be good
+        # string are transformed to int
         A = ADD(nb, nb)
 
-        print(A[:])
         self.assertEqual(numpy.allclose(
             A[:], numpy.array([2, 4, 6, 8, 10, 12])), 1)
         os.remove(db_uri)
@@ -80,6 +104,34 @@ class KoshTestOperators(KoshTest):
 
         self.assertEqual(numpy.allclose(
             A2[:], numpy.array([3, 6, 9, 12, 15, 18])), 1)
+        os.remove(db_uri)
+
+    def test_operator_and_transformers_verbose(self):
+        store, db_uri = self.connect()
+        store.add_loader(StringsLoader)
+
+        ds = store.create()
+        ds.associate("some_file.nb", mime_type="ascii")
+
+        my_t_log = "myt_{}.txt".format(numpy.random.randint(10000000))
+        nb = ds.get_execution_graph("numbers", transformers=[MyT(
+            log_file=my_t_log, cache=True, verbose=True), ])
+
+        # Now with the transformer we should be good
+        add_log = "add_{}.txt".format(numpy.random.randint(10000000))
+        A = ADD(nb, nb, verbose=True, log_file=add_log, cache=True)
+
+        _ = A[:]
+        self.assertEqual(numpy.allclose(
+            A[:], numpy.array([2, 4, 6, 8, 10, 12])), 1)
+
+        self.assertTrue(os.path.exists(my_t_log))
+        self.assertTrue(os.path.exists(add_log))
+
+        for filename in [my_t_log, add_log]:
+            with open(filename) as f:
+                self.assertTrue("Loaded results from cache file" in f.read())
+                os.remove(filename)
         os.remove(db_uri)
 
 

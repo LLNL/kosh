@@ -1,0 +1,26 @@
+{
+  "records": [
+  {"type": "some_type",
+  "id": "obj1",
+  "files": {
+      "foo.png": {"mimetype": "image/png", "tags": ["summary_image","output"]}
+  },
+  "data": {
+    "param1": {"value": 1},
+    "param2": { "value": 2, "units": "s" },
+    "param3": { "value": 3.3, "units": "m", "tags": ["output"]}
+},
+"curve_sets": {
+      "timeplot_1": {
+          "independent": {
+              "time": {"value": [0, 1, 2]}},
+              "dependent": {
+                "feature_a": {"value": [15, 25, 35], "tags": ["tag1"]},
+                "feature_b": {"value": [10.1, 25.2, 40.3], "units": "m"}}
+        }
+    },
+  "user_defined": {
+      "display_string": "str_id"
+  }
+}
+    ]}

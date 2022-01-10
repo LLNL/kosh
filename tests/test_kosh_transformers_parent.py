@@ -47,7 +47,6 @@ class KoshTestTransformerParent(KoshTest):
                 MyTrsf(),
                 MyTrsf2(),
                 MyTrsf3()])
-        print("DATA:", data)
         self.assertEqual(data[0], (None, {}))
         self.assertEqual(data[1], "cycles")
         self.assertEqual(data[2], "numpy")

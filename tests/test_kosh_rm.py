@@ -10,13 +10,14 @@ def create_file(filename):
         print("whatever", file=f)
 
 
-def run_rm(sources, store_sources):
+def run_rm(sources, store_sources, verbose=False):
     cmd = "python scripts/kosh_command.py rm --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
     cmd += " --sources {} ".format(" ".join(sources))
 
-    print("TESTING:", cmd)
+    if verbose:
+        print("TESTING:", cmd)
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     print(o.decode())
@@ -31,9 +32,11 @@ class KoshTestRm(KoshTest):
         create_file(filename)
         ds.associate(filename, "text")
         ds.associate("fake_one.text", "text")
+        associated = list(ds.find(mime_type="text"))
+        self.assertEqual(len(associated), 2)
         run_rm([filename, ], [db_uri, ])
 
-        associated = ds.search(mime_type="text")
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         self.assertFalse(os.path.exists(filename))
@@ -51,7 +54,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(filenames, [db_uri, ])
 
-        associated = ds.search(mime_type="text")
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:
@@ -79,7 +82,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(["rm_from_dir", ], [db_uri, ])
 
-        associated = ds.search(mime_type="text")
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:
@@ -109,7 +112,7 @@ class KoshTestRm(KoshTest):
         ds.associate("fake_one.text", "text")
         run_rm(["rm_from_dir_mix", filenames[-1]], [db_uri, ])
 
-        associated = ds.search(mime_type="text")
+        associated = list(ds.find(mime_type="text"))
         self.assertEqual(len(associated), 1)
         self.assertEqual(associated[0].uri, "fake_one.text")
         for filename in filenames:
