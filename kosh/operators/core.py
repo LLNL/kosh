@@ -18,11 +18,17 @@ class KoshOperator(KoshExecutionGraph):
         :type cache_dir: str
         :param cache: do we use cache? 0: no, 1:yes, 2:yes but clobber if exists must be passed as key/value
         :type cache: int
+        :param verbose: Turn on verbosity, by default this will turn on printing a message
+                        when results are loaded from cache. Message is sent as lone argument
+                        to `self._print` function.
+                        value is stored in self._verbose
+        :type verbose: bool
         """
         self.cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
         self.use_cache = kargs.pop("use_cache", False)
+        self._verbose = kargs.pop("verbose", False)
         cache = kargs.pop("cache", False)
         if cache:
             try:
@@ -61,6 +67,9 @@ class KoshOperator(KoshExecutionGraph):
 
             try:
                 result = self.load(use_signature)
+                if self._verbose:
+                    self._print("Loaded results from cache file {} using signature: {}".format(
+                        cache_file, use_signature))
             except Exception:
                 if signature is None:
                     signature = self.update_signature(inputs, format).hexdigest()
@@ -73,6 +82,9 @@ class KoshOperator(KoshExecutionGraph):
             result = self.operate(*inputs, format=format)
 
         return result
+
+    def _print(self, message):
+        print(message)
 
     @abstractmethod
     def operate(self, *inputs, **kargs):

@@ -2,43 +2,12 @@ from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
-from kosh.exec_graphs import KoshExecutionGraph, populate
-import networkx as nx
-import random
-
-
-def get_graph(input_type, loader, transformers):
-    """Given a loader and its transformer return path to desired format
-    e.g which output format should each transformer pick to be chained to the following one
-    in order to obtain the desired outcome for format
-    :param input_type: input type of first node
-    :type input_type: str
-    :param loader: original loader
-    :type loader: KoshLoader
-    :param transformers: set of transformers to be added after loader exits
-    :type transformers: list of KoshTransformer
-    :returns: execution graph
-    :rtype: networkx.OrderDiGraph
-    """
-    if input_type not in loader.types:
-        raise RuntimeError(
-            "loader cannot load mime_type {}".format(input_type))
-    G = nx.OrderedDiGraph()
-    G.seed = random.random()
-    start_node = (input_type, loader, G.seed)  # so each graph is unique
-    G.add_node(start_node)
-    if len(transformers) == 0:
-        # No transformer
-        for out_format in loader.types[input_type]:
-            node = (out_format, None, G.seed)
-            G.add_edge(start_node, node)
-    else:
-        populate(
-            G,
-            start_node,
-            loader.types[input_type],
-            transformers)
-    return G
+from kosh.exec_graphs import KoshExecutionGraph
+import numpy
+from ..core_sina import KoshSinaObject, KoshSinaFile
+from ..utils import get_graph
+from ..dataset import KoshDataset
+from ..ensemble import KoshEnsemble
 
 
 class KoshGenericObjectFromFile(object):
@@ -69,25 +38,42 @@ class KoshLoader(KoshExecutionGraph):
     """
     types = {"dataset": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, mime_type=None, uri=None):
         """KoshLoader generic Kosh loader
         :param obj: object the loader will try to load from
         :type obj: object
+        :param mime_type: If you want to force the mime_type to use
+        :type mime_type: str
+        :param uri: If you want/need to force the uri to use
+        :type uri: str
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
-        self.signature = self.update_signature(obj.__id__)
-        mime_type = obj.mime_type
-        if mime_type == obj.__store__._dataset_record_type:
-            mime_type = "dataset"
-        if mime_type not in self.types:
+        self.signature = self.update_signature(obj.id)
+        if mime_type is None:
+            self._mime_type = obj.mime_type
+        else:
+            self._mime_type = mime_type
+        if uri is None:
+            try:
+                self.uri = obj.uri
+            except AttributeError:  # Not uri on this
+                self.uri = None
+        else:
+            self.uri = uri
+        rec = obj.__store__.get_record(obj.id)
+        if (rec["type"] not in obj.__store__._kosh_reserved_record_types and mime_type is None)\
+                or rec["type"] in ["__kosh_storeinfo__", obj.__store__._ensembles_type]:
+            self._mime_type = "dataset"
+        if self._mime_type not in self.types:
             open_anything = False
             for t in self.types:
-                if t == "dataset":  # datasets are special skipping
+                if t == "dataset":  # special skipping
                     continue
                 if len(self.types[t]) == 0:
                     open_anything = True
             if not open_anything:
-                raise RuntimeError("will not be able to load object of type {mime_type}".format(mime_type=mime_type))
+                raise RuntimeError(
+                    "will not be able to load object of type {mime_type}".format(mime_type=self._mime_type))
         self.obj = obj
         self.__listed_features = None
 
@@ -146,8 +132,8 @@ class KoshLoader(KoshExecutionGraph):
         :return: execution graph to get to the possibly transformed feature
         :rtype: networkx.OrderDiGraph
         """
-        # first let's get the execution path
-        G = get_graph(self.obj.mime_type, self, transformers)
+        # Let's get the execution path
+        G = get_graph(self._mime_type, self, transformers)
         return G
 
     def get(self, feature, format=None, transformers=[],
@@ -189,9 +175,9 @@ class KoshLoader(KoshExecutionGraph):
 
     def extract_(self, format):
         if format is None:
-            format = self.types[self.obj.mime_type][0]
-        if len(self.types) != 0 and format not in self.types[self.obj.mime_type]:
-            raise ValueError("Loader cannot output type {self.obj.mime_type} to {format} format".format(
+            format = self.types[self._mime_type][0]
+        if len(self.types) != 0 and format not in self.types[self._mime_type]:
+            raise ValueError("Loader cannot output type {self._mime_type} to {format} format".format(
                 self=self, format=format))
         self.format = format
         _, kargs = self._user_passed_parameters
@@ -238,10 +224,14 @@ class KoshLoader(KoshExecutionGraph):
         return data
 
     def _list_features(self, *args, **kargs):
-        """Wrapper on top of list_features to snatch from cache rther than calling everytime"""
+        """Wrapper on top of list_features to snatch from cache rather than calling every time"""
         use_cache = kargs.pop("use_cache", True)
         if self.__listed_features is None or not use_cache:
-            self.__listed_features = self.list_features(*args, **kargs)
+            try:
+                self.__listed_features = self.list_features(*args, **kargs)
+            except Exception:
+                # Broken loader at the moment
+                self.__listed_features = []
         out = self.__listed_features
         # Reset
         if not use_cache:
@@ -300,7 +290,7 @@ class KoshFileLoader(KoshLoader):
     """Kosh loader to load content from files"""
     types = {"file": []}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **args):
         super(KoshFileLoader, self).__init__(obj)
 
     def open(self, mode='r'):
@@ -310,7 +300,7 @@ class KoshFileLoader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        return KoshGenericObjectFromFile(self.obj.uri, mode)
+        return KoshGenericObjectFromFile(self.uri, mode)
 
     def extract(self, feature, format):
         """extract return a feature from the loaded object.
@@ -321,7 +311,7 @@ class KoshFileLoader(KoshLoader):
         :type format: str
         :return: data
         """
-        with open(self.obj.uri) as f:
+        with open(self.uri) as f:
             return f.read()
 
     def list_features(self, *args, **kargs):
@@ -343,3 +333,75 @@ class KoshFileLoader(KoshLoader):
         if feature not in self.list_features():
             raise ValueError("feature {feature} is not available".format(feature=feature))
         return {}
+
+
+class KoshSinaLoader(KoshLoader):
+    """Sina base class for loaders"""
+    types = {"dataset": ["numpy", ]}
+
+    def __init__(self, obj, **kargs):
+        """KoshSinaLoader generic sina-based loader
+        """
+        super(KoshSinaLoader, self).__init__(obj, **kargs)
+
+    def open(self, *args, **kargs):
+        """open the object
+        """
+        record = self.obj.__store__.get_record(self.obj.id)
+        if record["type"] not in self.obj.__store__._kosh_reserved_record_types:
+            return KoshDataset(
+                self.obj.id, store=self.obj.__store__, record=record)
+        if record["type"] == self.obj.__store__._sources_type:
+            return KoshSinaFile(
+                self.obj.id, store=self.obj.__store__, record=record)
+        elif record["type"] == self.obj.__store__._ensembles_type:
+            return KoshEnsemble(
+                self.obj.id, store=self.obj.__store__, record=record)
+        else:
+            return KoshSinaObject(self.obj.id, self.obj.__store__, record["type"], protected=[
+            ], record_handler=self.obj.__store__.__record_handler__, record=record)
+
+    def list_features(self):
+        record = self.obj.__store__.get_record(self.obj.id)
+        # Using set in case a variable is both in independent and dependent
+        # Dependent would win when getting the data
+        curves = set()
+        for curve in record["curve_sets"]:
+            curves.add(curve)
+            for curve_type in ["independent", "dependent"]:
+                for name in record["curve_sets"][curve][curve_type]:
+                    curves.add("{}/{}".format(curve, name))
+        return sorted(curves)
+
+    def extract(self, *args, **kargs):
+        features = self.feature
+        if not isinstance(features, list):
+            features = [self.feature, ]
+        record = self.obj.__store__.get_record(self.obj.id)
+        out = []
+        for feature in features:
+            sp = feature.split("/")
+            # Here we are assuming the curve root name cannot have "/" in it
+            curve_root = record["curve_sets"][sp[0]]
+            if len(sp) > 1:
+                curve_name = "/".join(sp[1:])
+                if curve_name in curve_root["dependent"]:
+                    curve = curve_root["dependent"][curve_name]["value"]
+                else:
+                    curve = curve_root["independent"][curve_name]["value"]
+                out.append(numpy.array(curve))
+            else:
+                # we want all curves
+                all = []
+                # Matching order (indep/dep) that we used in list_features
+                for curve_type in ["independent", "dependent"]:
+                    # Same order as list_features()
+                    for curve_name in sorted(curve_root[curve_type].keys()):
+                        curve = curve_root[curve_type][curve_name]["value"]
+                        all.append(numpy.array(curve))
+                out.append(all)
+
+        if not isinstance(self.feature, list):
+            return out[0]
+        else:
+            return out

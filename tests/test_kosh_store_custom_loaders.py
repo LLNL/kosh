@@ -20,7 +20,7 @@ class TestKoshStoreCustomLoaders(KoshTest):
     def test_store_custom_loader(self):
         store, kosh_db = self.connect()
 
-        ds = store.create(datasetId='123')
+        ds = store.create(id='123')
         with open("test_kosh_add_custom.xyz", "w") as f:
             print("1, 2, 3, 4", file=f)
         ds.associate("test_kosh_add_custom.xyz", mime_type="xyz")

@@ -15,14 +15,11 @@ def read_chunk(f, end='\n'):
 class PGMLoader(KoshLoader):
     types = {"pgm": ["numpy", ]}
 
-    def __init__(self, obj):
+    def __init__(self, obj, **kargs):
         """PGMLoader for Kosh to be able to read in pgm image files
-
-        :param KoshLoader: Kosh loaders base class
-        :type KoshLoader: KoshLoader
         :param obj: Kosh obj reference
         """
-        super(PGMLoader, self).__init__(obj)
+        super(PGMLoader, self).__init__(obj, **kargs)
 
     def open(self, mode="rb"):
         """open the pgm reader
@@ -31,7 +28,7 @@ class PGMLoader(KoshLoader):
         :return: Image file
         :rtype: file
         """
-        return open(self.obj.uri, mode)
+        return open(self.uri, mode)
 
     def extract(self):
         """get a feature
@@ -39,7 +36,7 @@ class PGMLoader(KoshLoader):
         :return: numpy array
         :rtype: numpy.ndarray
         """
-        with open(self.obj.uri, "rb") as f:
+        with open(self.uri, "rb") as f:
             magic = f.read(2).decode()
             if magic == 'P2':  # ASCII encoded
                 _ = f.read(2)
@@ -79,7 +76,7 @@ class PGMLoader(KoshLoader):
         :return: dictionary with attributes describing the feature: 'size', 'format', 'max_value'
         :rtype: dict
         """
-        with open(self.obj.uri, "rb") as f:
+        with open(self.uri, "rb") as f:
             magic = f.read(2).decode()
             if magic == 'P2':  # ASCII encoded
                 _ = f.read(2)

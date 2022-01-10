@@ -113,7 +113,7 @@ class KoshSchema(object):
                 "Could not validate {}\n"
                 "{} required attribute errors: {}\n"
                 "{} optional attributes errors: {}".format(
-                    obj.__id__, len(req_errors), req_errors, len(opt_errors), opt_errors))
+                    obj.id, len(req_errors), req_errors, len(opt_errors), opt_errors))
         return True
 
     def validate_attribute(self, attribute, value):

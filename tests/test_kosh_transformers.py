@@ -139,7 +139,7 @@ class TestKoshTransformers(koshbase.KoshTest):
                     2, cache_dir="kosh_cache", cache=True), Even(), SlowDowner(
                     1, cache_dir="kosh_cache", cache=True)])
         # Should have showed an extra 1 sec
-        self.assertLess(time.time() - start, 1.)
+        self.assertLess(time.time() - start, 1.1)  # 1.1 for wiggle room
 
         # Now let's clobber a cache file which means increase time
         start = time.time()

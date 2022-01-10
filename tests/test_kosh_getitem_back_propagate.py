@@ -8,6 +8,8 @@ class MyLoader(kosh.KoshLoader):
     types = {"test": ["numpy", ]}
 
     def __getitem__(self, key):
+        # Hack for test only
+        # using uri to know length
         length = int(os.path.basename(self.obj.uri))
         if isinstance(key, int):
             if 0 <= key < length:
@@ -142,6 +144,7 @@ class KoshTestBackPropagate(KoshTest):
         store.add_loader(MyLoader)
         dataset = store.create()
         length = 1000
+        # uri is length, it's a hack for test purposes only
         dataset.associate(str(length), "test")
         feature = dataset["test"]
         self.assertTrue(numpy.allclose(feature(), numpy.arange(length)))
@@ -155,6 +158,7 @@ class KoshTestBackPropagate(KoshTest):
         store.add_loader(MyLoader)
         dataset = store.create()
         length = 1000000000000000000000000000
+        # uri is length, it's a hack for test purposes only
         dataset.associate(str(length), "test")
         feature = dataset["test"]
         with self.assertRaises(ValueError):
@@ -169,11 +173,13 @@ class KoshTestBackPropagate(KoshTest):
         store.add_loader(MyLoader)
         dataset = store.create()
         length = 1000000
+        # uri is length, it's a hack for test purposes only
         dataset.associate(str(length), "test")
         feature = dataset.get_execution_graph("test", transformers=[Flip(), ])
         self.assertTrue(numpy.allclose(feature(), numpy.arange(length)[::-1]))
-        # Transformer does not propagate,   hence extract is called in full
-        # And then the subset is applyied and sent to transformer.
+        # 'Flip' Transformer does not propagate,
+        # hence extract is called in full first
+        # and then the subset is applied and sent to transformer.
         # Here that means 0,1,2,3,4 will be flipped, not the last 4!
         self.assertFalse(numpy.allclose(feature[:5], feature()[:5]))
         os.remove(db_uri)
@@ -185,8 +191,9 @@ class KoshTestBackPropagate(KoshTest):
         length = 1000000000000000000000
         dataset.associate(str(length), "test")
         feature = dataset.get_execution_graph("test", transformers=[Flip(), ])
-        # Transformer does not propagate,   hence extract is called in full
-        # And then the subset is applyied and sent to transformer.
+        # 'Flip' Transformer does not propagate,
+        # hence extract is called in full first
+        # and then the subset is applied and sent to transformer.
         # here the full call leads to memory issues
         with self.assertRaises(ValueError):
             feature[:5]
@@ -199,7 +206,8 @@ class KoshTestBackPropagate(KoshTest):
         length = 100
         dataset.associate(str(length), "test")
         feature = dataset.get_execution_graph("test", transformers=[Flip2(), ])
-        # Transformer does propagate
+        # 'Flip2' Transformer DOES propagate
+        # So the extraction should be done properly
         self.assertTrue(numpy.allclose(
             feature[:5], [length - 1., length - 2., length - 3., length - 4., length - 5.]))
         os.remove(db_uri)
@@ -213,7 +221,7 @@ class KoshTestBackPropagate(KoshTest):
         # Flip twice so essentially do nothing
         feature = dataset.get_execution_graph(
             "test", transformers=[Flip2(), Flip2()])
-        # Transformer does propagate
+        # 'Flip2' Transformer does propagate
         self.assertTrue(numpy.allclose(feature[:5], [0., 1., 2., 3., 4.]))
         os.remove(db_uri)
 

@@ -21,7 +21,7 @@ Copy/paste from [here](copy_paste_pip.md)
 conda create -n kosh -c conda-forge "python<3.8" networkx numpy llnl-sina
 ```
 
-#### Virtual Envirnoment
+#### Virtual Environment
 
 ```
 python -m virtualenv kosh

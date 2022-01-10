@@ -1,10 +1,56 @@
 # Release Notes
 
+* [2.0](#2.0)
 * [1.2](#1.2)
 * [1.1](#1.1)
 * [1.0](#1.0)
 * [0.9](#0.9)
 * [0.8](#0.8)
+
+## 2.0 Release
+
+### Description
+
+This release aligns Kosh with Sina and makes it the only backend. Kosh and Sina (1.11) API's have been mostly aligned.
+Sina curve and file section can now be recognized and taken advantage by Kosh.
+
+### New in this release
+
+* Sina alignment:
+  * Sina is only supported backend, no more code to potentially support other backends
+  * curves appear as associated
+  * files with `mimetype` appear as virtual associated files
+  * Kosh exported json files are sina-compatible and Kosh can ingest Sina's json files
+  * Stores are now opened via: `kosh.connect(...)`
+  * `search(...)` is now  `find(...)`
+  * any non Kosh-reserved record type is considered a dataset
+* `find` functions return generators (used to be lists)
+* Support for ensembles
+* Kosh stores can be associated with other Kosh stores.
+* `kosh` command line:
+  * can create stores
+  * can add datasets
+  * can use htar to tar up data
+* datasets can be cloned
+* While importing a dataset into a store, there are now options to handle conflicts.
+* Loader for file saved by numpy (`.npy`)
+* Store can fix changed/updated fast_sha
+
+### Improvements
+
+* Do not try to import external Python packages until needed -> some loader might appear as valid even though python packages are missing.
+* versioning is now pip compatible
+* `import_dataset(...)` can import list of datasets
+* Added `verbose` argument to transformers and operators -> this will let the user know when retrieving data from cache
+* set user name to "default" if can't get it from USER env var
+
+### Bug fixes
+
+* `matplotlib` import would crash if no DISPLAY environment variable
+* hdf5 leading / fix
+* No more error if a known mime type points to missing file (`list_features` will not show it)
+* dissociate files from store after moving them
+
 
 ## 1.2 Release
 

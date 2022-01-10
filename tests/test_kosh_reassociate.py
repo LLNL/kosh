@@ -29,7 +29,6 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
     if original_uris != []:
         cmd += " --original_uris {}".format(" ".join(original_uris))
 
-    print("TESTING :", cmd)
     p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
@@ -50,25 +49,25 @@ class KoshTestReassociate(KoshTest):
         filename, old_name = move_file(filename, "new_name.py")
         # Use old uri
         ds.reassociate(filename, old_name)
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "another_new_name.py")
         # Use short sha
         ds.reassociate(filename, kosh.utils.compute_fast_sha(filename))
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "a_new_name.py")
         # Use long sha
         ds.reassociate(filename, kosh.utils.compute_long_sha(filename))
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "final_name.py")
         # Use no sources
         ds.reassociate(filename)
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
         os.remove(db_uri)
@@ -86,25 +85,25 @@ class KoshTestReassociate(KoshTest):
         filename, old_name = move_file(filename, "store_new_name.py")
         # Use old uri
         store.reassociate(filename, old_name)
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "store_another_new_name.py")
         # Use short sha
         store.reassociate(filename, kosh.utils.compute_fast_sha(filename))
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "store_a_new_name.py")
         # Use long sha
         store.reassociate(filename, kosh.utils.compute_long_sha(filename))
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, "store_final_name.py")
         # Use no sources
         store.reassociate(filename)
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
         os.remove(db_uri)
@@ -123,27 +122,27 @@ class KoshTestReassociate(KoshTest):
         filename, old_name = move_file(filename, rand + "_new_name.py")
         # Use old uri
         run_reassociate([db_uri, ], [filename, ], [old_name, ])
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, rand + "_another_new_name.py")
         # Use short sha
         run_reassociate([db_uri, ], [filename, ], [
                         kosh.utils.compute_fast_sha(filename), ])
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, rand + "_a_new_name.py")
         # Use long sha
         run_reassociate([db_uri, ], [filename, ], [
                         kosh.utils.compute_long_sha(filename), ])
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         # Ok let's move this file w//o kosh
         filename, old_name = move_file(filename, rand + "_final_name.py")
         # Use no sources
         run_reassociate([db_uri, ], [filename, ])
-        self.assertEqual(len(ds.search(uri=filename)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
         os.remove(db_uri)
@@ -169,24 +168,24 @@ class KoshTestReassociate(KoshTest):
         # Use old uri
         run_reassociate([db_uri, ], [filename1, filename2],
                         [old_name1, old_name2])
-        self.assertEqual(len(ds.search(uri=filename1)), 1)
-        self.assertEqual(len(ds.search(uri=filename2)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename1))), 1)
+        self.assertEqual(len(list(ds.find(uri=filename2))), 1)
 
         # Ok let's move this file w//o kosh
         filename1, old_name1 = move_file(filename1, rand + "_a_new_name1.py")
         filename2, old_name2 = move_file(filename2, rand + "_a_new_name2.py")
         # Use no source
         run_reassociate([db_uri, ], [filename1, filename2])
-        self.assertEqual(len(ds.search(uri=filename1)), 1)
-        self.assertEqual(len(ds.search(uri=filename2)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename1))), 1)
+        self.assertEqual(len(list(ds.find(uri=filename2))), 1)
 
         # Ok let's move this file w//o kosh
         filename1, old_name1 = move_file(filename1, rand + "_some_name1.py")
         filename2, old_name2 = move_file(filename2, rand + "_some_name2.py")
         # Use pattern
         run_reassociate([db_uri, ], [rand + "_some_name*.py", ])
-        self.assertEqual(len(ds.search(uri=filename1)), 1)
-        self.assertEqual(len(ds.search(uri=filename2)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename1))), 1)
+        self.assertEqual(len(list(ds.find(uri=filename2))), 1)
 
         try:
             shutil.rmtree(rand)
@@ -199,8 +198,8 @@ class KoshTestReassociate(KoshTest):
             filename2, rand + "/" + rand + "_a_new_name2.py")
         # Use pattern
         run_reassociate([db_uri, ], [rand, ])
-        self.assertEqual(len(ds.search(uri=filename1)), 1)
-        self.assertEqual(len(ds.search(uri=filename2)), 1)
+        self.assertEqual(len(list(ds.find(uri=filename1))), 1)
+        self.assertEqual(len(list(ds.find(uri=filename2))), 1)
 
         filename1, old_name1 = move_file(
             filename1, rand + "_another_new_name1.py")

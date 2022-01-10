@@ -14,17 +14,23 @@ class KoshTransformer(KoshExecutionGraph):
 
     def __init__(self,
                  cache_dir=kosh_cache_dir,
-                 cache=False, *args, **kargs):
+                 cache=False, verbose=False, *args, **kargs):
         """init function will receive the previous step's signature and the cache directory
         and output signature is also generated from the input args (w/o the cache_dir)
         :param cache_dir: directory to save cachd files
         :type cache_dir: str
         :param cache: do we use cache? 0: no, 1:yes, 2:yes but clobber if exists
         :type cache: int
+        :param verbose: Turn on verbosity, by default this will turn on printing a message
+                        when results are loaded from cache. Message is sent as lone argument
+                        to `self._print` function.
+                        value is stored in self._verbose
+        :type verbose: bool
         """
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(*args, **kargs)
         self.cache_dir = cache_dir
+        self._verbose = verbose
         if cache:
             try:
                 os.makedirs(self.cache_dir)
@@ -57,6 +63,9 @@ class KoshTransformer(KoshExecutionGraph):
 
             try:
                 result = self.load(use_signature)
+                if self._verbose:
+                    self._print("Loaded results from cache file {} using signature: {}".format(
+                        cache_file, use_signature))
             except Exception:
                 if signature is None:
                     signature = self.update_signature(input, format).hexdigest()
@@ -68,6 +77,9 @@ class KoshTransformer(KoshExecutionGraph):
         else:
             result = self.transform(input, format)
         return result
+
+    def _print(self, message):
+        print(message)
 
     @abstractmethod
     def transform(self, input_, format):

@@ -3,29 +3,32 @@ from .core import KoshLoader
 import sys
 import os
 sys.path.append("/usr/gapps/pydv/current")  # noqa
-# pydv import matplotlib.pyplot
-# on some systems with no X forwarding this causes
-# an uncatchable error.
-# Setting the matplotlib backend to a windowless
-# backend fixes this.
-if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
-    import matplotlib
-    matplotlib.use("agg", force=True)
-try:
-    import pydvpy as pydvif
-except ImportError:
-    import pydv
-    sys.path.append(pydv.__path__[0])
-    import pydv.pydvpy as pydvif
 
 
 class UltraLoader(KoshLoader):
     """Kosh Loader for ultra files"""
     types = {"ultra": ["numpy", ]}
 
-    def __init__(self, obj):
-        super(UltraLoader, self).__init__(obj)
-        self.curves = pydvif.read(self.obj.uri)
+    def __init__(self, obj, **kargs):
+        super(UltraLoader, self).__init__(obj, **kargs)
+        self.curves = None
+
+    def load_curves(self):
+        # pydv import matplotlib.pyplot
+        # on some systems with no X forwarding this causes
+        # an uncatchable error.
+        # Setting the matplotlib backend to a windowless
+        # backend fixes this.
+        if "DISPLAY" not in os.environ or os.environ["DISPLAY"] == "":
+            import matplotlib
+            matplotlib.use("agg", force=True)
+        try:
+            import pydvpy as pydvif
+        except ImportError:
+            import pydv
+            sys.path.append(pydv.__path__[0])
+            import pydv.pydvpy as pydvif
+        self.curves = pydvif.read(self.uri)
 
     def load_from_ultra(self, variable):
         """Load variables from an ultra file
@@ -34,6 +37,8 @@ class UltraLoader(KoshLoader):
         :return list of dictionary conatining 'time and 'val' for each variable
         :rtype: list of dict or dict
         """
+        if self.curves is None:
+            self.load_curves()
         if not isinstance(variable, (list, tuple)):  # only one variable requested
             variable = [variable, ]
 
@@ -58,8 +63,10 @@ class UltraLoader(KoshLoader):
     def list_features(self):
         """List features available in ultra file"""
         variables = []
+        if self.curves is None:
+            self.load_curves()
         for curve in self.curves:
-            variables.append(curve.name.split()[0])
+            variables.append(curve.name)
         return variables
 
     def describe_feature(self, feature):
@@ -72,6 +79,8 @@ class UltraLoader(KoshLoader):
         :rtype: dict
         """
         info = {"name": feature}
+        if self.curves is None:
+            self.load_curves()
         for c in self.curves:
             if c.name.split()[0] == feature:
                 info["size"] = len(c.x)

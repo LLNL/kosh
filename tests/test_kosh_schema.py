@@ -57,7 +57,7 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(len(ds.schema.optional), 2)
 
         store2, _ = self.connect(db_uri=kosh_db)
-        ds2 = store2.open(ds.__id__)
+        ds2 = store2.open(ds.id)
         self.assertTrue(isinstance(ds2.schema, KoshSchema))
         self.assertTrue("req_int" in ds2.schema.required)
         self.assertEqual(len(ds2.schema.required), 4)

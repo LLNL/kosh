@@ -1,0 +1,20 @@
+{
+  "records": [
+  {"type": "some_type",
+  "id": "obj1",
+  "files": {
+      "tests/baselines/node_extracts2/node_extracts2.hdf5": {"mimetype": "hdf5", "tags": ["summary_hdf5","output"]},
+      "foo.png": {"tags": ["summary_hdf5","output"]}
+  },
+  "data": {
+    "param1": {"value": 1},
+    "param2": { "value": 2, "units": "g" },
+    "param3": { "value": 3.3, "units": "s", "tags": ["output"]},
+    "param4": { "value": "string", "tags": ["string"]},
+    "param5": { "value": ["item_a", "item_b"]}
+},
+"user_defined": {
+    "display_string": "str_id"
+}
+}
+    ]}

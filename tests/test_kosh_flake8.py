@@ -9,6 +9,7 @@ class TestFlake8(unittest.TestCase):
 
     def testFlake8(self):
         # Code path
+        self.maxDiff = None
         pth = os.path.dirname(__file__)
         pth = os.path.dirname(pth)
         code_pth = os.path.join(pth, "kosh")
