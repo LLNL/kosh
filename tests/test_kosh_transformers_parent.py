@@ -50,7 +50,7 @@ class KoshTestTransformerParent(KoshTest):
         self.assertEqual(data[0], (None, {}))
         self.assertEqual(data[1], "cycles")
         self.assertEqual(data[2], "numpy")
-        self.assertEqual(data[3], "numpy")
+        self.assertEqual(data[3], "test_stuff")
         os.remove(uri)
 
 
