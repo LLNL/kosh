@@ -9,7 +9,7 @@ Welcome to Kosh's documentation!
 
 Kosh is meant to be a Machine Learning (ML) oriented store. It is designed to help end-users easily find existing datasets and access edit/access their associated data.
 
-Kosh is a Sanskrit word that means *treasury*
+Kosh is a Hindi word that means *treasury*, which is derived from *Kosha*, a Sanskrit word that means container in either a direct or metaphorical sense. A fairly good translation would be *repository*.
 
 Contents:
 
