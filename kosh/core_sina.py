@@ -69,9 +69,18 @@ class KoshSinaObject(object):
                     else:
                         self.__store__.__sync__dict__[Id] = record
                         record["user_defined"]["last_update_from_db"] = time.time()
+            else:
+                for att in self.__dict__["__protected__"]:
+                    if att in record["data"]:
+                        del(record["data"][att])
+                if store.__sync__:
+                    self._update_record(record)
+                else:
+                    self.__store__.__sync__dict__[Id] = record
 
         for att, value in metadata.items():
-            setattr(self, att, value)
+            if att not in self.__dict__["__protected__"]:
+                setattr(self, att, value)
 
     def __getattr__(self, name):
         """__getattr__ get an attribute
