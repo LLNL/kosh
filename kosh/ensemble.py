@@ -243,3 +243,22 @@ These datasets will inherit attributes and associated sources from the ensemble.
     def clone(self, *atts, **keys):
         """We cannot clone an ensemble"""
         raise NotImplementedError("Ensembles objects cannot clone themselves")
+
+    def list_attributes(self, dictionary=False, no_duplicate=False):
+        """list_attributes list all non protected attributes
+
+        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :type dictionary: bool
+
+        :param no_duplicate: return only attributes that cannot be duplicated in members
+        :type no_duplicate: bool
+
+        :return: list of attributes set on object
+        :rtype: list
+        """
+
+        attributes = super(KoshEnsemble, self).list_attributes(dictionary)
+        if no_duplicate:
+            return [x for x in attributes if x not in self.__dict__["__ok_duplicates__"]]
+        else:
+            return attributes
