@@ -448,6 +448,16 @@ KOSH DATASET
 
         os.remove(db_uri)
 
+    def test_kosh_non_serial_attribute(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.good = "good"
+        with self.assertRaises(TypeError):
+            ds.bad = range(5)
+        self.assertEqual(len(tuple(store.find())), 1)
+        self.assertFalse(hasattr(ds, "bad"))
+        os.remove(db_uri)
+
 
 if __name__ == "__main__":
     A = KoshTestDataset()

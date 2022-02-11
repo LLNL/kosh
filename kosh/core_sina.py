@@ -288,8 +288,20 @@ class KoshSinaObject(object):
         id_ = record.id
         rels = store.relationships.find(id_, None, None)
         rels += store.relationships.find(None, None, id_)
+        try:
+            # if rec exists let's get it
+            old_record = store.records.get(id_)
+        except Exception:
+            old_record = None  # new record
         store.records.delete(id_)
-        store.records.insert(record)
+        try:
+            store.records.insert(record)
+        except Exception as err:
+            # Let's put back in place the old record
+            if old_record is not None:
+                store.records.insert(old_record)
+            raise err
+
         store.relationships.insert(rels)
         self.__store__.unlock()
 
