@@ -101,6 +101,11 @@ Currently Kosh comes with the following loaders
      - npy
      - numpy
      - numpy
+   * - NumpyTxtLoader
+     - Built on top of numpy.loadtxt that can read text files.
+     - numpy/txt
+     - numpy
+     - numpy
    * - PGMLoader
      - Load pgm formatted images (P2 and P5)
      - pgm
