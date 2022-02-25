@@ -11,14 +11,11 @@ from .utils import compute_long_sha
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
 import kosh
+import six
 try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
-try:
-    basestring
-except NameError:
-    basestring = str
 try:
     from collections.abc import Iterable
 except ImportError:
@@ -666,7 +663,7 @@ class KoshDataset(KoshSinaObject):
         # Need to remember we touched associated files
         now = time.time()
 
-        if isinstance(uri, basestring):
+        if isinstance(uri, six.string_types):
             uris = [uri, ]
             metadatas = [metadata, ]
             mime_types = [mime_type, ]
@@ -677,7 +674,7 @@ class KoshDataset(KoshSinaObject):
                 metadatas = [metadata, ] * len(uris)
             else:
                 metadatas = metadata
-            if isinstance(mime_type, basestring):
+            if isinstance(mime_type, six.string_types):
                 mime_types = [mime_type, ] * len(uris)
             else:
                 mime_types = mime_type
@@ -917,7 +914,7 @@ class KoshDataset(KoshSinaObject):
 
         :returns: True if member of the ensemble, False otherwise
         :rtype: bool"""
-        if not isinstance(ensemble, (basestring, kosh.ensemble.KoshEnsemble)):
+        if not isinstance(ensemble, (six.string_types, kosh.ensemble.KoshEnsemble)):
             raise TypeError("ensemble must be id or KoshEnsemble object")
         if isinstance(ensemble, kosh.ensemble.KoshEnsemble):
             ensemble = ensemble.id
@@ -942,7 +939,7 @@ class KoshDataset(KoshSinaObject):
         :type ensemble: str or KoshEnsemble
         """
         from kosh.ensemble import KoshEnsemble
-        if isinstance(ensemble, basestring):
+        if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
         if not isinstance(ensemble, KoshEnsemble):
             raise ValueError(
@@ -960,7 +957,7 @@ class KoshDataset(KoshSinaObject):
         :type ensemble: str or KoshEnsemble
         """
         from kosh.ensemble import KoshEnsemble
-        if isinstance(ensemble, basestring):
+        if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
         if not isinstance(ensemble, KoshEnsemble):
             raise ValueError(
