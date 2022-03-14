@@ -110,6 +110,9 @@ def typed_operator_with_kwargs(types_dict=None):
                 @functools.wraps(func)
                 def operate(self, *operate_inputs, **operate_kargs):
                     return func(*operate_inputs, **operate_kargs)
+
+                def __getitem_propagate__(self, key, input_index):
+                    return key
             return CustomOperator
         return actual_operator_decorator(*inputs, **kargs)
     return make_operator
@@ -127,6 +130,9 @@ def typed_operator(types_dict=None):
                 @functools.wraps(func)
                 def operate(self, *operate_inputs, **operate_kargs):
                     return func(*operate_inputs)
+
+                def __getitem_propagate__(self, key, input_index):
+                    return key
             return CustomOperator
         return actual_operator_decorator(*inputs, **kargs)
     return make_operator

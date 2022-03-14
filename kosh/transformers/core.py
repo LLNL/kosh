@@ -102,6 +102,10 @@ def typed_transformer(transformer_types=None):
 
             def transform(self, inputs, format):
                 return func(inputs)
+
+            def __getitem_propagate__(self, key, input_index):
+                return key
+
         return CustomTypedTransformer()
     return actual_transformer
 
@@ -113,6 +117,9 @@ def typed_transformer_with_format(transformer_types={"numpy": ["numpy", ]}):
 
             def transform(self, inputs, format):
                 return func(inputs, format)
+
+            def __getitem_propagate__(self, key, input_index):
+                return key
         return CustomTypedTransformer()
     return actual_transformer
 
