@@ -55,6 +55,7 @@ class KoshTestSinaFiles(KoshTest):
 		/g/g19/cdoutrix/git/kosh/tests/baselines/images/LLNLiconWHITE.png ( {} )
 --- Ensemble (0)---
 \t[]
+--- Ensemble Attributes ---
 """.format(dataset.param5, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
 
     def test_sina_files_section_with_curves(self):
@@ -109,6 +110,7 @@ class KoshTestSinaFiles(KoshTest):
 		internal ( timeplot_1 )
 --- Ensembles (0)---
 \t[]
+--- Ensemble Attributes ---
 """.format(dataset.param5)  # noqa
 
         self.assertEqual(print_str.strip(), str(dataset).strip())
@@ -164,6 +166,7 @@ class KoshTestSinaFiles(KoshTest):
 		internal ( timeplot_1 )
 --- Ensembles (0)---
 \t[]
+--- Ensemble Attributes ---
 """.format(dataset.param5)  # noqa
         self.assertEqual(print_str.strip(), str(dataset).strip())
 

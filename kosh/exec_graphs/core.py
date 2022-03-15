@@ -343,6 +343,7 @@ class KoshExecutionGraph(object):
             self.paths[format] = pths
         else:
             pths = self.paths[format]
+
         # Ok let's generate the new network with only the paths
         out = nx.OrderedDiGraph()
         out.seed = G.seed
@@ -374,7 +375,7 @@ class KoshExecutionGraph(object):
         cache_file_only = kargs.pop("cache_file_only", False)
         use_cache = kargs.pop("use_cache", False)
         cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
-        starters, end = find_network_ends(graph, start=True, end=True)
+        _, end = find_network_ends(graph, start=True, end=True)
         previous = list(graph.predecessors(node))
         if len(previous) == 0:
             # Ok we are at the start e.g a loader
@@ -417,10 +418,10 @@ class KoshExecutionGraph(object):
                 # we are done
                 return inputs[0]
             if hasattr(self, "operate_"):
-                out = self.operate_(*inputs, format=node[0])
+                out = self.operate_(*inputs, format=output_format)
                 return out
             elif hasattr(self, "transform_"):
-                out = self.transform_(*inputs, format=node[0])
+                out = self.transform_(*inputs, format=output_format)
                 return out
             elif isinstance(self, kosh.exec_graphs.core.KoshExecutionGraph):
                 return inputs

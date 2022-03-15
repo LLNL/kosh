@@ -74,7 +74,8 @@ class KoshTestLoaders(KoshTest):
         ds.associate("setup.py", "ascii")
         ld, _ = store._find_loader(ds._associated_data_[0])
         self.assertIsInstance(ld, kosh.loaders.core.KoshFileLoader)
-        self.assertEqual(sorted(ld.known_types()), sorted(set(["file", store._sources_type])))
+        self.assertEqual(sorted(ld.known_types()), sorted(
+            set(["file", store._sources_type])))
         self.assertEqual(ld.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
         os.remove(kosh_db)
@@ -262,6 +263,142 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (2, 3))
         self.assertEqual(info["format"], "numpy")
         self.assertEqual(info["type"], a.dtype)
+        os.remove(kosh_db)
+
+    def assertAllClose(self, a, b):
+        self.assertTrue(numpy.allclose(a, b))
+
+    def test_numpy_loadtxt(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        pth = "tests/baselines/npy"
+
+        # just numbers
+        ds.associate(os.path.join(pth, "example_columns_no_header.txt"), "numpy/txt")
+        self.assertEqual(ds.list_features(), ["features"])
+        d1 = ds["features"]
+        all = d1[:]
+        self.assertEqual(all.shape, (25, 6))
+
+        k1s = [
+            slice(6, None, 3),
+            6,
+            6,
+            slice(6, 8),
+            slice(6, 8),
+            slice(6, 8),
+            6,
+            slice(None, None, -1),
+            slice(None, None, None),
+            slice(6, 10, -3),
+            slice(6, -2, 3),
+            slice(-6, -2, 3),
+            slice(-6, 23, 3),
+            slice(-6, None, 3),
+            slice(None, -6, 3),
+            slice(-6, None, -3),
+            slice(None, -6, -3),
+            -7,
+        ]
+        k2s = [
+            slice(None, None, 2),
+            slice(None, None, None),
+            slice(None, None, -2),
+            slice(None, None, None),
+            slice(None, None, 2),
+            2,
+            2,
+            slice(None, None, None),
+            slice(None, None, -1),
+        ]
+        while len(k2s) < len(k1s):
+            k2s.append(slice(None, None, None))
+
+        for k1, k2 in zip(k1s, k2s):
+            print(k1, k2)
+            tmp = d1[k1, k2]
+            self.assertAllClose(tmp, all[k1, k2])
+        # header with features
+        ds.dissociate(os.path.join(pth, "example_columns_no_header.txt"))
+        ds.associate(
+            os.path.join(
+                pth,
+                "example_first_line_header_with_column_names.txt"),
+            "numpy/txt",
+            metadata={
+                "features_line": 0})
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        self._check_feature_values(ds)
+        ds.dissociate(os.path.join(pth, "example_first_line_header_with_column_names.txt"))
+        ds.associate(
+            os.path.join(
+                pth,
+                "example_three_hashed_header_rows.txt"),
+            "numpy/txt",
+            metadata={
+                "features_line": 2})
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        self._check_feature_values(ds)
+        ds.dissociate(os.path.join(pth, "example_three_hashed_header_rows.txt"))
+        ds.associate(
+            os.path.join(
+                pth,
+                "example_non_hashed_header_rows.txt"),
+            "numpy/txt",
+            metadata={
+                "features_line": 5,
+                "skiprows": 6})
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        self._check_feature_values(ds)
+        ds.dissociate(os.path.join(pth, "example_non_hashed_header_rows.txt"))
+        id_ = ds.associate(
+            os.path.join(
+                pth,
+                "example_tab_separated_column_names.txt"),
+            "numpy/txt",
+            metadata={
+                "features_line": 0})
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        asso = store._load(id_)
+        asso.features_separator = " "
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        self.assertEqual(
+            ds.list_features(use_cache=False), [
+                "time\tzeros\tones\ttwos\tthrees\tfours"])
+        asso.features_separator = "\t"
+        self.assertEqual(
+            ds.list_features(use_cache=False), [
+                "time", "zeros", "ones", "twos", "threes", "fours"])
+        ds.dissociate(os.path.join(pth, "example_tab_separated_column_names.txt"))
+        id_ = ds.associate(
+            os.path.join(
+                pth,
+                "example_column_names_in_header_via_constant_width.txt"),
+            "numpy/txt",
+            metadata={
+                "features_line": 0, "columns_width": 10})
+        self.assertEqual(
+            ds.list_features(), [
+                "time", "zeros col", "ones  col", "twos col", "threes col", "fours"])
+        os.remove(kosh_db)
+
+    def _check_feature_values(self, ds):
+        for i, feature in enumerate(ds.list_features()[1:]):
+            z = ds[feature][3:23:4]
+            self.assertEqual(z.shape, (5,))
+            z = numpy.average(z)
+            self.assertTrue(z < i + 1)
+            self.assertTrue(z > i)
 
 
 if __name__ == "__main__":
