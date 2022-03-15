@@ -5,6 +5,7 @@ import kosh
 from sina.utils import DataRange
 import time
 import sina
+import numpy
 
 
 class KoshTestDataset(KoshTest):
@@ -97,9 +98,14 @@ KOSH DATASET
 --- Associated Data (0)---
 --- Ensembles (0)---
         []
+--- Ensemble Attributes ---
 """.format(id=ds.id, creator=ds.creator)
         print(str(ds).replace("\t", "        "))
-        self.assertEqual(str(ds).replace("\t", "        ").strip(), printTestResults.strip())
+        self.assertEqual(
+            str(ds).replace(
+                "\t",
+                "        ").strip(),
+            printTestResults.strip())
         # Set/update many attributes at once
         ds.update({"creator": "a new creator!",
                    "some_new_attribute": "a new one",
@@ -160,7 +166,8 @@ KOSH DATASET
                 "something_else",
                 absolute_path=False)
         self.assertEqual(len(list(ds.find())), 1)
-        # Associating with another dataset does not create another object in the db
+        # Associating with another dataset does not create another object in
+        # the db
         n_files = len(
             list(
                 store.find(
@@ -434,6 +441,37 @@ KOSH DATASET
                          ["image", ])
         os.remove(db_uri)
 
+    def test_dataset_clone(self):
+        store, db_uri = self.connect()
+        e = store.create_ensemble()
+        e.root = "root"
+        e2 = store.create_ensemble()
+        e2.foo = "bar"
+        ds = e.create(metadata={"a": 1})
+        ds.associate("setup.py", "py")
+
+        ds2 = ds.clone()
+        self.assertEqual(ds.a, ds2.a)
+        asso = next(ds2.find())
+        self.assertEqual(asso.uri, os.path.abspath("setup.py"))
+        self.assertFalse(ds2.is_member_of(e))
+        ds2 = ds.clone(preserve_ensembles_memberships=True)
+        self.assertTrue(hasattr(ds, "root"))
+        self.assertTrue(hasattr(ds2, "root"))
+        self.assertTrue(ds2.is_member_of(e))
+        ds2 = ds.clone(id_only=True)
+        self.assertIsInstance(ds2, str)
+
+        ds2 = ds.clone(preserve_ensembles_memberships=False)
+        self.assertTrue(hasattr(ds, "root"))
+        self.assertTrue(hasattr(ds2, "root"))
+        self.assertFalse(ds2.is_member_of(e))
+
+        ds2 = ds.clone(preserve_ensembles_memberships=-1)
+        self.assertFalse(hasattr(ds2, "root"))
+        self.assertFalse(ds2.is_member_of(e))
+        os.remove(db_uri)
+
     def test_get_sina_objects(self):
         store, db_uri = self.connect()
         self.assertIsInstance(store.get_sina_store(), sina.datastore.DataStore)
@@ -446,6 +484,16 @@ KOSH DATASET
             ds.get_sina_records(),
             sina.datastore.DataStore.RecordOperations)
 
+        os.remove(db_uri)
+
+    def test_kosh_non_serial_attribute(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.good = "good"
+        with self.assertRaises(TypeError):
+            ds.bad = numpy.arange(5)
+        self.assertEqual(len(tuple(store.find())), 1)
+        self.assertFalse(hasattr(ds, "bad"))
         os.remove(db_uri)
 
 

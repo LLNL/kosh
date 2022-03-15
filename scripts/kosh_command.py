@@ -14,10 +14,7 @@ import tempfile
 import ast
 import glob
 import json
-try:
-    basestring
-except NameError:
-    basestring = str
+import six
 
 
 def get_all_files(opts):
@@ -176,7 +173,7 @@ def open_stores(uris, dataset_record_type):
     :rtype: list
     """
     stores = []
-    if isinstance(dataset_record_type, basestring):
+    if isinstance(dataset_record_type, six.string_types):
         dataset_record_type = [dataset_record_type, ] * len(uris)
     for index, store_uri in enumerate(uris):
         if "@" in store_uri:

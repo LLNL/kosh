@@ -69,9 +69,18 @@ class KoshSinaObject(object):
                     else:
                         self.__store__.__sync__dict__[Id] = record
                         record["user_defined"]["last_update_from_db"] = time.time()
+            else:
+                for att in self.__dict__["__protected__"]:
+                    if att in record["data"]:
+                        del(record["data"][att])
+                if store.__sync__:
+                    self._update_record(record)
+                else:
+                    self.__store__.__sync__dict__[Id] = record
 
         for att, value in metadata.items():
-            setattr(self, att, value)
+            if att not in self.__dict__["__protected__"]:
+                setattr(self, att, value)
 
     def __getattr__(self, name):
         """__getattr__ get an attribute
@@ -288,8 +297,20 @@ class KoshSinaObject(object):
         id_ = record.id
         rels = store.relationships.find(id_, None, None)
         rels += store.relationships.find(None, None, id_)
+        try:
+            # if rec exists let's get it
+            old_record = store.records.get(id_)
+        except Exception:
+            old_record = None  # new record
         store.records.delete(id_)
-        store.records.insert(record)
+        try:
+            store.records.insert(record)
+        except Exception as err:
+            # Let's put back in place the old record
+            if old_record is not None:
+                store.records.insert(old_record)
+            raise err
+
         store.relationships.insert(rels)
         self.__store__.unlock()
 

@@ -11,14 +11,15 @@ from .utils import compute_long_sha
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
 import kosh
+import six
 try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
 try:
-    basestring
-except NameError:
-    basestring = str
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 
 class KoshDataset(KoshSinaObject):
@@ -78,7 +79,8 @@ class KoshDataset(KoshSinaObject):
             for a in sorted(atts):
                 if a == "_associated_data_":
                     continue
-                st += "\t{}: {}\n".format(a, atts[a])
+                if not self.is_ensemble_attribute(a):
+                    st += "\t{}: {}\n".format(a, atts[a])
         if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
                 len(self._associated_data_))
@@ -113,16 +115,26 @@ class KoshDataset(KoshSinaObject):
                 for uri in sorted(associated[mime]):
                     st += "\n\t\t{uri}".format(uri=uri)
                 st += "\n"
-        ensembles = list(self.get_ensembles(ids_only=True))
+        ensembles = tuple(self.get_ensembles())
         st += "--- Ensembles ({})---".format(len(ensembles))
-        st += "\n\t"+str([str(x) for x in ensembles])
+        st += "\n\t" + str([str(x.id) for x in ensembles])
+        st += "\n--- Ensemble Attributes ---\n"
+        for ensemble in ensembles:
+            st += "\t--- Ensemble {} ---\n".format(ensemble.id)
+            for a in sorted(atts):
+                if a == "_associated_data_":
+                    continue
+                if self.is_ensemble_attribute(a, ensemble):
+                    st += "\t\t{}: {}\n".format(a, atts[a])
+
         return st
 
     def _repr_pretty_(self, p, cycle):
         """Pretty display in Ipython"""
         p.text(self.__str__())
 
-    def cleanup_files(self, dry_run=False, interactive=False, clean_fastsha=False, **search_keys):
+    def cleanup_files(self, dry_run=False, interactive=False,
+                      clean_fastsha=False, **search_keys):
         """Cleanup the dataset from references to dead files
         Also updates the fast_shas if necessary
         You can filter associated objects by passing key=values
@@ -318,7 +330,7 @@ class KoshDataset(KoshSinaObject):
                                                     *args, **kargs))
             return out
         # Need to make sure transformers are a list
-        if not isinstance(transformers, (list, tuple)):
+        if not isinstance(transformers, Iterable):
             transformers = [transformers, ]
         # we need to figure which associated data has the feature
         if not isinstance(feature, list):
@@ -534,7 +546,6 @@ class KoshDataset(KoshSinaObject):
         # Ok now let's get all associated uri that match
         # Fist assuming it's a fast_sha
         matches = list(self.find(fast_sha=source, ids_only=True))
-        print("MATCHES FROM SHA:", matches)
         # Now it could be simply a uri
         matches += list(self.find(uri=source, ids_only=True))
 
@@ -652,7 +663,7 @@ class KoshDataset(KoshSinaObject):
         # Need to remember we touched associated files
         now = time.time()
 
-        if isinstance(uri, basestring):
+        if isinstance(uri, six.string_types):
             uris = [uri, ]
             metadatas = [metadata, ]
             mime_types = [mime_type, ]
@@ -663,7 +674,7 @@ class KoshDataset(KoshSinaObject):
                 metadatas = [metadata, ] * len(uris)
             else:
                 metadatas = metadata
-            if isinstance(mime_type, basestring):
+            if isinstance(mime_type, six.string_types):
                 mime_types = [mime_type, ] * len(uris)
             else:
                 mime_types = mime_type
@@ -903,7 +914,7 @@ class KoshDataset(KoshSinaObject):
 
         :returns: True if member of the ensemble, False otherwise
         :rtype: bool"""
-        if not isinstance(ensemble, (basestring, kosh.ensemble.KoshEnsemble)):
+        if not isinstance(ensemble, (six.string_types, kosh.ensemble.KoshEnsemble)):
             raise TypeError("ensemble must be id or KoshEnsemble object")
         if isinstance(ensemble, kosh.ensemble.KoshEnsemble):
             ensemble = ensemble.id
@@ -915,7 +926,8 @@ class KoshDataset(KoshSinaObject):
         :param ids_only: return ids or objects
         :type ids_only: bool
         """
-        for rel in self.get_sina_store().relationships.find(self.id, self.__store__._ensemble_predicate, None):
+        for rel in self.get_sina_store().relationships.find(
+                self.id, self.__store__._ensemble_predicate, None):
             if ids_only:
                 yield rel.object_id
             else:
@@ -927,14 +939,17 @@ class KoshDataset(KoshSinaObject):
         :type ensemble: str or KoshEnsemble
         """
         from kosh.ensemble import KoshEnsemble
-        if isinstance(ensemble, basestring):
+        if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
         if not isinstance(ensemble, KoshEnsemble):
-            raise ValueError("cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
+            raise ValueError(
+                "cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
         if self.id in ensemble.get_members(ids_only=True):
             ensemble.remove(self.id)
         else:
-            warnings.warn("{} is not part of ensemble {}. Ignoring request to leave it.".format(self.id, ensemble.id))
+            warnings.warn(
+                "{} is not part of ensemble {}. Ignoring request to leave it.".format(
+                    self.id, ensemble.id))
 
     def join_ensemble(self, ensemble):
         """Adds this dataset to an ensemble
@@ -942,17 +957,25 @@ class KoshDataset(KoshSinaObject):
         :type ensemble: str or KoshEnsemble
         """
         from kosh.ensemble import KoshEnsemble
-        if isinstance(ensemble, basestring):
+        if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
         if not isinstance(ensemble, KoshEnsemble):
-            raise ValueError("cannot join `ensebmle` since object `{}` does not map to an ensemble".format(ensemble))
+            raise ValueError(
+                "cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
         ensemble.add(self)
 
     def clone(self, preserve_ensembles_memberships=False, id_only=False):
         """Clones the dataset, e.g makes an identical copy.
 
-        :param preserve_ensembles_memberships: Add the new dataset to the ensembles this dataset belongs to?
-        :type preserve_ensembles_membership: bool
+        :param preserve_ensembles_memberships: Add the new dataset to the ensembles this original dataset belongs to?
+                                               True/1:  The cloned dataset will belong to the same ensembles
+                                                        as the original dataset.
+                                               False/0: The new dataset will not belong to any ensemble
+                                                        but we will copy ensemble level attributes onto
+                                                        the cloned dataset.
+                                               -1:      The new dataset will not belong to any ensemble and we
+                                                        will leave out all attributes that belong to ensembles.
+        :type preserve_ensembles_membership: bool or int
 
         :param id_only: returns id rather than new dataset
         :type id_only: bool
@@ -963,13 +986,60 @@ class KoshDataset(KoshSinaObject):
         attributes = self.list_attributes(True)
         cloned_dataset = self.__store__.create(metadata=attributes)
         for associated in self.get_associated_data():
-            cloned_dataset.associate(associated.uri, associated.mime_type, metadata=associated.list_attributes(True))
+            cloned_dataset.associate(
+                associated.uri,
+                associated.mime_type,
+                metadata=associated.list_attributes(True))
 
-        if preserve_ensembles_memberships:
+        if preserve_ensembles_memberships in [True, 1]:
             for ensemble in self.get_ensembles():
                 ensemble.add(cloned_dataset)
+        elif preserve_ensembles_memberships == -1:
+            for attribute in self.list_attributes():
+                if self.is_ensemble_attribute(attribute):
+                    delattr(cloned_dataset, attribute)
+        elif preserve_ensembles_memberships != 0:
+            raise ValueError(
+                "preserve_ensembles_memberships must be one of True/1, False/0 or -1")
 
         if id_only:
             return cloned_dataset.id
         else:
             return cloned_dataset
+
+    def is_ensemble_attribute(self, attribute, ensembles=None, ensemble_id=False):
+        """Determine if an attribute belongs to ensemble this dataset is part of
+        :param attribute: The attribute to check
+        :type attribute: str
+        :param ensembles: ensembles to check against, defaults to all ensembles the dataset belongs to
+        :type ensembles: None, ensemble_id or ensemble_obj or list of these
+        :param ensemble_id: rather than True/False return the id of the ensemble this attribute comes from
+        :type ensemble_id: bool
+        :returns: True or ensemble of origin id if the attribute belongs to an ensemble False/"" otherwise
+        """
+        if ensembles is None:
+            ensembles = self.get_ensembles()
+        elif isinstance(ensembles, str):
+            try:
+                ensembles = self.__store__.open(ensembles)
+            except Exception:
+                raise ValueError(
+                    "could not find object with id {} in the store".format(ensembles))
+            ensembles = [ensembles, ]
+        elif not isinstance(ensembles, Iterable):
+            ensembles = [ensembles, ]
+        for ensemble in ensembles:
+            if not isinstance(ensemble, kosh.ensemble.KoshEnsemble):
+                raise ValueError(
+                    "Object with id {} is not an ensemble {}".format(
+                        ensemble.id, type(ensemble)))
+
+            if attribute in ensemble.list_attributes(no_duplicate=True):
+                if ensemble_id:
+                    return ensemble.id
+                else:
+                    return True
+        if ensemble_id:
+            return ""
+        else:
+            return False

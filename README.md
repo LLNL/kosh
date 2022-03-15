@@ -7,6 +7,7 @@ In addition Kosh aims to make data access and sharing as simple as possible.
 
 Via "loaders", "transformers" and "operators" Kosh can access and process data in a consistent fashion, decoupled from data format and location. 
 
+Kosh is a Hindi word that means *treasury*, which is derived from *Kosha*, a Sanskrit word that means container in either a direct or metaphorical sense. A fairly good translation would be *repository*.
 
 # Getting Started
 

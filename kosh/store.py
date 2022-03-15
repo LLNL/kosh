@@ -13,6 +13,7 @@ from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
 from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
 from .loaders import NpyLoader
+from .loaders import NumpyTxtLoader
 from .dataset import KoshDataset
 from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject
@@ -21,10 +22,7 @@ from .utils import update_store_and_get_info_record
 from sina.datastore import connect as sina_connect
 from inspect import isfunction, ismethod
 import kosh
-try:
-    basestring
-except NameError:
-    basestring = str
+import six
 import types
 
 try:
@@ -151,6 +149,7 @@ class KoshStore(object):
         self.add_loader(KoshFileLoader)
         self.add_loader(JSONLoader)
         self.add_loader(NpyLoader)
+        self.add_loader(NumpyTxtLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
@@ -397,7 +396,7 @@ class KoshStore(object):
         :param Id: unique Id or kosh_obj
         :type Id: str
         """
-        if not isinstance(Id, basestring):
+        if not isinstance(Id, six.string_types):
             Id = Id.id
 
         rec = self.get_record(Id)
@@ -731,7 +730,7 @@ class KoshStore(object):
         else:
             record_types = keys.pop("types", None)
 
-        if isinstance(record_types, basestring):
+        if isinstance(record_types, six.string_types):
             record_types = [record_types, ]
         if record_types is not None and not isinstance(
                 record_types, (list, tuple)):
@@ -1135,7 +1134,7 @@ class KoshStore(object):
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             datasets = [datasets, ]
         for dataset in datasets:
-            if isinstance(dataset, basestring):
+            if isinstance(dataset, six.string_types):
                 return self.open(dataset).export(file)
             else:
                 return dataset.export(file)
@@ -1522,7 +1521,7 @@ class KoshStore(object):
         """Dissociate another store
 
         :param store: The store to associate
-        :type store: KoshStore or basestring
+        :type store: KoshStore or six.string_types
 
         :param reciprocal: By default, this is a one way relationship.
                            The disssociated store will NOT be aware of
@@ -1530,7 +1529,7 @@ class KoshStore(object):
                            the dissociation in both stores.
         :type reciprocal: bool
         """
-        if not isinstance(store, (basestring, KoshStore)):
+        if not isinstance(store, (six.string_types, KoshStore)):
             raise TypeError("store must be a KoshStore or path to one")
 
         sina_recs = self.get_sina_records()
@@ -1541,7 +1540,7 @@ class KoshStore(object):
         # refresh value
         stores = store_info["data"]["associated_stores"]["value"]
 
-        if isinstance(store, basestring):
+        if isinstance(store, six.string_types):
             try:
                 store_path = store
                 store = self.get_associated_store(store_path)
@@ -1565,12 +1564,12 @@ class KoshStore(object):
         """Returns the associated store based on its uri.
 
         :param uri: uri to the desired store
-        :type uri: basestring
+        :type uri: six.string_types
         :returns: Associated kosh store
         :rtype: KoshStore
         """
 
-        if not isinstance(uri, basestring):
+        if not isinstance(uri, six.string_types):
             raise TypeError("uri must be string")
 
         for store in self._associated_stores_:

@@ -52,7 +52,8 @@ class KoshTransformer(KoshExecutionGraph):
 
         if self.cache:
             if signature is None:
-                use_signature = self.update_signature(input, format).hexdigest()
+                use_signature = self.update_signature(
+                    input, format).hexdigest()
             else:
                 use_signature = signature
 
@@ -68,7 +69,8 @@ class KoshTransformer(KoshExecutionGraph):
                         cache_file, use_signature))
             except Exception:
                 if signature is None:
-                    signature = self.update_signature(input, format).hexdigest()
+                    signature = self.update_signature(
+                        input, format).hexdigest()
                 result = self.transform(input, format)
                 if self.cache > 0:  # Ok user wants to cache results
                     if not os.path.exists(self.cache_dir):
@@ -87,3 +89,39 @@ class KoshTransformer(KoshExecutionGraph):
         :param input_: result returned by loader or previous transformer
         """
         raise NotImplementedError("the transform function is not implemented")
+
+
+# Convenience decorators
+def typed_transformer(transformer_types=None):
+    if transformer_types is None:
+        transformer_types = {"numpy": ["numpy", ]}
+
+    def actual_transformer(func):
+        class CustomTypedTransformer(KoshTransformer):
+            types = transformer_types
+
+            def transform(self, inputs, format):
+                return func(inputs)
+
+            def __getitem_propagate__(self, key, input_index):
+                return key
+
+        return CustomTypedTransformer()
+    return actual_transformer
+
+
+def typed_transformer_with_format(transformer_types={"numpy": ["numpy", ]}):
+    def actual_transformer(func):
+        class CustomTypedTransformer(KoshTransformer):
+            types = transformer_types
+
+            def transform(self, inputs, format):
+                return func(inputs, format)
+
+            def __getitem_propagate__(self, key, input_index):
+                return key
+        return CustomTypedTransformer()
+    return actual_transformer
+
+
+numpy_transformer = typed_transformer()
