@@ -3,7 +3,6 @@ from kosh.transformers.core import typed_transformer_with_format
 import koshbase
 import kosh
 import numpy
-import os
 
 
 class FakeLoader(kosh.loaders.KoshLoader):
@@ -56,8 +55,6 @@ class TestKoshTransformers(koshbase.KoshTest):
                     "data", transformers=[
                         normalize, ]), [
                     0, 0.5, 1., .5, 0]))
-        store.close()
-        os.remove(db_uri)
 
     def testTypedTransformerDecorator(self):
         store, db_uri = self.connect()
@@ -67,8 +64,6 @@ class TestKoshTransformers(koshbase.KoshTest):
         ds.associate("fake.fake", "fakestr")
         self.assertEqual(ds.get("data", transformers=[normalize_str, ]), str(
             numpy.array([0, 0.5, 1., .5, 0])))
-        store.close()
-        os.remove(db_uri)
 
     def testTypedTransformerWithFormatDecorator(self):
         store, db_uri = self.connect()
@@ -80,8 +75,6 @@ class TestKoshTransformers(koshbase.KoshTest):
         self.assertEqual(data, str(numpy.array([0, 0.5, 1., .5, 0])))
         data = ds.get("data", transformers=[normalize_str_or_numpy, ], format="numpy")
         self.assertTrue(numpy.allclose(data, numpy.array([0, 0.5, 1., .5, 0])))
-        store.close()
-        os.remove(db_uri)
 
 
 if __name__ == "__main__":

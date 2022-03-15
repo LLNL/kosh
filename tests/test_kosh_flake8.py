@@ -3,7 +3,6 @@ import unittest
 import os
 import shlex
 from subprocess import Popen, PIPE
-import sys
 
 
 class TestFlake8(unittest.TestCase):
@@ -30,9 +29,7 @@ class TestFlake8(unittest.TestCase):
         cmd = "flake8 --show-source --statistics " +\
               "--exclude scripts/* " +\
               "--max-line-length=120 {} scripts {} ".format(code_pth, test_pth)
-        if not sys.platform.startswith("win"):
-            cmd = shlex.split(cmd)
-        P = Popen(cmd,
+        P = Popen(shlex.split(cmd),
                   stdout=PIPE,
                   stderr=PIPE)
         out, e = P.communicate()

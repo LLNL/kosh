@@ -151,7 +151,6 @@ class KoshTestBackPropagate(KoshTest):
         self.assertTrue(numpy.allclose(feature[:3], [0, 1, 2]))
         self.assertTrue(numpy.allclose(
             feature[-3:], [length - 3., length - 2., length - 1.]))
-        store.close()
         os.remove(db_uri)
 
     def testGetItemOutofMemoryKosh(self):
@@ -167,7 +166,6 @@ class KoshTestBackPropagate(KoshTest):
         self.assertTrue(numpy.allclose(feature[:3], [0, 1, 2]))
         self.assertTrue(numpy.allclose(
             feature[-3:], [length - 3., length - 2., length - 1.]))
-        store.close()
         os.remove(db_uri)
 
     def testGetItemKoshTransformerNoPropagate(self):
@@ -184,7 +182,6 @@ class KoshTestBackPropagate(KoshTest):
         # and then the subset is applied and sent to transformer.
         # Here that means 0,1,2,3,4 will be flipped, not the last 4!
         self.assertFalse(numpy.allclose(feature[:5], feature()[:5]))
-        store.close()
         os.remove(db_uri)
 
     def testGetItemKoshTransformerNoPropagateOutofMemory(self):
@@ -200,7 +197,6 @@ class KoshTestBackPropagate(KoshTest):
         # here the full call leads to memory issues
         with self.assertRaises(ValueError):
             feature[:5]
-        store.close()
         os.remove(db_uri)
 
     def testGetItemKoshTransformerPropagate(self):
@@ -214,7 +210,6 @@ class KoshTestBackPropagate(KoshTest):
         # So the extraction should be done properly
         self.assertTrue(numpy.allclose(
             feature[:5], [length - 1., length - 2., length - 3., length - 4., length - 5.]))
-        store.close()
         os.remove(db_uri)
 
     def testGetItemKoshTransformerPropagateDoubePass(self):
@@ -228,7 +223,6 @@ class KoshTestBackPropagate(KoshTest):
             "test", transformers=[Flip2(), Flip2()])
         # 'Flip2' Transformer does propagate
         self.assertTrue(numpy.allclose(feature[:5], [0., 1., 2., 3., 4.]))
-        store.close()
         os.remove(db_uri)
 
     def testGetItemKoshOperatorPropagate(self):
@@ -244,7 +238,6 @@ class KoshTestBackPropagate(KoshTest):
 
         A = ADD(feature, feature2)
         self.assertTrue(numpy.allclose(A[:3], [float(length) - 1, ] * 3))
-        store.close()
         os.remove(db_uri)
 
     def testShortcutPropagation(self):
@@ -259,7 +252,6 @@ class KoshTestBackPropagate(KoshTest):
         self.assertEqual(len(VC.index_results[0]), 0)
         with self.assertRaises(KeyError):
             VC.index_results[1]
-        store.close()
         os.remove(db_uri)
 
 

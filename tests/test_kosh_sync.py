@@ -28,24 +28,6 @@ class KoshTestSync(KoshTest):
         self.assertTrue(store.is_synchronous())
         os.remove(kosh_db)
 
-    def test_sync_associate_fail(self):
-        store, kosh_db = self.connect()
-        store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
-        # Create many datasets
-        ds = store.create(metadata={"key1": 1, "key2": "A"})
-        ds2 = store2.create(metadata={"key2": "B", "key3": 3})
-        ds3 = store.create()
-        ds.associate("tests/baselines/node_extracts2", "something")
-        ds2.associate("tests/baselines/node_extracts2", "something")
-        ds3.associate("tests/baselines/node_extracts2", "something")
-        # associated record was modified since ds2 modified it
-        # Cannot sync any longer
-        with self.assertRaises(RuntimeError):
-            store2.sync()
-        store.close()
-        store2.close()
-        os.remove(kosh_db)
-
     def test_sync_find(self):
         store, kosh_db = self.connect()
         store2, kosh_db = self.connect(db_uri=kosh_db, sync=False)
@@ -55,8 +37,8 @@ class KoshTestSync(KoshTest):
         ds3 = store.create()
         store2.create(metadata={"key2": "C", "key3": 4})
         ds.associate("tests/baselines/node_extracts2", "something")
-        ds3.associate("tests/baselines/node_extracts2", "something")
         ds2.associate("tests/baselines/node_extracts2", "something")
+        ds3.associate("tests/baselines/node_extracts2", "something")
 
         s = list(store.find(key2=DataRange("A")))
         self.assertEqual(len(s), 1)
@@ -86,8 +68,7 @@ class KoshTestSync(KoshTest):
             file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
 
-        store.close()
-        store2.close()
+        store2.sync()
         os.remove(kosh_db)
 
     def test_sync_delete_dataset(self):
@@ -107,8 +88,6 @@ class KoshTestSync(KoshTest):
         with self.assertRaises(Exception):
             store2.open(dsid)
         self.assertEqual(len(list(store2.find())), 0)
-        store1.close()
-        store2.close()
         os.remove(kosh_db)
 
     def test_sync_dataset_attributes(self):
@@ -206,8 +185,6 @@ class KoshTestSync(KoshTest):
         ds2.associate("conflict", "conf2")
         ds2.sync()
         store2.sync()
-        store1.close()
-        store2.close()
         os.remove(kosh_db)
 
 

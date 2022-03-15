@@ -1,7 +1,6 @@
 from subprocess import Popen, PIPE
 import shlex
 import copy
-import sys
 
 
 class KoshScriptWrapper(object):
@@ -128,9 +127,7 @@ class KoshScriptWrapper(object):
             cmd += " {}".format(" ".join([str(x) for x in pos_values]))
 
         self.constructed_command_line = cmd
-        if not sys.platform.startswith("win"):
-            cmd = shlex.split(cmd)
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE)
+        p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
         if call_communicate:
             return p.communicate()
         else:

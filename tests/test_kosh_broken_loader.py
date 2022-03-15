@@ -45,7 +45,6 @@ class BrokenLoader(KoshTest):
         self.assertEqual(ds.list_features(), [])
         with self.assertRaises(ValueError):
             print(ds["blah"][:])
-        store.close()
         os.remove(db_uri)
 
     def test_fallback(self):
@@ -57,7 +56,6 @@ class BrokenLoader(KoshTest):
 
         self.assertEqual(ds.list_features(), ["blah", ])
         self.assertEqual(ds["blah"][:], 1)
-        store.close()
         os.remove(db_uri)
 
     def test_broken_in_get(self):
@@ -69,5 +67,4 @@ class BrokenLoader(KoshTest):
         self.assertEqual(ds.list_features(), ["blah", ])
         with self.assertRaises(ImportError):
             ds["blah"][:]
-        store.close()
         os.remove(db_uri)

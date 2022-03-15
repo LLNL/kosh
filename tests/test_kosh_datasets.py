@@ -19,7 +19,6 @@ class KoshTestDataset(KoshTest):
         ds["cycles"]
         with self.assertRaises(ValueError):
             ds["some_key_not_in_file"]
-        store.close()
         os.remove(kosh_db)
 
     def test_associate_known_mime_no_file(self):
@@ -48,8 +47,6 @@ class KoshTestDataset(KoshTest):
         self.assertEqual(len(list(search)), 1)
         search = ds.find(bad=False, ids_only=True)
         self.assertEqual(len(list(search)), 1)
-        store.close()
-        os.remove(kosh_db)
 
     def test_add_dataset(self):
         store, kosh_db = self.connect()
@@ -122,7 +119,6 @@ KOSH DATASET
         self.assertEqual(ds.some_int_attribute, 5)
         # Check the pre-existing one was updated
         self.assertEqual(ds.creator, "a new creator!")
-        store.close()
         os.remove(kosh_db)
 
     def test_search_datasets_in_store(self):
@@ -145,7 +141,6 @@ KOSH DATASET
         self.assertEqual(k1[0].key1, 2)
         all_ds = list(store.find())
         self.assertEqual(len(all_ds), 4)
-        store.close()
         os.remove(kosh_db)
 
     def test_associate(self):
@@ -179,7 +174,7 @@ KOSH DATASET
                     types=store._sources_type,
                     ids_only=True)))
         ds_2 = store.create("multi")
-        asso_id = ds_2.associate(
+        ds_2.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
@@ -191,9 +186,6 @@ KOSH DATASET
                     ],
                     ids_only=True)))
         self.assertEqual(n_files, n_files_2)
-        asso = store._load(asso_id)
-        self.assertTrue(ds_2.id in asso.associated)
-        self.assertTrue(ds.id in asso.associated)
 
         f = ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
@@ -252,7 +244,6 @@ KOSH DATASET
                     types=store._sources_type,
                     ids_only=True)))
         self.assertEqual(n_files - 1, n_files_2)
-        store.close()
         os.remove(kosh_db)
 
     def test_find(self):
@@ -281,7 +272,6 @@ KOSH DATASET
             key2=DataRange("A"),
             file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 1)
-        store.close()
         os.remove(kosh_db)
 
     def test_delete_dataset(self):
@@ -330,25 +320,7 @@ KOSH DATASET
         self.assertEqual(len(list(store.find(project="test"))), 2)
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
-        store.close()
-        store2.close()
         os.remove(kosh_db)
-
-    def test_dissociate_multiple(self):
-        store, db_uri = self.connect()
-        ds = store.create()
-        ds2 = store.create()
-        ds.associate("setup.py", "py")
-        asso_id = ds2.associate("setup.py", "py")
-        asso = store._load(asso_id)
-        self.assertTrue(ds.id in asso.associated)
-        self.assertTrue(ds2.id in asso.associated)
-        ds.dissociate("setup.py")
-        self.assertTrue(ds2.id in asso.associated)
-        self.assertFalse(ds.id in asso.associated)
-
-        store.close()
-        os.remove(db_uri)
 
     def test_use_cache(self):
         store, db_uri = self.connect()
@@ -406,7 +378,6 @@ KOSH DATASET
         end = time.time()
         self.assertEqual(len(features), 1)
 
-        store.close()
         os.remove(db_uri)
 
     def test_list_features(self):
@@ -468,7 +439,6 @@ KOSH DATASET
                           'zone/metrics_4'])
         self.assertEqual(sorted(ds.list_features(next(ds.find(mime_type="png", ids_only=True)))),
                          ["image", ])
-        store.close()
         os.remove(db_uri)
 
     def test_dataset_clone(self):
@@ -483,7 +453,6 @@ KOSH DATASET
         ds2 = ds.clone()
         self.assertEqual(ds.a, ds2.a)
         asso = next(ds2.find())
-        self.assertTrue(ds2.id in asso.associated)
         self.assertEqual(asso.uri, os.path.abspath("setup.py"))
         self.assertFalse(ds2.is_member_of(e))
         ds2 = ds.clone(preserve_ensembles_memberships=True)
@@ -501,7 +470,6 @@ KOSH DATASET
         ds2 = ds.clone(preserve_ensembles_memberships=-1)
         self.assertFalse(hasattr(ds2, "root"))
         self.assertFalse(ds2.is_member_of(e))
-        store.close()
         os.remove(db_uri)
 
     def test_get_sina_objects(self):
@@ -516,7 +484,6 @@ KOSH DATASET
             ds.get_sina_records(),
             sina.datastore.DataStore.RecordOperations)
 
-        store.close()
         os.remove(db_uri)
 
     def test_kosh_non_serial_attribute(self):
@@ -527,7 +494,6 @@ KOSH DATASET
             ds.bad = numpy.arange(5)
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertFalse(hasattr(ds, "bad"))
-        store.close()
         os.remove(db_uri)
 
 

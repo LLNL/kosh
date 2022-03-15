@@ -1,12 +1,8 @@
 # Setup script for dkosh repo
 from setuptools import setup, find_packages
 from subprocess import Popen, PIPE
-import shutil
-import os
 
-
-exec(open("./kosh/current_version.py").read())
-version = current_version  # noqa
+version = "1.0"
 sha = None
 git_describe_process = Popen(
     ("git",
@@ -35,9 +31,7 @@ if sha is not None:
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-if os.path.exists("scripts/kosh"):
-    os.remove("scripts/kosh")
-shutil.copyfile("scripts/kosh_command.py", "scripts/kosh")
+
 setup(name="kosh",
       version=version,
       description=description,
@@ -63,4 +57,4 @@ setup(name="kosh",
           "Operating System :: OS Independent",
       ],
       )
-Popen(("python", "scripts/render_logos.py",)).communicate()
+Popen(("scripts/render_logos.py",)).communicate()

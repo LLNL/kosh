@@ -36,7 +36,7 @@ class KoshTestTransformerParent(KoshTest):
         store, uri = self.connect()
         ds = store.create()
         ds.associate(
-            "tests/baselines/node_extracts2/node_extracts2.hdf5",
+            "/g/g19/cdoutrix/git/kosh/tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5")
 
         features = sorted(ds.list_features())
@@ -51,7 +51,6 @@ class KoshTestTransformerParent(KoshTest):
         self.assertEqual(data[1], "cycles")
         self.assertEqual(data[2], "numpy")
         self.assertEqual(data[3], "test_stuff")
-        store.close()
         os.remove(uri)
 
 
