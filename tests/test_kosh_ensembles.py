@@ -44,10 +44,13 @@ KOSH ENSEMBLE
 --- Attributes ---
         creator: cdoutrix
         name: Unnamed Dataset
-        root: foo
 --- Associated Data (0)---
 --- Ensembles (1)---
-        ['{}']""".format(str(ds1.id), str(e1.id))
+        ['{}']
+--- Ensemble Attributes ---
+        --- Ensemble {} ---
+                root: foo
+""".format(str(ds1.id), str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
         e1_str = str(e1).replace("\t", "        ")
         self.assertEqual(
@@ -212,3 +215,48 @@ KOSH ENSEMBLE
 
         os.remove(dba)
         os.remove(dbb)
+
+    def test_cannot_clone_ensemble(self):
+        a, dba = self.connect()
+
+        a_en = a.create_ensemble('a_en')
+        a_en.create()
+        with self.assertRaises(NotImplementedError):
+            a_en.clone()
+        os.remove(dba)
+
+    def test_ensemble_list_attribute(self):
+        a, dba = self.connect()
+
+        a_en = a.create_ensemble('a_en')
+        a_en.root = "foo"
+        a_en.bar = None
+        self.assertEqual(sorted(a_en.list_attributes(
+            no_duplicate=True)), ["bar", "root"])
+        os.remove(dba)
+
+    def test_is_ensemble_attribute(self):
+        a, dba = self.connect()
+
+        a_en = a.create_ensemble('a_en', Id="A")
+        a_en.root = "foo"
+        a_en.bar = None
+        ds = a_en.create(metadata={"local": True})
+        self.assertFalse(ds.is_ensemble_attribute("local"))
+        self.assertTrue(ds.is_ensemble_attribute("root"))
+        self.assertEqual(ds.is_ensemble_attribute("root", ensemble_id=True), a_en.id)
+        self.assertTrue(ds.is_ensemble_attribute("root", a_en.id))
+        with self.assertRaises(ValueError):
+            self.assertTrue(ds.is_ensemble_attribute("root", ds.id))
+        b_en = a.create_ensemble('b_en', Id="B")
+        b_en.foo = "bar"
+        self.assertFalse(ds.is_ensemble_attribute("foo"))
+        self.assertEqual(ds.is_ensemble_attribute("foo", ensemble_id=True), "")
+        # Weird but true you can pass an enemble you're not part of
+        self.assertTrue(ds.is_ensemble_attribute("foo", b_en))
+        ds.join_ensemble(b_en)
+        self.assertTrue(ds.is_ensemble_attribute("foo"))
+        self.assertEqual(ds.is_ensemble_attribute("root", ensemble_id=True), a_en.id)
+        self.assertEqual(ds.is_ensemble_attribute("foo", ensemble_id=True), b_en.id)
+        self.assertFalse(ds.is_ensemble_attribute("foo", a_en))
+        os.remove(dba)

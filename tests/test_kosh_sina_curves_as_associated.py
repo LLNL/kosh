@@ -53,7 +53,10 @@ class KoshTestSinaCurves(KoshTest):
 	Mime_type: sina/curve
 		internal ( timeplot_1 )
 --- Ensembles (0)---
-\t[]""".format(dataset.param5)  # noqa
+\t[]
+--- Ensemble Attributes ---
+""".format(dataset.param5)  # noqa
+
         self.assertEqual(str(dataset).strip(), print_str.strip())
         features = dataset.list_features()
         self.assertEqual(features, ['timeplot_1',

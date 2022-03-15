@@ -7,6 +7,30 @@
 * [0.9](#0.9)
 * [0.8](#0.8)
 
+## 2.1 Release
+
+### Description
+
+This is a mainly maintenance release introducing a few new features.
+
+### New in this release
+
+* Decorators for transformers and operators
+  * Regular `def foo(...):` can now be converted to transformers or operators via decorators. e.g for a numpy transformer: `@kosh.numpy_transformer`. See the [transformer](examples/Example_05a_Transformers.ipynb) and [operators](examples/Example_06_Operators.ipynb) notebooks for more details.
+* Introducing a loader for text and column-based data, based on top `numpy.loadtxt`. See [this](examples/Example_column_based_text_files.ipynb) notebook.
+* When cloning a dataset one can choose to preserve ensemble memberships (`preserve_ensembles_memberships=True`), simply copy over these attributes (`preserve_ensembles_memberships=False`) (**default**) or ignore information related to ensembles (`preserve_ensembles_memberships=-1`)
+* Dataset objects now have a `is_ensemble_attribute()` function to know if an attribute belongs to an ensemble.
+* Added `list_attributes()` function to ensemble objects.
+
+### Improvements
+
+* When printing a dataset, the attributes coming from ensembles the dataset belongs to are listed in a separate section.
+
+### Bug fixes
+
+* When cloning a dataset, an artificial `id` attribute was created with the original dataset `id` in it.
+* Setting an attribute to an invalid value would cause the dataset to disappear from the store.
+
 ## 2.0 Release
 
 ### Description

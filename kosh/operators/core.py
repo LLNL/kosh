@@ -3,6 +3,7 @@ from abc import abstractmethod
 import hashlib
 from kosh import kosh_cache_dir
 import os
+import functools
 
 
 class KoshOperator(KoshExecutionGraph):
@@ -56,7 +57,8 @@ class KoshOperator(KoshExecutionGraph):
             signature = kargs.get("signature", None)
 
             if signature is None:
-                use_signature = self.update_signature(inputs, format).hexdigest()
+                use_signature = self.update_signature(
+                    inputs, format).hexdigest()
             else:
                 use_signature = signature
 
@@ -72,7 +74,8 @@ class KoshOperator(KoshExecutionGraph):
                         cache_file, use_signature))
             except Exception:
                 if signature is None:
-                    signature = self.update_signature(inputs, format).hexdigest()
+                    signature = self.update_signature(
+                        inputs, format).hexdigest()
                 result = self.operate(*inputs, format=format)
                 if self.cache > 0:  # Ok user wants to cache results
                     if not os.path.exists(self.cache_dir):
@@ -93,3 +96,46 @@ class KoshOperator(KoshExecutionGraph):
         :type inputs: tuple of features/execution graphs
         """
         raise NotImplementedError("the transform function is not implemented")
+
+
+def typed_operator_with_kwargs(types_dict=None):
+    if types_dict is None:
+        types_dict = {"numpy": ["numpy", ]}
+
+    def make_operator(*inputs, **kargs):
+        def actual_operator_decorator(func):
+            class CustomOperator(KoshOperator):
+                types = types_dict
+
+                @functools.wraps(func)
+                def operate(self, *operate_inputs, **operate_kargs):
+                    return func(*operate_inputs, **operate_kargs)
+
+                def __getitem_propagate__(self, key, input_index):
+                    return key
+            return CustomOperator
+        return actual_operator_decorator(*inputs, **kargs)
+    return make_operator
+
+
+def typed_operator(types_dict=None):
+    if types_dict is None:
+        types_dict = {"numpy": ["numpy", ]}
+
+    def make_operator(*inputs, **kargs):
+        def actual_operator_decorator(func):
+            class CustomOperator(KoshOperator):
+                types = types_dict
+
+                @functools.wraps(func)
+                def operate(self, *operate_inputs, **operate_kargs):
+                    return func(*operate_inputs)
+
+                def __getitem_propagate__(self, key, input_index):
+                    return key
+            return CustomOperator
+        return actual_operator_decorator(*inputs, **kargs)
+    return make_operator
+
+
+numpy_operator = typed_operator()
