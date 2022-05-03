@@ -3,6 +3,7 @@ from koshbase import KoshTest
 import os
 from subprocess import Popen, PIPE
 import shlex
+import sys
 
 
 def create_file(filename):
@@ -18,7 +19,9 @@ def run_rm(sources, store_sources, verbose=False):
 
     if verbose:
         print("TESTING:", cmd)
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+    if not sys.platform.startswith("win"):
+        cmd = shlex.split(cmd)
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     print(o.decode())
     print(e.decode())
@@ -41,6 +44,7 @@ class KoshTestRm(KoshTest):
         self.assertEqual(associated[0].uri, "fake_one.text")
         self.assertFalse(os.path.exists(filename))
 
+        store.close()
         os.remove(db_uri)
 
     def test_rm_multi_files(self):
@@ -60,6 +64,7 @@ class KoshTestRm(KoshTest):
         for filename in filenames:
             self.assertFalse(os.path.exists(filename))
 
+        store.close()
         os.remove(db_uri)
 
     def test_rm_dir(self):
@@ -88,6 +93,7 @@ class KoshTestRm(KoshTest):
         for filename in filenames:
             self.assertFalse(os.path.exists(filename))
 
+        store.close()
         os.remove(db_uri)
 
     def test_rm_mix(self):
@@ -118,6 +124,7 @@ class KoshTestRm(KoshTest):
         for filename in filenames:
             self.assertFalse(os.path.exists(filename))
 
+        store.close()
         os.remove(db_uri)
 
 

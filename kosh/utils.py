@@ -416,7 +416,7 @@ def version(comparable=False):
     try:
         __version__ = pkg_resources.get_distribution("kosh").version
     except Exception:
-        __version__ = "???"
+        __version__ = "0.0"
     if comparable:
         tuple_version = ()
         for number in __version__.split("."):

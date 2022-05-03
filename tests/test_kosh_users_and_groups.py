@@ -1,6 +1,8 @@
 import koshbase
 import os
-import grp
+import sys
+if not sys.platform.startswith("win"):
+    import grp
 
 
 class TestUsersGroups(koshbase.KoshTest):
@@ -14,9 +16,12 @@ class TestUsersGroups(koshbase.KoshTest):
         self.assertEqual(len((list(store.find(kosh_type=store._users_type, ids_only=True)))), 3)
         with self.assertRaises(ValueError):
             store.add_user("kosh_test")
+        store.close()
         os.remove(uri)
 
     def test_groups(self):
+        if sys.platform.startswith("win"):
+            return
         store, uri = self.connect()
         unix_groups = [g[0] for g in grp.getgrall()]
 

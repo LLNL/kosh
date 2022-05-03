@@ -31,6 +31,7 @@ class KoshTestImportExport(KoshTest):
         features = dataset.list_features()
         self.assertEqual(len(features), 28)
 
+        store.close()
         os.remove(kosh_test_sql_file)
 
     def test_import_export_datasets(self):
@@ -145,6 +146,9 @@ class KoshTestImportExport(KoshTest):
 
         store3.import_dataset([ds, ds2])
         self.assertEqual(len(list(store3.find())), 2)
+        store.close()
+        store2.close()
+        store3.close()
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)
         os.remove(kosh_test_sql_file3)
@@ -189,6 +193,8 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
             d1.get("timeplot_1/feature_a"), [1, 2, 3]))
+        store.close()
+        os.remove(uri)
 
     def test_custom_handler(self):
         source_store, db_source = self.connect()
@@ -213,6 +219,8 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(target_ds[0].foo, "bar2")
         self.assertEqual(target_ds[0].foosome, "foo2")
 
+        source_store.close()
+        target_store.close()
         os.remove(db_source)
         os.remove(db_target)
 
@@ -236,6 +244,8 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(dataset_t.foosome, "foo2")
         self.assertEqual(len(dataset_t._associated_data_), 1)
 
+        source_store.close()
+        target_store.close()
         os.remove(db_source)
         os.remove(db_target)
 

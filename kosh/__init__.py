@@ -1,5 +1,6 @@
+from .current_version import current_version
 import os
-kosh_cache_dir = os.path.join(os.environ["HOME"], ".cache", "kosh")  # noqa
+kosh_cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "kosh")  # noqa
 from .loaders import KoshLoader, KoshSinaLoader  # noqa
 from .utils import create_new_db, walk_dictionary_keys, version  # noqa
 from .schema import KoshSchema  # noqa
@@ -11,6 +12,7 @@ from .transformers import typed_transformer, numpy_transformer, typed_transforme
 from .transformers import KoshTransformer  # noqa
 from .operators import KoshOperator  # noqa
 from .operators import typed_operator_with_kwargs, typed_operator, numpy_operator  # noqa
+
 try:
     d = pkg_resources.get_distribution("kosh")
     __version__ = d.version
@@ -23,5 +25,5 @@ try:
     if __sha__ is not None:
         __version__ += "."+__sha__
 except Exception:
-    __version__ = "???"
+    __version__ = current_version
     __sha__ = None
