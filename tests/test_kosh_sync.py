@@ -68,7 +68,8 @@ class KoshTestSync(KoshTest):
             file=os.path.abspath("tests/baselines/node_extracts2")))
         self.assertEqual(len(s), 2)
 
-        store2.sync()
+        store.close()
+        store2.close()
         os.remove(kosh_db)
 
     def test_sync_delete_dataset(self):
@@ -88,6 +89,8 @@ class KoshTestSync(KoshTest):
         with self.assertRaises(Exception):
             store2.open(dsid)
         self.assertEqual(len(list(store2.find())), 0)
+        store1.close()
+        store2.close()
         os.remove(kosh_db)
 
     def test_sync_dataset_attributes(self):
@@ -185,6 +188,8 @@ class KoshTestSync(KoshTest):
         ds2.associate("conflict", "conf2")
         ds2.sync()
         store2.sync()
+        store1.close()
+        store2.close()
         os.remove(kosh_db)
 
 

@@ -1,10 +1,12 @@
 import os
+import sys
 import uuid
 import sina.utils
 from sina.model import Relationship
-import fcntl
 import collections
-import grp
+if not sys.platform.startswith("win"):
+    import fcntl
+    import grp
 import hashlib
 import warnings
 import time
@@ -1074,7 +1076,10 @@ class KoshStore(object):
             raise ValueError("group {} already exist".format(group))
 
         # now get unix groups
-        unix_groups = [g[0] for g in grp.getgrall()]
+        if not sys.platform.startswith("win"):
+            unix_groups = [g[0] for g in grp.getgrall()]
+        else:
+            unix_groups = []
         if group in unix_groups:
             raise ValueError("{} is a unix group on this system.format(group)")
 

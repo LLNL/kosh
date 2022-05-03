@@ -8,7 +8,8 @@ from koshbase import KoshTest
 
 class KoshTestStore(KoshTest):
     def test_connect_base_function(self):
-        _, kosh_test_sql_file = self.connect()
+        s, kosh_test_sql_file = self.connect()
+        s.close()
         os.remove(kosh_test_sql_file)
 
     def test_connect(self):
@@ -26,6 +27,7 @@ class KoshTestStore(KoshTest):
 
         store = kosh.connect(db_name)
         self.assertEqual(len(list(store.find())), 1)
+        store.close()
         os.remove(db_name)
 
     def test_read_only(self):
@@ -43,6 +45,8 @@ class KoshTestStore(KoshTest):
         store2 = kosh.connect(db_name)
         store2.create()
 
+        store.close()
+        store2.close()
         os.remove(db_name)
 
     def test_wipe_on_open(self):
@@ -53,12 +57,16 @@ class KoshTestStore(KoshTest):
         store = kosh.connect(db, delete_all_contents=True)
         self.assertEqual(len(list(store.find())), 0)
 
+        store.close()
         os.remove(db)
 
     def test_create(self):
+
+        store = kosh.create_new_db("blah_blah_blah.sql")
         self.assertIsInstance(
-            kosh.create_new_db("blah_blah_blah.sql"),
+            store,
             kosh.KoshStore)
+        store.close()
         os.remove("blah_blah_blah.sql")
 
     def test_associate_stores_error_trap(self):
@@ -98,6 +106,8 @@ class KoshTestStore(KoshTest):
         self.assertFalse(os.path.exists(new_db))
         # self.assertEqual(len(list(store.find(ids_only=True))), 1)
         """
+        store.close()
+        store_2.close()
         os.remove(db)
 
     def test_chained_associate_1(self):
@@ -139,6 +149,9 @@ class KoshTestStore(KoshTest):
         sub_copy = third_store.get_associated_store(sub_store.db_uri)
         self.assertEqual(sub_copy, sub_store)
 
+        central_store.close()
+        sub_store.close()
+        third_store.close()
         os.remove(db)
         os.remove(db_sub)
         os.remove(db_3)
@@ -172,6 +185,9 @@ class KoshTestStore(KoshTest):
         # note that store still knows about store_2
         self.assertEqual(len(list(store_3.find())), 1)
         self.assertEqual(len(list(store.find())), 2)
+        store.close()
+        store_2.close()
+        store_3.close()
         os.remove(db)
         os.remove(db_2)
         os.remove(db_3)
@@ -208,6 +224,9 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(list(store_2.find(ids_only=True))), 2)
         self.assertEqual(len(list(store_3.find(ids_only=True))), 1)
 
+        store.close()
+        store_2.close()
+        store_3.close()
         os.remove(db)
         os.remove(db_2)
         os.remove(db_3)
@@ -293,6 +312,9 @@ class KoshTestStore(KoshTest):
         self.assertEqual(
             len(list(store_3.find(name="associated_2", ids_only=True))), 1)
 
+        store.close()
+        store_2.close()
+        store_3.close()
         os.remove(db)
         os.remove(db_3)
         os.remove(db_2)

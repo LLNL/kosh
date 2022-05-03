@@ -2,6 +2,7 @@ from __future__ import print_function
 from koshbase import KoshTest
 import sina.utils
 import numpy
+import os
 
 
 class KoshTestSinaFiles(KoshTest):
@@ -57,6 +58,8 @@ class KoshTestSinaFiles(KoshTest):
 \t[]
 --- Ensemble Attributes ---
 """.format(dataset.param5, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
+        store.close()
+        os.remove(kosh_db)
 
     def test_sina_files_section_with_curves(self):
         store, kosh_db = self.connect()
@@ -114,6 +117,8 @@ class KoshTestSinaFiles(KoshTest):
 """.format(dataset.param5)  # noqa
 
         self.assertEqual(print_str.strip(), str(dataset).strip())
+        store.close()
+        os.remove(kosh_db)
 
     def test_sina_files_section_with_curves_and_badmime(self):
         store, kosh_db = self.connect()
@@ -169,6 +174,8 @@ class KoshTestSinaFiles(KoshTest):
 --- Ensemble Attributes ---
 """.format(dataset.param5)  # noqa
         self.assertEqual(print_str.strip(), str(dataset).strip())
+        store.close()
+        os.remove(kosh_db)
 
 
 if __name__ == "__main__":
