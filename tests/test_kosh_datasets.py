@@ -179,7 +179,7 @@ KOSH DATASET
                     types=store._sources_type,
                     ids_only=True)))
         ds_2 = store.create("multi")
-        ds_2.associate(
+        asso_id = ds_2.associate(
             "tests/baselines/node_extracts2",
             "something",
             absolute_path=False)
@@ -191,6 +191,9 @@ KOSH DATASET
                     ],
                     ids_only=True)))
         self.assertEqual(n_files, n_files_2)
+        asso = store._load(asso_id)
+        self.assertTrue(ds_2.id in asso.associated)
+        self.assertTrue(ds.id in asso.associated)
 
         f = ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
@@ -330,6 +333,22 @@ KOSH DATASET
         store.close()
         os.remove(kosh_db)
 
+    def test_dissociate_multiple(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds2 = store.create()
+        ds.associate("setup.py", "py")
+        asso_id = ds2.associate("setup.py", "py")
+        asso = store._load(asso_id)
+        self.assertTrue(ds.id in asso.associated)
+        self.assertTrue(ds2.id in asso.associated)
+        ds.dissociate("setup.py")
+        self.assertTrue(ds2.id in asso.associated)
+        self.assertFalse(ds.id in asso.associated)
+
+        store.close()
+        os.remove(db_uri)
+
     def test_use_cache(self):
         store, db_uri = self.connect()
 
@@ -463,6 +482,7 @@ KOSH DATASET
         ds2 = ds.clone()
         self.assertEqual(ds.a, ds2.a)
         asso = next(ds2.find())
+        self.assertTrue(ds2.id in asso.associated)
         self.assertEqual(asso.uri, os.path.abspath("setup.py"))
         self.assertFalse(ds2.is_member_of(e))
         ds2 = ds.clone(preserve_ensembles_memberships=True)
