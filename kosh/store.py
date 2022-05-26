@@ -1145,7 +1145,7 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}):
+                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
@@ -1177,6 +1177,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1184,16 +1186,18 @@ class KoshStore(object):
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
-                                        merge_handler_kargs=merge_handler_kargs)
+                                        merge_handler_kargs=merge_handler_kargs,
+                                        skip_sina_record_sections=skip_sina_record_sections)
         else:
             for dataset in datasets:
                 out.append(self._import_dataset(dataset, match_attributes=match_attributes,
                                                 merge_handler=merge_handler,
-                                                merge_handler_kargs=merge_handler_kargs))
+                                                merge_handler_kargs=merge_handler_kargs,
+                                                skip_sina_record_sections=skip_sina_record_sections))
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}):
+            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1214,6 +1218,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1247,6 +1253,8 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            for section in skip_sina_record_sections:
+                record[section] = {}
             data = record["data"]
             if record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
@@ -1321,6 +1329,7 @@ class KoshStore(object):
             # But first make sure it is a record :)
             if isinstance(match_rec, dict):
                 match_rec = sina.model.generate_record_from_json(match_rec)
+
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
                 if section in record:

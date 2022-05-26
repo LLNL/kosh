@@ -54,6 +54,7 @@ class KoshTestStore(KoshTest):
         store.create()
         self.assertEqual(len(list(store.find())), 1)
 
+        store.close()
         store = kosh.connect(db, delete_all_contents=True)
         self.assertEqual(len(list(store.find())), 0)
 
