@@ -224,6 +224,39 @@ class KoshTestImportExport(KoshTest):
         os.remove(db_source)
         os.remove(db_target)
 
+    def test_skip_section(self):
+        store, db_source = self.connect()
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
+            skip_sina_record_sections=["curve_sets", ])
+        ds = next(store.find())
+        self.assertEqual(ds.list_features(),
+                         ['cycles',
+                          'direction',
+                          'elements',
+                          'node',
+                          'node/metrics_0',
+                          'node/metrics_1',
+                          'node/metrics_10',
+                          'node/metrics_11',
+                          'node/metrics_12',
+                          'node/metrics_2',
+                          'node/metrics_3',
+                          'node/metrics_4',
+                          'node/metrics_5',
+                          'node/metrics_6',
+                          'node/metrics_7',
+                          'node/metrics_8',
+                          'node/metrics_9',
+                          'zone',
+                          'zone/metrics_0',
+                          'zone/metrics_1',
+                          'zone/metrics_2',
+                          'zone/metrics_3',
+                          'zone/metrics_4'])
+        store.close()
+        os.remove(db_source)
+
     def test_associated_import(self):
         source_store, db_source = self.connect()
         target_store, db_target = self.connect()

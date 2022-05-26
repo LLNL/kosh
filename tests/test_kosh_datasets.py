@@ -331,6 +331,7 @@ KOSH DATASET
         with self.assertRaises(Exception):
             _ = store.open(ds_associated)
         store.close()
+        store2.close()
         os.remove(kosh_db)
 
     def test_dissociate_multiple(self):

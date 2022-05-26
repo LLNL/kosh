@@ -124,6 +124,7 @@ class KoshTestCmdLine(KoshTest):
         self.assertEqual(len(list(store.find())), 0)
         store.create()
         self.assertEqual(len(list(store.find())), 1)
+        store.close()
         o, e = run_cmd("kosh create_new_db -u {}".format(name))
         store = kosh.KoshStore(name)
         self.assertEqual(len(list(store.find())), 0)
