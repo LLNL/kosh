@@ -30,6 +30,49 @@ class KoshTestStore(KoshTest):
         store.close()
         os.remove(db_name)
 
+    def test_find_by_id(self):
+        store, db = self.connect()
+        ds = store.create(metadata={"param1": True})
+
+        find_by_id = store.find(id=ds.id)
+        ds_found = list(find_by_id)
+        self.assertEqual(len(ds_found), 1)
+        self.assertEqual(ds_found[0].id, ds.id)
+        find_by_id = store.find(id=[ds.id, ])
+        ds_found = list(find_by_id)
+        self.assertEqual(len(ds_found), 1)
+        self.assertEqual(ds_found[0].id, ds.id)
+        ds_id_found = list(store.find(id=ds.id, ids_only=True))
+        self.assertEqual(len(ds_id_found), 1)
+        self.assertEqual(ds_id_found[0], ds.id)
+
+        associated_id = ds.associate("setup.py", "py")
+        associated_found = list(store.find(id=associated_id))
+        print("ASS FOUND:", associated_found)
+        self.assertEqual(len(associated_found), 1)
+        self.assertEqual(associated_found[0].id, associated_id)
+        associated_found = list(store.find(id=associated_id, ids_only=True))
+        self.assertEqual(len(associated_found), 1)
+        self.assertEqual(associated_found[0], associated_id)
+
+        ds_found = list(store.find(id=ds.id + "_____"))
+        self.assertEqual(len(ds_found), 0)
+        ds_found = list(store.find(id=ds.id + "_____", ids_only=True))
+        self.assertEqual(len(ds_found), 0)
+
+        ds_found = list(store.find(id=ds.id + "_____"))
+        self.assertEqual(len(ds_found), 0)
+        ds_found = list(store.find(id=ds.id + "_____", ids_only=True))
+        self.assertEqual(len(ds_found), 0)
+
+        # now test errors
+        with self.assertRaises(ValueError):
+            # if we do not convert to tuple it returns a generator and no error
+            tuple(store.find(id=ds.id, id_pool=[ds.id, ]))
+
+        store.close()
+        os.remove(db)
+
     def test_read_only(self):
         seed = random.randint(0, 1000000000)
         db_name = "test_connect_{}.sql".format(seed)

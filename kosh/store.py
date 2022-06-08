@@ -666,7 +666,6 @@ class KoshStore(object):
         :return: generator of matching objects in store
         :rtype: generator
         """
-
         for result in self._find(*atts, **keys):
             yield result
 
@@ -738,12 +737,6 @@ class KoshStore(object):
                 record_types, (list, tuple)):
             raise ValueError("`types` must be str or list")
 
-        if record_types is None:
-            # Ok we want anything, but we need to exclude Kosh reserved
-            record_types = sina.utils.not_(self._kosh_reserved_record_types)
-
-        sina_kargs["types"] = record_types
-
         if 'file_uri' in keys and 'file' in keys:
             raise ValueError(
                 "`file` has been deprecated for `file_uri` but you cannot use both at same time")
@@ -752,11 +745,26 @@ class KoshStore(object):
         else:
             file_uri = keys.pop("file_uri", None)
 
+        # Ok now let's look if the user wants to search for an id
+        if "id" in keys:
+            if "id_pool" in keys:
+                raise ValueError("you cannot use id and id_pool together")
+            warnings.warn("When searching by id use id_pool")
+            sina_kargs["id_pool"] = keys["id"]
+            del(keys["id"])
+        else:
+            sina_kargs["id_pool"] = keys.pop("id_pool", None)
+
         sina_kargs["file_uri"] = file_uri
-        sina_kargs["id_pool"] = keys.pop("id_pool", None)
         sina_kargs["query_order"] = keys.pop(
             "query_order", ("data", "file_uri", "types"))
 
+        # records type
+        if record_types is None and sina_kargs["id_pool"] is None:
+            # Ok we want anything, but we need to exclude Kosh reserved
+            # but only if user did not specified an id_pool
+            record_types = sina.utils.not_(self._kosh_reserved_record_types)
+        sina_kargs["types"] = record_types
         # The data dict for sina
         sina_data = keys.pop("data", {})
         if not isinstance(sina_data, dict):
@@ -772,7 +780,8 @@ class KoshStore(object):
 
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
-
+        if isinstance(sina_kargs["id_pool"], six.string_types):
+            sina_kargs["id_pool"] = [sina_kargs["id_pool"], ]
         # is it a blank search, e.g get me everything?
         get_all = sina_kargs.get("data", {}) == {} and \
             sina_kargs.get("file_uri", None) is None and \

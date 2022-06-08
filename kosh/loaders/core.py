@@ -10,16 +10,15 @@ from ..dataset import KoshDataset
 from ..ensemble import KoshEnsemble
 
 
-class KoshGenericObjectFromFile(object):
+class KoshGenericObjectFromFile(KoshSinaObject):
     """Kosh object pointing to a file"""
 
-    def __init__(self, *args, **kwds):
-        self.args = args
-        self.kwds = kwds
-        self.file_obj = open(*self.args, **self.kwds)
+    def __init__(self, uri, mode, obj, *args, **kwds):
+        super(KoshGenericObjectFromFile, self).__init__(obj.id, obj.__store__,
+                                                        obj.__type__, obj.__record_handler__, protected=["file_obj"])
+        self.file_obj = open(uri, mode, *args, **kwds)
 
     def __enter__(self):
-        self.file_obj = open(*self.args, **self.kwds)
         return self.file_obj
 
     def __exit__(self, *args):
@@ -300,7 +299,7 @@ class KoshFileLoader(KoshLoader):
         :type mode: str, optional
         :return: Kosh File object
         """
-        return KoshGenericObjectFromFile(self.uri, mode)
+        return KoshGenericObjectFromFile(self.uri, mode, self.obj)
 
     def extract(self, feature, format):
         """extract return a feature from the loaded object.
