@@ -5,6 +5,8 @@ import kosh
 import shlex
 import os
 from subprocess import Popen, PIPE
+import sys
+
 
 kosh_version = kosh.__version__
 
@@ -52,5 +54,7 @@ for svg in svgs:
     png_name = svg_name.replace("svg", "png")
     cmd = "inkscape --file {} --export-png {} --export-width=1035".format(
         svg_name, png_name)
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+    if not sys.platform.startswith("win"):
+        cmd = shlex.split(cmd)
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()

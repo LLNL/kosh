@@ -17,6 +17,7 @@ class TestKoshSearch(koshbase.KoshTest):
         for i, ds in enumerate(datasets):
             rec = store.get_record(ds.id)
             self.assertEqual(rec["type"], types[i])
+        store.close()
         os.remove(kosh_db)
 
     def test_find_file_from_sina_records(self):
@@ -30,6 +31,8 @@ class TestKoshSearch(koshbase.KoshTest):
         sina_recs.insert(rec)
         self.assertEqual(len(list(store.find(file_uri="setup.py"))), 1)
         self.assertEqual(len(list(store.find(file_uri="smefile"))), 1)
+        store.close()
+        os.remove(kosh_db)
 
 
 if __name__ == "__main__":

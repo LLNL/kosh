@@ -15,6 +15,7 @@ import ast
 import glob
 import json
 import six
+import sys
 
 
 def get_all_files(opts):
@@ -154,10 +155,19 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
 
 
     if use_shell:
-        proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        o, e = proc.communicate(command.encode())
+        if not sys.platform.startswith("win"):
+            proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            o, e = proc.communicate(command.encode())
+        else:
+            proc = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+            o, e = proc.communicate()
+            print("COMMNAD:" , command)
+            print("OUT:", o.decode())
+            print("ERR:", e.decode())
     else:
-        proc = Popen(shlex.split(command), stdout=PIPE, stderr=PIPE)
+        if not sys.platform.startswith("win"):
+            command = shlex.split(command)
+        proc = Popen(command, stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate()
 
     return proc, o, e
@@ -487,9 +497,13 @@ Available commands are:
 
     def mv(self):
         """mv files command"""
+        if sys.platform.startswith("win"):
+            raise SystemError("you cannot use kosh mv on a windows system, please try to tar/untar or manually move the files and use reassociate")
         self._mv_cp_("mv")
 
     def cp(self):
+        if sys.platform.startswith("win"):
+            raise SystemError("you cannot use kosh cp on a windows system, please manually cp the files and associate them")
         """cp files command"""
         self._mv_cp_("cp")
 
@@ -544,6 +558,7 @@ Available commands are:
         stores = open_stores(args.stores, args.dataset_record_type)
 
         if create:
+            clean_json = True  # windows needs us to del manually
             # Because we cannot add the exported dataset file to a compressed archive
             # We need to figure out the list of files first
             # They should all be in opts and the tar file is not because of -f
@@ -591,22 +606,27 @@ Available commands are:
             tmp_json = tempfile.NamedTemporaryFile(prefix="__kosh_export__",
                                                    suffix=".json",
                                                    dir=os.path.abspath(os.path.dirname(args.file)),
-                                                   mode="w")
+                                                   mode="w",
+                                                   delete=False)
             json.dump(datasets_jsons, tmp_json)
             # Make sure it's all in the file before tarring it
             tmp_json.file.flush()
-
             if no_tarred_files:
                 tarred_files = [os.path.relpath(x) for x in tarred_files]
                 opts += tarred_files
 
+            tmp_json.file.close()
             # Let's tar this!
             cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts), tmp_json.name)
         else:  # ok we are extracting
+            clean_json = False  # no json created
             cmd = "{} -f {} {}".format(tar_command, args.file, " ".join(opts))
 
         p, out, err = process_cmd(cmd)
-
+        if sys.platform.startswith("win"):  # windows tar put message in err
+            err, out = out, err
+        if clean_json:
+            os.remove(tmp_json.name)
         if p.returncode != 0:
             raise RuntimeError(
                 "Could not run {} cmd: {}\nReceived error: {}".format(
@@ -618,13 +638,15 @@ Available commands are:
 
             # Step 1 figure out the json file that contains our datasets
             filenames = out.decode().split("\n")
+            if sys.platform.startswith("win"):
+                filenames = [filename.split()[1] for filename in filenames if len(filename.split()) > 1]
             if "HTAR" in filenames[0]:
                 # htar used
                 filenames = filenames[:-3]  # last 3 lines are nothing
                 filenames = [x.split(",")[0].split()[-1].strip() for x in filenames]
             # tar removes leading slah from full path
             slashed_filenames = ["/" + x for x in filenames]
-            for filename in filenames:
+            for ifile, filename in enumerate(filenames):
                 base = os.path.basename(filename)
                 if base.startswith("__kosh_export__") and base.endswith(".json"):
                     break

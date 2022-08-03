@@ -54,6 +54,9 @@ class TestKoshStoreCustomLoaders(KoshTest):
         ds = store3.open("123")
         feats = ds.list_features()
         self.assertEqual(feats, ["data_xyz", ])
+        store.close()
+        store2.close()
+        store3.close()
         os.remove(kosh_db)
         os.remove("test_kosh_add_custom.xyz")
 

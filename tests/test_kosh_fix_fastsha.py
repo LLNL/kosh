@@ -30,6 +30,7 @@ class KoshTestFixFastSha(KoshTest):
 
         # is sha really corrected?
         self.assertEqual(asso.fast_sha, compute_fast_sha("setup.py"))
+        store.close()
         os.remove(db)
 
 

@@ -36,13 +36,14 @@ KOSH ENSEMBLE
         self.assertEqual(len(list(e1.get_members(ids_only=True))), 1)
         # test ds1 string
         ds1_str = str(ds1).replace("\t", "        ").strip()
+        username = os.environ.get("USER", "default")
         good_ds1 = """KOSH DATASET
         id: {}
         name: Unnamed Dataset
-        creator: cdoutrix
+        creator: {}
 
 --- Attributes ---
-        creator: cdoutrix
+        creator: {}
         name: Unnamed Dataset
 --- Associated Data (0)---
 --- Ensembles (1)---
@@ -50,7 +51,7 @@ KOSH ENSEMBLE
 --- Ensemble Attributes ---
         --- Ensemble {} ---
                 root: foo
-""".format(str(ds1.id), str(e1.id), str(e1.id))
+""".format(str(ds1.id), username, username, str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
         e1_str = str(e1).replace("\t", "        ")
         self.assertEqual(
@@ -92,7 +93,7 @@ KOSH ENSEMBLE
         with self.assertRaises(KeyError):
             ds1.root = "some value"
         e1.associate(
-            "tests/baselines/node_extracts2/node_extracts2.hdf5",
+            r"tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5")
         self.assertEqual(e1.list_features(), ['cycles', 'direction', 'elements', 'node',
                                               'node/metrics_0', 'node/metrics_1', 'node/metrics_10',
@@ -107,6 +108,7 @@ KOSH ENSEMBLE
                                                'node/metrics_8', 'node/metrics_9', 'zone', 'zone/metrics_0',
                                                'zone/metrics_1', 'zone/metrics_2', 'zone/metrics_3', 'zone/metrics_4'])
         self.assertEqual(len(list(e1.get_associated_data(ids_only=True))), 1)
+        store.close()
         os.remove(db)
 
     def testImportEnsemble(self):
@@ -123,6 +125,8 @@ KOSH ENSEMBLE
         s2.import_dataset(e1)
         self.assertEqual(len(list(s2.find())), 2)
         self.assertEqual(len(list(s2.find(types=s2._ensembles_type))), 1)
+        s1.close()
+        s2.close()
         os.remove(db1)
         os.remove(db2)
 
@@ -159,6 +163,7 @@ KOSH ENSEMBLE
         self.assertEqual(len(list(s.find_ensembles())), 3)
         self.assertEqual(len(list(s.find_ensembles("root"))), 2)
         self.assertEqual(len(list(s.find_ensembles("code"))), 1)
+        s.close()
         os.remove(db)
 
     def test_search(self):
@@ -174,6 +179,7 @@ KOSH ENSEMBLE
         self.assertEqual(len(list(s.find(param1=4))), 2)
         # Ensemble should find 1 datasets
         self.assertEqual(len(list(e1.find_datasets(param1=4))), 1)
+        s.close()
         os.remove(db)
 
     def test_add_remove(self):
@@ -197,6 +203,8 @@ KOSH ENSEMBLE
         ensemble.add(d1)
         ensemble.remove(d1)
         self.assertEqual(len(list(ensemble.get_members(ids_only=True))), 1)
+        store.close()
+        os.remove(db_uri)
 
     def test_import_creator(self):
         a, dba = self.connect()
@@ -213,6 +221,8 @@ KOSH ENSEMBLE
         self.assertTrue(a_ds.is_member_of(a_en))
         self.assertEqual(a_ds.attr1, 500)
 
+        a.close()
+        b.close()
         os.remove(dba)
         os.remove(dbb)
 
@@ -233,6 +243,7 @@ KOSH ENSEMBLE
         a_en.bar = None
         self.assertEqual(sorted(a_en.list_attributes(
             no_duplicate=True)), ["bar", "root"])
+        a.close()
         os.remove(dba)
 
     def test_is_ensemble_attribute(self):
@@ -259,4 +270,5 @@ KOSH ENSEMBLE
         self.assertEqual(ds.is_ensemble_attribute("root", ensemble_id=True), a_en.id)
         self.assertEqual(ds.is_ensemble_attribute("foo", ensemble_id=True), b_en.id)
         self.assertFalse(ds.is_ensemble_attribute("foo", a_en))
+        a.close()
         os.remove(dba)

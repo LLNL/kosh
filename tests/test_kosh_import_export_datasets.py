@@ -31,6 +31,7 @@ class KoshTestImportExport(KoshTest):
         features = dataset.list_features()
         self.assertEqual(len(features), 28)
 
+        store.close()
         os.remove(kosh_test_sql_file)
 
     def test_import_export_datasets(self):
@@ -145,6 +146,9 @@ class KoshTestImportExport(KoshTest):
 
         store3.import_dataset([ds, ds2])
         self.assertEqual(len(list(store3.find())), 2)
+        store.close()
+        store2.close()
+        store3.close()
         os.remove(kosh_test_sql_file)
         os.remove(kosh_test_sql_file2)
         os.remove(kosh_test_sql_file3)
@@ -189,6 +193,8 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertTrue(numpy.allclose(
             d1.get("timeplot_1/feature_a"), [1, 2, 3]))
+        store.close()
+        os.remove(uri)
 
     def test_custom_handler(self):
         source_store, db_source = self.connect()
@@ -213,8 +219,43 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(target_ds[0].foo, "bar2")
         self.assertEqual(target_ds[0].foosome, "foo2")
 
+        source_store.close()
+        target_store.close()
         os.remove(db_source)
         os.remove(db_target)
+
+    def test_skip_section(self):
+        store, db_source = self.connect()
+        store.import_dataset(
+            "tests/baselines/sina/sina_curve_rec_mimes_and_curves_2.json",
+            skip_sina_record_sections=["curve_sets", ])
+        ds = next(store.find())
+        self.assertEqual(ds.list_features(),
+                         ['cycles',
+                          'direction',
+                          'elements',
+                          'node',
+                          'node/metrics_0',
+                          'node/metrics_1',
+                          'node/metrics_10',
+                          'node/metrics_11',
+                          'node/metrics_12',
+                          'node/metrics_2',
+                          'node/metrics_3',
+                          'node/metrics_4',
+                          'node/metrics_5',
+                          'node/metrics_6',
+                          'node/metrics_7',
+                          'node/metrics_8',
+                          'node/metrics_9',
+                          'zone',
+                          'zone/metrics_0',
+                          'zone/metrics_1',
+                          'zone/metrics_2',
+                          'zone/metrics_3',
+                          'zone/metrics_4'])
+        store.close()
+        os.remove(db_source)
 
     def test_associated_import(self):
         source_store, db_source = self.connect()
@@ -236,6 +277,8 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(dataset_t.foosome, "foo2")
         self.assertEqual(len(dataset_t._associated_data_), 1)
 
+        source_store.close()
+        target_store.close()
         os.remove(db_source)
         os.remove(db_target)
 

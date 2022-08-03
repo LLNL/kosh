@@ -1,11 +1,32 @@
 # Release Notes
 
-* [2.0](#2.0)
-* [1.2](#1.2)
-* [1.1](#1.1)
-* [1.0](#1.0)
-* [0.9](#0.9)
-* [0.8](#0.8)
+* [2.2](#22-release)
+* [2.1](#21-release)
+* [2.0](#20-release)
+* [1.2](#12-release)
+* [1.1](#11-release)
+* [1.0](#10-release)
+* [0.9](#09-release)
+* [0.8](#08-release)
+
+## 2.2 Release
+
+### Description
+
+This is a maintenace release, with added support for Windows systems.
+
+### New in this release
+
+* Support for Windows systems (note that `kosh cp` and `kosh mv` are not currently supported on Windows)
+* While importing sina `json` files you can now skip over some sections, such as `curve_sets`.
+
+### Improvements
+
+* `find` function accepts `id` as an alias for `id_pool` to restrict search to some ids
+
+### Bug fixes
+
+* Fixed an issue where associating a file multiple time was not reflected into the store and a subsequent dissociation or an async association would not be caught. Dissociation would cause the object to be removed from the store.
 
 ## 2.1 Release
 

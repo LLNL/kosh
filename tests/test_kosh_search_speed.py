@@ -33,6 +33,7 @@ class TestKoshSearchSpeed(koshbase.KoshTest):
         print("A, B:", a, b)
         # Make sure it's pretty much constant
         self.assertLessEqual(a, .01)
+        store.close()
         os.remove(kosh_db)
 
 

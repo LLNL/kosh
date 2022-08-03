@@ -331,6 +331,7 @@ class KoshTestScriptWrapper(KoshTest):
 
         # Test for single dash args
         # Cleanup
+        store.close()
         os.remove(uri)
 
 

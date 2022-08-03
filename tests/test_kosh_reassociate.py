@@ -21,15 +21,22 @@ def move_file(old, new):
 
 
 def run_reassociate(store_sources, new_uris, original_uris=[]):
-    cmd = "{}/bin/python scripts/kosh_command.py reassociate --dataset_record_type=blah ".format(
-        sys.prefix)
+    if sys.platform.startswith("win"):
+        python_pth = os.path.join(sys.prefix, "python")
+    else:
+        python_pth = os.path.join(sys.prefix, "bin", "python")
+    cmd_pth = os.path.join("scripts", "kosh_command.py")
+    cmd = "{} {} reassociate --dataset_record_type=blah ".format(
+        python_pth, cmd_pth)
     for store in store_sources:
         cmd += " --store {}".format(store)
     cmd += " --new_uris {}".format(" ".join(new_uris))
     if original_uris != []:
         cmd += " --original_uris {}".format(" ".join(original_uris))
 
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+    if not sys.platform.startswith("win"):
+        cmd = shlex.split(cmd)
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
     return p, out
@@ -70,6 +77,7 @@ class KoshTestReassociate(KoshTest):
         self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
+        store.close()
         os.remove(db_uri)
 
     def test_store_reassociate(self):
@@ -106,6 +114,7 @@ class KoshTestReassociate(KoshTest):
         self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
+        store.close()
         os.remove(db_uri)
 
     def test_command_line_one_file(self):
@@ -145,6 +154,7 @@ class KoshTestReassociate(KoshTest):
         self.assertEqual(len(list(ds.find(uri=filename))), 1)
 
         os.remove(filename)
+        store.close()
         os.remove(db_uri)
 
     def test_command_line_multi_files(self):
@@ -212,6 +222,7 @@ class KoshTestReassociate(KoshTest):
 
         os.remove(filename1)
         os.remove(filename2)
+        store.close()
         os.remove(db_uri)
 
 

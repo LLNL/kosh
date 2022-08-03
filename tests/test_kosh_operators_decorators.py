@@ -3,6 +3,7 @@ from kosh.operators.core import typed_operator_with_kwargs
 import koshbase
 import kosh
 import numpy
+import os
 
 
 class FakeLoader(kosh.loaders.KoshLoader):
@@ -68,6 +69,8 @@ class TestKoshOperatorDecorators(koshbase.KoshTest):
         self.assertTrue(
             numpy.allclose(Add(data, data)[:],
                            numpy.array([2, 4, 6., 4, 2])))
+        store.close()
+        os.remove(db_uri)
 
     def testTypedOperatorDecorator(self):
         store, db_uri = self.connect()
@@ -80,6 +83,8 @@ class TestKoshOperatorDecorators(koshbase.KoshTest):
             numpy.array([2, 4, 6, 4, 2])))
         with self.assertRaises(RuntimeError):
             Add_str_bad(data, data)[:]
+        store.close()
+        os.remove(db_uri)
 
     def testTypedKwargOperatorDecorator(self):
         store, db_uri = self.connect()
@@ -92,6 +97,8 @@ class TestKoshOperatorDecorators(koshbase.KoshTest):
             numpy.array([2, 4, 6, 4, 2])))
         self.assertTrue(numpy.allclose(Add_kw(data, data)(format="numpy")[:],
                                        numpy.array([2, 4, 6, 4, 2])))
+        store.close()
+        os.remove(db_uri)
 
 
 if __name__ == "__main__":
