@@ -5,6 +5,7 @@ import shlex
 import os
 import random
 import shutil
+import sys
 
 
 def create_file(filename):
@@ -21,11 +22,15 @@ def run_mv(sources, dest, store_sources, store_destinations=None, verbose=False)
             cmd += " --destination-store {}".format(store)
     cmd += " --sources {} --destination {}".format(" ".join(sources), dest)
 
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+    if not sys.platform.startswith("win"):
+        cmd = shlex.split(cmd)
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
     if verbose:
         print("CMD:", cmd)
+        print("OUT:", o.decode())
+        print("ERR:", e.decode())
     return p, out
 
 
@@ -50,6 +55,9 @@ class KoshTestMv(KoshTest):
             return int(o[0])
 
     def test_file_to_file(self):
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         # kosh mv --stores store1.sql store2.sql --source file1 --destination
         # file2
         rand = str(random.randint(0, 1000000))
@@ -76,6 +84,8 @@ class KoshTestMv(KoshTest):
             self.assertEqual(0, len(tuple(ds.find(mime_type="py"))))
 
         # cleanup file
+        store1.close()
+        store2.close()
         os.remove(dest_name_orig)
 
         # cleanup stores
@@ -85,6 +95,9 @@ class KoshTestMv(KoshTest):
     def test_move_files_to_new_directory(self):
         # kosh mv --stores_store1.sql store2.sql --source dir1 --destination
         # dir2
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -139,12 +152,17 @@ class KoshTestMv(KoshTest):
         shutil.rmtree(rand + "_f2d_dest")
 
         # cleanup stores
+        store1.close()
+        store2.close()
         for db in [db1, db2]:
             os.remove(db)
 
     def test_move_directory(self):
         # kosh mv --stores_store1.sql store2.sql --source dir1 --destination
         # dir2
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -199,12 +217,17 @@ class KoshTestMv(KoshTest):
         shutil.rmtree(rand + "_d2d_dest")
 
         # cleanup stores
+        store1.close()
+        store2.close()
         for db in [db1, db2]:
             os.remove(db)
 
     def test_move_files_pattern_to_new_directory_locally(self):
         # kosh mv --stores store1.sql store2.sql --source *.testme --source
         # dir1/testing_it_*.testme --destination dir2
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -263,10 +286,15 @@ class KoshTestMv(KoshTest):
         shutil.rmtree(rand + "_pattern_dest")
 
         # cleanup stores
+        store1.close()
+        store2.close()
         for db in [db1, db2]:
             os.remove(db)
 
     def test_move_file_to_dir(self):
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
 
@@ -297,9 +325,13 @@ class KoshTestMv(KoshTest):
         # Cleanup
         shutil.rmtree(dest_name_orig)
         # cleanup stores
+        store1.close()
         os.remove(db1)
 
     def test_move_to_no_exist(self):
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
 
@@ -334,7 +366,30 @@ class KoshTestMv(KoshTest):
         for f in file_src_orig_associate:
             os.remove(f)
         # cleanup stores
+        store1.close()
         os.remove(db1)
+
+    def testWinFail(self):
+        if not sys.platform.startswith("win"):
+            return
+        rand = str(random.randint(0, 1000000))
+        store1, db1 = self.connect()
+
+        file_src_orig = ["file_to_dir_1.py", "file_to_dir_2.py"]
+        file_src_orig_associate = [os.path.abspath(x) for x in file_src_orig]
+        for x in file_src_orig:
+            create_file(x)
+        ds1 = store1.create()
+        ds1.associate(file_src_orig_associate, mime_type="py")
+        dest_name_orig = rand + "_new_dir"
+        # Make sure dest dir does not exists
+        try:
+            os.removedirs(dest_name_orig)
+        except BaseException:
+            pass
+
+        p, _ = run_mv(file_src_orig_associate, dest_name_orig, [db1, ])
+        self.assertEqual(p.returncode, 1)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,12 @@
 import os
+import sys
 import uuid
 import sina.utils
 from sina.model import Relationship
-import fcntl
 import collections
-import grp
+if not sys.platform.startswith("win"):
+    import fcntl
+    import grp
 import hashlib
 import warnings
 import time
@@ -664,7 +666,6 @@ class KoshStore(object):
         :return: generator of matching objects in store
         :rtype: generator
         """
-
         for result in self._find(*atts, **keys):
             yield result
 
@@ -736,12 +737,6 @@ class KoshStore(object):
                 record_types, (list, tuple)):
             raise ValueError("`types` must be str or list")
 
-        if record_types is None:
-            # Ok we want anything, but we need to exclude Kosh reserved
-            record_types = sina.utils.not_(self._kosh_reserved_record_types)
-
-        sina_kargs["types"] = record_types
-
         if 'file_uri' in keys and 'file' in keys:
             raise ValueError(
                 "`file` has been deprecated for `file_uri` but you cannot use both at same time")
@@ -750,11 +745,26 @@ class KoshStore(object):
         else:
             file_uri = keys.pop("file_uri", None)
 
+        # Ok now let's look if the user wants to search for an id
+        if "id" in keys:
+            if "id_pool" in keys:
+                raise ValueError("you cannot use id and id_pool together")
+            warnings.warn("When searching by id use id_pool")
+            sina_kargs["id_pool"] = keys["id"]
+            del(keys["id"])
+        else:
+            sina_kargs["id_pool"] = keys.pop("id_pool", None)
+
         sina_kargs["file_uri"] = file_uri
-        sina_kargs["id_pool"] = keys.pop("id_pool", None)
         sina_kargs["query_order"] = keys.pop(
             "query_order", ("data", "file_uri", "types"))
 
+        # records type
+        if record_types is None and sina_kargs["id_pool"] is None:
+            # Ok we want anything, but we need to exclude Kosh reserved
+            # but only if user did not specified an id_pool
+            record_types = sina.utils.not_(self._kosh_reserved_record_types)
+        sina_kargs["types"] = record_types
         # The data dict for sina
         sina_data = keys.pop("data", {})
         if not isinstance(sina_data, dict):
@@ -770,7 +780,8 @@ class KoshStore(object):
 
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
-
+        if isinstance(sina_kargs["id_pool"], six.string_types):
+            sina_kargs["id_pool"] = [sina_kargs["id_pool"], ]
         # is it a blank search, e.g get me everything?
         get_all = sina_kargs.get("data", {}) == {} and \
             sina_kargs.get("file_uri", None) is None and \
@@ -1074,7 +1085,10 @@ class KoshStore(object):
             raise ValueError("group {} already exist".format(group))
 
         # now get unix groups
-        unix_groups = [g[0] for g in grp.getgrall()]
+        if not sys.platform.startswith("win"):
+            unix_groups = [g[0] for g in grp.getgrall()]
+        else:
+            unix_groups = []
         if group in unix_groups:
             raise ValueError("{} is a unix group on this system.format(group)")
 
@@ -1140,7 +1154,7 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}):
+                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
@@ -1172,6 +1186,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1179,16 +1195,18 @@ class KoshStore(object):
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
-                                        merge_handler_kargs=merge_handler_kargs)
+                                        merge_handler_kargs=merge_handler_kargs,
+                                        skip_sina_record_sections=skip_sina_record_sections)
         else:
             for dataset in datasets:
                 out.append(self._import_dataset(dataset, match_attributes=match_attributes,
                                                 merge_handler=merge_handler,
-                                                merge_handler_kargs=merge_handler_kargs))
+                                                merge_handler_kargs=merge_handler_kargs,
+                                                skip_sina_record_sections=skip_sina_record_sections))
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}):
+            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1209,6 +1227,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1242,6 +1262,8 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            for section in skip_sina_record_sections:
+                record[section] = {}
             data = record["data"]
             if record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
@@ -1316,6 +1338,7 @@ class KoshStore(object):
             # But first make sure it is a record :)
             if isinstance(match_rec, dict):
                 match_rec = sina.model.generate_record_from_json(match_rec)
+
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
                 if section in record:

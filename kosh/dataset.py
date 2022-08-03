@@ -628,8 +628,14 @@ class KoshDataset(KoshSinaObject):
             self._update_record(rec)
         # Get all object that have been associated with this uri
         rec = self.__store__.get_record(kosh_id)
-        if (not hasattr(rec, "associated")) or len(
-                rec.associated) == 0:  # ok no other object is associated
+        associated_ids = rec.data.get("associated", {"value": []})["value"]
+        associated_ids.remove(self.id)
+        rec.data["associated"]["value"] = associated_ids
+        if self.__store__.__sync__:
+            self._update_record(rec)
+        else:
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
+        if len(associated_ids) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
             if kosh_id in self.__store__._cached_loaders:
                 del(self.__store__._cached_loaders[kosh_id])
@@ -681,6 +687,7 @@ class KoshDataset(KoshSinaObject):
             single_element = False
 
         new_recs = []
+        updated_recs = []
         kosh_file_ids = []
 
         for i, uri in enumerate(uris):
@@ -702,6 +709,7 @@ class KoshDataset(KoshSinaObject):
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
                     rec_obj = Record(id=Id, type=self.__store__._sources_type)
+                    new_recs.append(rec_obj)
                 else:
                     rec_obj = self.__store__.get_record(tmp_uris[0])
                     Id = rec_obj.id
@@ -711,19 +719,25 @@ class KoshDataset(KoshSinaObject):
                         rec["files"][uri]["mime_type"] = existing_mime
                         raise TypeError("source {} is already associated with another dataset with mimetype"
                                         " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
+                    updated_recs.append(rec_obj)
                 rec.add_file(uri, mime_types[i])
                 rec["files"][uri]["kosh_id"] = Id
                 meta["uri"] = uri
                 meta["mime_type"] = mime_types[i]
-                meta["associated"] = [self.id, ]
+                associated = rec_obj["data"].get(
+                    "associated", {'value': []})["value"]
+                associated.append(self.id)
+                meta["associated"] = associated
                 for key in meta:
-                    rec_obj.add_data(key, meta[key])
+                    if key not in rec_obj.data:
+                        rec_obj.add_data(key, meta[key])
+                    else:
+                        rec_obj["data"][key]["value"] = meta[key]
                     last_modif_att = "{name}_last_modified".format(name=key)
                     rec_obj["user_defined"][last_modif_att] = time.time()
                 if not self.__store__.__sync__:
                     rec_obj["user_defined"]["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
-                new_recs.append(rec_obj)
             except TypeError as err:
                 raise(err)
             except Exception:
@@ -745,8 +759,12 @@ class KoshDataset(KoshSinaObject):
             self.__store__.__record_handler__.insert(new_recs)
             self.__store__.unlock()
             self._update_record(rec)
+            for rec_up in updated_recs:
+                self._update_record(rec_up)
         else:
             self._update_record(rec, self.__store__._added_unsync_mem_store)
+            for rec_up in updated_recs:
+                self._update_record(rec_up, self.__store__._added_unsync_mem_store)
 
         # Since we changed the associated, we need to cleanup
         # the features cache

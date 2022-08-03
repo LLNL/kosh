@@ -80,6 +80,7 @@ class KoshTestSinaCurves(KoshTest):
         self.assertTrue(numpy.allclose(dataset[["timeplot_1/value", "timeplot_1/time", "timeplot_1/feature_a"]][:],
                                        [[10., 15., 20.], [0, 1, 2], [1, 2, 3]]))
 
+        store.close()
         os.remove(kosh_db)
 
     def test_operators_on_curves(self):
@@ -90,6 +91,7 @@ class KoshTestSinaCurves(KoshTest):
         fb = dataset["timeplot_1/feature_b"]
         dv = DIVIDE(fa, fb)
         self.assertTrue(numpy.allclose(dv[:], [0.1, 0.1, 0.0990099]))
+        store.close()
         os.remove(kosh_db)
 
 
