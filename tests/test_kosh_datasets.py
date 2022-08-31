@@ -77,7 +77,7 @@ class KoshTestDataset(KoshTest):
                 "creator", "id", "name", "person"])
         self.assertEqual(ds.person, "Charles Doutriaux")
         # delete attribute
-        del(ds.person)
+        del ds.person
         self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
         with self.assertRaises(AttributeError):
             print(ds.person)
@@ -87,7 +87,7 @@ class KoshTestDataset(KoshTest):
         ds.__type__ = "another_type"
         self.assertEqual(ds.__type__, store._dataset_record_type)
         # Make sure you cannot delete it
-        del(ds.__type__)
+        del ds.__type__
         self.assertEqual(ds.__type__, store._dataset_record_type)
         printTestResults = """\
 KOSH DATASET

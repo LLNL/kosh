@@ -23,7 +23,7 @@ def run_cmd(cmd, verbose=False):
     if p.returncode != 0 or verbose:
         print("OUT:", o.decode())
         print("ERR:", e.decode())
-    assert(p.returncode == 0)
+    assert p.returncode == 0
     return o.decode(
         "utf-8").strip().split("\n"), e.decode("utf-8").strip().split("\n")
 

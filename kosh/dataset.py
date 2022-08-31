@@ -406,7 +406,7 @@ class KoshDataset(KoshSinaObject):
             for feature_ in features:
                 if feature_ in possibles and id_ in possibles[feature_]:
                     matching_features.append(feature_)
-                    del(possibles[feature_])
+                    del possibles[feature_]
             if len(matching_features) > 0:
                 ids[id_] = matching_features
 
@@ -620,7 +620,7 @@ class KoshDataset(KoshSinaObject):
             # Not associated with this uri anyway
             return
         kosh_id = str(rec["files"][uri]["kosh_id"])
-        del(rec["files"][uri])
+        del rec["files"][uri]
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(
             uri=uri)] = now
@@ -638,7 +638,7 @@ class KoshDataset(KoshSinaObject):
         if len(associated_ids) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
             if kosh_id in self.__store__._cached_loaders:
-                del(self.__store__._cached_loaders[kosh_id])
+                del self.__store__._cached_loaders[kosh_id]
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -739,7 +739,7 @@ class KoshDataset(KoshSinaObject):
                     rec_obj["user_defined"]["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
             except TypeError as err:
-                raise(err)
+                raise err
             except Exception:
                 # file already in there
                 # Let's get the matching id
