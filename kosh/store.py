@@ -387,7 +387,7 @@ class KoshStore(object):
                 keys = list(record["user_defined"].keys())
                 for key in keys:
                     if key[-14:] == "_last_modified":
-                        del(record["user_defined"][key])
+                        del record["user_defined"][key]
             record["user_defined"]["last_update_from_db"] = time.time()
         return record
 
@@ -410,7 +410,7 @@ class KoshStore(object):
         if not self.__sync__:
             self._added_unsync_mem_store.records.delete(Id)
             if Id in self.__sync__dict__:
-                del(self.__sync__dict__[Id])
+                del self.__sync__dict__[Id]
                 self.__sync__deleted__[Id] = rec
                 rec["user_defined"]["deleted_time"] = time.time()
         else:
@@ -501,7 +501,7 @@ class KoshStore(object):
                 self.__record_handler__.delete(Id)
                 self.unlock()
             else:
-                del(self.__sync__dict__[Id])
+                del self.__sync__dict__[Id]
                 self._added_unsync_mem_store.records.delete(rec)
             raise err
         return out
@@ -751,7 +751,7 @@ class KoshStore(object):
                 raise ValueError("you cannot use id and id_pool together")
             warnings.warn("When searching by id use id_pool")
             sina_kargs["id_pool"] = keys["id"]
-            del(keys["id"])
+            del keys["id"]
         else:
             sina_kargs["id_pool"] = keys.pop("id_pool", None)
 
@@ -1005,7 +1005,7 @@ class KoshStore(object):
                             # ok it's an associated thing
                             uri = att[:-27]
                             if uri not in local["files"]:  # dissociated
-                                del(db["files"][uri])
+                                del db["files"][uri]
                             elif att not in db["user_defined"]:  # newly associated
                                 db["files"][uri] = local["files"][uri]
                                 db["user_defined"][att] = local["user_defined"][att]
@@ -1017,7 +1017,7 @@ class KoshStore(object):
                             name = att[:-14]
                             if name not in local["data"]:  # we deleted it
                                 if name in db["data"]:
-                                    del(db["data"][name])
+                                    del db["data"][name]
                             elif local["user_defined"][att] > db["user_defined"][att]:
                                 db["data"][name] = local["data"][name]
                                 db["user_defined"][att] = local["user_defined"][att]
@@ -1043,10 +1043,10 @@ class KoshStore(object):
             except Exception:
                 pass
             try:
-                del(self.__sync__dict__[key])
+                del self.__sync__dict__[key]
             except Exception:
                 # probably coming from del then
-                del(self.__sync__deleted__[key])
+                del self.__sync__deleted__[key]
 
     def add_user(self, username, groups=[]):
         """add_user adds a user to the Kosh store
