@@ -506,11 +506,13 @@ class KoshStore(object):
             raise err
         return out
 
-    def _find_loader(self, Id, format=None, transformers=[]):
+    def _find_loader(self, Id, verbose=False):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
         :type Id: str
+        :param verbose: verbose mode will show errors
+        :type verbose: bool
         :return: Kosh loader object
         """
         Id_original = str(Id)
@@ -519,12 +521,16 @@ class KoshStore(object):
             Id, uri = Id.split("__uri__")
         else:
             uri = None
+        if verbose:
+            print("Finding loader for: {}".format(uri))
         if Id_original in self._cached_loaders:
             try:
                 feats = self._cached_loaders[Id_original][0].list_features() != [
                 ]
-            except Exception:
+            except Exception as err:
                 feats = []
+                if verbose:
+                    print("Error opening {} with loader {}: {}".format(uri, self._cached_loaders[Id_original], err))
             if feats != []:
                 return self._cached_loaders[Id_original]
         record = self.get_record(Id)
@@ -547,9 +553,11 @@ class KoshStore(object):
             for ld in self.loaders[mime_type]:
                 try:
                     feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
-                except Exception:
+                except Exception as err:
                     # Something happened can't list features
                     feats = []
+                    if verbose:
+                        print("Error opening {} with loader {}: {}".format(obj.uri, ld, err))
                 if feats != []:
                     break
             self._cached_loaders[Id_original] = ld(
@@ -561,9 +569,11 @@ class KoshStore(object):
             for ld in self.loaders[record["type"]]:
                 try:
                     feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
-                except Exception:
+                except Exception as err:
                     # Something happened can't list features
                     feats = []
+                    if verbose:
+                        print("Error opening {} with loader {}: {}".format(obj.uri, ld, err))
                 if feats != []:
                     break
             self._cached_loaders[Id_original] = ld(

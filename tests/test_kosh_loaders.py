@@ -103,7 +103,7 @@ class KoshTestLoaders(KoshTest):
         # Duplicate features names URI should be added
         ds.associate(
             "share/icons/png/Kosh_Logo_Blue.png", "png")
-        features = sorted(ds.list_features(use_cache=False))[::-1]
+        features = sorted(ds.list_features(use_cache=False, verbose=True))[::-1]
         self.assertEqual(features, [unix_to_win_compatible(
             "image_@_{}/tests/baselines/images/LLNLiconWHITE.png".format(os.getcwd())),
             unix_to_win_compatible(
