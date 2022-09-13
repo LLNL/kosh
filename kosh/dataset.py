@@ -223,7 +223,7 @@ class KoshDataset(KoshSinaObject):
         return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, loader=None,
-                      use_cache=True, *args, **kargs):
+                      use_cache=True, verbose=False, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
         then the associated_data uri gets appended to feature name
 
@@ -233,6 +233,8 @@ class KoshDataset(KoshSinaObject):
         :type loader: kosh.loaders.KoshLoader
         :param use_cache: If features is found on cache use it (default: True)
         :type use_cache: bool
+        :param verbose: Verbose mode will show which file is being opened and errors on it
+        :type verbose: bool
         :raises RuntimeError: object id not associated with dataset
         :return: list of features available
         :rtype: list
@@ -253,8 +255,11 @@ class KoshDataset(KoshSinaObject):
         associated_data = self._associated_data_
         if Id is None:
             for associated in associated_data:
+                if verbose:
+                    asso = self.__store__._load(associated)
+                    print("Finding features for {}".format(asso.uri))
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated)
+                    ld, _ = self.__store__._find_loader(associated, verbose=verbose)
                 else:
                     if associated not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated] = loader(
@@ -264,8 +269,9 @@ class KoshDataset(KoshSinaObject):
                 try:
                     features += ld._list_features(*
                                                   args, use_cache=use_cache, **kargs)
-                except Exception:  # Ok the loader couldn't get the feature list
-                    pass
+                except Exception as err:  # Ok the loader couldn't get the feature list
+                    if verbose:
+                        print("\tCould not obtain features from loader {}\n\t\tError:{}".format(loader, err))
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
@@ -293,7 +299,10 @@ class KoshDataset(KoshSinaObject):
                 "object {Id} is not associated with this dataset".format(
                     Id=Id))
         else:
-            ld, _ = self.__store__._find_loader(Id)
+            if loader is not None:
+                ld = loader
+            else:
+                ld, _ = self.__store__._find_loader(Id, verbose=verbose)
             features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
