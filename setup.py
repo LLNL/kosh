@@ -63,4 +63,3 @@ setup(name="kosh",
           "Operating System :: OS Independent",
       ],
       )
-Popen(("python", "scripts/render_logos.py",)).communicate()
