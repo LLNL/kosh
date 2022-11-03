@@ -331,6 +331,10 @@ class KoshSinaObject(object):
         last_modif_att = "{name}_last_modified".format(name=name)
         now = time.time()
         record["user_defined"][last_modif_att] = now
+        # We need to remember we touched it otherwise
+        # if we create it again the db will look
+        # out of sync.
+        self.__dict__[last_modif_att] = now
         del record["data"][name]
         if self.__store__.__sync__:
             self._update_record(record)
