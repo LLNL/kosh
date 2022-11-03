@@ -530,6 +530,15 @@ KOSH DATASET
         store.close()
         os.remove(db_uri)
 
+    def test_add_remove_add_attribute(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.good = "good"
+        del ds.good
+        ds.good = "still good"
+        store.close()
+        os.remove(db_uri)
+
 
 if __name__ == "__main__":
     A = KoshTestDataset()
