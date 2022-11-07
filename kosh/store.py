@@ -191,7 +191,7 @@ class KoshStore(object):
         self.db_uri = db_uri
         if db == "sql":
             if not os.path.exists(db_uri):
-                if ("://" in db_uri and "@" in db_uri):
+                if "://" in db_uri:
                     self.__sina_store = sina_connect(
                         db_uri, read_only=read_only)
                 else:
@@ -580,11 +580,9 @@ class KoshStore(object):
             for ld in self.loaders[record["type"]]:
                 try:
                     feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
-                except Exception as err:
+                except Exception:
                     # Something happened can't list features
                     feats = []
-                    if verbose:
-                        print("Error opening {} with loader {}: {}".format(obj.uri, ld, err))
                 if feats != []:
                     break
             self._cached_loaders[Id_original] = ld(
@@ -1330,16 +1328,14 @@ class KoshStore(object):
                     match_rec = match.get_record()
                     remapped[record["id"]] = match_rec.id
                 else:  # Non existent dataset
-                    cont = True
-                    while cont:
-                        try:
-                            self.__record_handler__.get(record["id"])
-                            # Ok this record already exists
-                            # and we need a new unique one
-                            record["id"] = uuid.uuid4().hex
-                        except ValueError:
-                            # Does not exists, let's keep the id
-                            cont = False
+                    try:
+                        self.__record_handler__.get(record["id"])
+                        # Ok this record already exists
+                        # and we need a new unique one
+                        record["id"] = uuid.uuid4().hex
+                    except (KeyError, ValueError):
+                        # Does not exists, let's keep the id
+                        pass
                     match_rec = record
             else:  # ok it is a source
                 # Let's find the source rec that match this uri
@@ -1364,6 +1360,8 @@ class KoshStore(object):
             # update the record
             # But first make sure it is a record :)
             if isinstance(match_rec, dict):
+                if 'id' not in match_rec:
+                    match_rec['id'] = uuid.uuid4().hex
                 match_rec = sina.model.generate_record_from_json(match_rec)
 
             # User defined and files are preserved?
@@ -1442,7 +1440,7 @@ class KoshStore(object):
                         pass
                     self.__record_handler__.insert(rec)
 
-        return [self._load(x) for x in matches]
+        return [self.open(x) for x in matches]
 
     def reassociate(self, target, source=None, absolute_path=True):
         """This function allows to re-associate data whose uri might have changed

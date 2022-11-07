@@ -349,7 +349,7 @@ class KoshDataset(KoshSinaObject):
         possibles = {}
         inter = None
         union = set()
-        for feature_ in features:
+        for index, feature_ in enumerate(features):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
@@ -369,9 +369,24 @@ class KoshDataset(KoshSinaObject):
                             continue
                     # Dataset with curve have themselves as uri
                     obj_uri = getattr(ld.obj, "uri", "self")
-                    if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
+                    ld_features = ld._list_features()
+                    if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
+                        # ok we have to be careful list_features can be returned two ways
+                        if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
+                            # we need to convert the feature to str
+                            possibilities = kosh.utils.find_curveset_and_curve_name(feature_, self.get_record())
+                            if len(possibilities) > 1:
+                                raise ValueError("cannot uniquely pinpoint {}, could be one of {}".format(
+                                    feature_, possibilities))
+                            feature_ = possibilities[0]
+                            features[index] = feature_
+                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, tuple):
+                            feature_ = "/".join(feature_)
+                            features[index] = feature_
+
+                    if ("_@_" not in feature_ and feature_ in ld_features) or\
                             feature_ is None or\
-                            (feature_[:-len(obj_uri) - 3] in ld._list_features() and
+                            (feature_[:-len(obj_uri) - 3] in ld_features and
                              feature_[-len(obj_uri):] == obj_uri):
                         possible_ids.append(a_original)
                 if possible_ids == []:  # All failed but could be something about the feature
@@ -1070,3 +1085,127 @@ class KoshDataset(KoshSinaObject):
             return ""
         else:
             return False
+
+    def add_curve(self, curve, curve_set=None, curve_name=None, independent=None, units=None, tags=None):
+        """Add a curve to a dataset
+        :param curve: The curve data
+        :type curve: array-like
+        :param curve_set: Name of the curve_set.
+                          If not passed will be set to curve_x where x is the highest number available
+                          (if non exist then curve_set_0 will be created)
+        :type curve_set: str
+        :param curve_name: name of the curve.
+                           If not set it will be set to: curve_x where x is the number of curves in this curve_set
+        :type curve_name: str
+        :param independent: Is it an independent variable. If not passed, it will be set to False
+                            unless no independent curve exists, e.g first curve is set as independent
+                            You can avoid this by explicitly passing False
+        :type independent: bool
+        :param units: Units of the curve (if any)
+        :type units: str
+        :param tags: Tags on the curve (if any)
+        :type tags: dict
+
+        :returns: the curve_set/curve_name path
+        :rtype: str
+        """
+        # let's obtain the record
+        rec = self.get_record()
+        # Let's figure out the curve_set name
+        if curve_set is None:
+            i = 0
+            while "curve_set_"+str(i) in rec.raw["curve_sets"]:
+                i += 1
+            if i > 0:
+                i -= 1
+            curve_set = "curve_set_"+str(i)
+
+        # Let's create curveset if not present
+        if curve_set not in rec.raw["curve_sets"]:
+            cs = rec.add_curve_set(curve_set)
+        else:
+            cs = rec.get_curve_set(curve_set)
+        # Ok now let's get a curve_name
+        if curve_name is None:
+            i = 0
+            while "curve_"+str(i) in cs.dependent or "curve_"+str(i) in cs.independent:
+                i += 1
+            curve_name = "curve_"+str(i)
+
+        if curve_name in cs.independent or curve_name in cs.dependent:
+            raise ValueError("curve {} already exist in curve_set {}".format(curve_name, curve_set))
+        # Finally the independent part
+        if independent is None:
+            if len(cs.independent) == 0:
+                independent = True
+            else:
+                independent = False
+        if independent:
+            cs.add_independent(curve_name, curve, units, tags)
+        else:
+            cs.add_dependent(curve_name, curve, units, tags)
+
+        if self.__store__.__sync__:
+            self._update_record(rec)
+        else:
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
+
+        # Since we changed the curves, we need to cleanup
+        # the features cache
+        self.__dict__["__features__"][None] = {}
+
+        return "{}/{}".format(curve_set, curve_name)
+
+    def remove_curve_or_curve_set(self, curve, curve_set=None):
+        """Removes a curve or curve_set from the dataset
+        :param curve: name of the curve or curve_set to remove
+        :type curve: str
+        :param curve_set: curve_set the curve_name belongs to.
+                          If not passed then assumes it is in the curve
+                          name.
+        :type curve_set: str
+        """
+        original_curve_set = curve_set
+        rec = self.get_record()
+        if curve_set is None:
+            # User did not pass the curve_set
+            # The curve_set might be prepended to the curve_name then.
+            try:
+                curve_set, curve = kosh.utils.find_curveset_and_curve_name(curve, rec)[0]
+            except Exception:
+                raise ValueError("You need to pass a curve set for curve {}".format(curve))
+        if curve_set not in rec.raw["curve_sets"]:
+            if original_curve_set is None:
+                if curve in rec.raw["curve_sets"]:
+                    del rec.raw["curve_sets"][curve]
+                    if self.__store__.__sync__:
+                        self._update_record(rec)
+                    else:
+                        self._update_record(rec, self.__store__._added_unsync_mem_store)
+                    self.__dict__["__features__"][None] = {}
+                    return
+            else:
+                raise ValueError("The curve set {} does not exists".format(curve_set))
+        cs = rec.get_curve_set(curve_set)
+        if curve in cs.independent:
+            del rec.raw["curve_sets"][curve_set]["independent"][curve]
+        elif curve in cs.dependent:
+            del rec.raw["curve_sets"][curve_set]["dependent"][curve]
+        elif curve is None:
+            # We want to delete the whole curveset
+            del rec.raw["curve_sets"][curve_set]
+        else:
+            raise ValueError("Could not find {} in curve_set {}".format(curve, curve_set))
+        # In case we removed everything
+        if len(cs.dependent) == 0 and len(cs.independent) == 0:
+            del rec.raw["curve_sets"][curve_set]
+
+        if self.__store__.__sync__:
+            self._update_record(rec)
+        else:
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
+
+        # Since we changed the curves, we need to cleanup
+        # the features cache
+        self.__dict__["__features__"][None] = {}
+        return
