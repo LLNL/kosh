@@ -264,7 +264,7 @@ class KoshLoader(KoshExecutionGraph):
         """
         return
 
-    def extract(self, feature, format):
+    def extract(self):
         """extract this function does the heavy lifting of the extraction
         it needs to be implemented by each loader.
 
