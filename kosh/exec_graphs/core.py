@@ -488,3 +488,19 @@ class KoshExecutionGraph(object):
             return data[0]
         else:
             return data
+
+    def describe_entries(self):
+        """Return a generator of describe_feature for each entry feature.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        If a loader did not implement `describe_feature` an empty dictionary
+        will be used instead.
+        :return: generator of info dictionaries
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            try:
+                info = loader.describe_feature(loader.feature)
+            except NotImplementedError:
+                info = {}
+            yield info
