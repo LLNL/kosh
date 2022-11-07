@@ -222,6 +222,9 @@ class KoshStore(object):
         self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
         self._kosh_reserved_record_types = kosh_reserved_record_types + \
             rec["data"]["reserved_types"]["value"]
+        kosh_reserved = list(self._kosh_reserved_record_types)
+        kosh_reserved.remove(self._sources_type)
+        self._kosh_datasets_and_sources = sina.utils.Negation(kosh_reserved)
 
         # Associated stores
         self._associated_stores_ = []
@@ -739,13 +742,13 @@ class KoshStore(object):
                 DeprecationWarning)
             record_types = keys.pop("kosh_type")
         else:
-            record_types = keys.pop("types", None)
+            record_types = keys.pop("types", (None, None))  # can't use just None
 
         if isinstance(record_types, six.string_types):
             record_types = [record_types, ]
-        if record_types is not None and not isinstance(
-                record_types, (list, tuple)):
-            raise ValueError("`types` must be str or list")
+        if record_types not in [None, (None, None)] and not isinstance(
+                record_types, (list, tuple, sina.utils.Negation)):
+            raise ValueError("`types` must be None, str, list or sina.utils.Negation")
 
         if 'file_uri' in keys and 'file' in keys:
             raise ValueError(
@@ -769,11 +772,11 @@ class KoshStore(object):
         sina_kargs["query_order"] = keys.pop(
             "query_order", ("data", "file_uri", "types"))
 
-        # records type
-        if record_types is None and sina_kargs["id_pool"] is None:
-            # Ok we want anything, but we need to exclude Kosh reserved
-            # but only if user did not specified an id_pool
+        if record_types == (None, None):
             record_types = sina.utils.not_(self._kosh_reserved_record_types)
+            if sina_kargs["id_pool"] is not None:
+                record_types = None
+
         sina_kargs["types"] = record_types
         # The data dict for sina
         sina_data = keys.pop("data", {})
@@ -819,7 +822,13 @@ class KoshStore(object):
             self.synchronous()
 
         for rec_id in match:
-            yield rec_id if ids_only else self.open(rec_id)
+            if ids_only:
+                yield rec_id
+            else:
+                try:
+                    yield self.open(rec_id)
+                except Exception:
+                    yield self._load(rec_id)
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
@@ -1339,8 +1348,8 @@ class KoshStore(object):
                             raise ValueError("trying to import an associated source {} with mime_type {} but "  # noqa
                                              "this store already associated"  # noqa
                                              " this source with mime_type {}".format(data["uri"]["value"],
-                                                                                     data["mime_type"["value"],
-                                                                                     match.mime_type]))
+                                                                                     data["mime_type"]["value"],
+                                                                                     match.mime_type))
                     match_rec = match.get_record()
                 else:
                     match_rec = record

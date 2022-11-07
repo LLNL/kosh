@@ -34,6 +34,24 @@ class TestKoshSearch(koshbase.KoshTest):
         store.close()
         os.remove(kosh_db)
 
+    def test_find_more_than_datasets(self):
+        store, kosh_db = self.connect()
+        ds = store.create()
+        ds.associate("setup.py", "py")
+        datasets = list(store.find())
+        self.assertEqual(len(datasets), 1)
+        sources = list(store.find(types=store._sources_type))
+        self.assertEqual(len(sources), 1)
+        datasets_and_sources = list(store.find(
+            types=store._kosh_datasets_and_sources))
+        self.assertEqual(len(datasets_and_sources), 2)
+        everything = list(store.find(types=None, ids_only=True))
+        self.assertEqual(len(everything), 5)
+        everything = list(store.find(types=None))
+        self.assertEqual(len(everything), 5)
+        store.close()
+        os.remove(kosh_db)
+
 
 if __name__ == "__main__":
     A = TestKoshSearch()
