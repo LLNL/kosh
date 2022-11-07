@@ -1,4 +1,5 @@
 import os
+import gc
 import sys
 import uuid
 import sina.utils
@@ -270,6 +271,9 @@ class KoshStore(object):
             loader.types[self._sources_type] = loader.types["file"]
         self.loaders[self._sources_type] = self.loaders["file"]
 
+    def __enter__(self):
+        return self
+
     def add_loader(self, loader, save=False):
         """Adds a loader to the store
 
@@ -339,6 +343,10 @@ class KoshStore(object):
     def close(self):
         """closes store and sina related things"""
         self.__sina_store.close()
+        gc.collect()
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.close()
 
     def delete_all_contents(self, force=""):
         """
