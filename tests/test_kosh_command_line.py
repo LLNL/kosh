@@ -110,6 +110,37 @@ class KoshTestCmdLine(KoshTest):
         store.close()
         os.remove(kosh_db)
 
+    def test_ensembles(self):
+        store, kosh_db = self.connect()
+        run_cmd(
+            "kosh create_ensemble --store={} paramint=2 paramfloat 2.4 paramstr \"'45'\"".format(kosh_db), verbose=True)
+
+        ensembles = list(store.find_ensembles())
+        # Created a new dataset
+        self.assertEqual(len(ensembles), 1)
+        ensemble = ensembles[0]
+        self.assertEqual(ensemble.list_attributes(), ["creator", "id", "name", "paramfloat", "paramint", "paramstr"])
+
+        self.assertEqual(ensemble.paramint, 2)
+        self.assertIsInstance(ensemble.paramint, int)
+
+        self.assertEqual(ensemble.paramfloat, 2.4)
+        self.assertIsInstance(ensemble.paramfloat, float)
+
+        self.assertEqual(ensemble.paramstr, "45")
+        self.assertIsInstance(ensemble.paramstr, six.text_type)
+
+        # Adds a dataset to it
+        run_cmd(
+            "kosh add --store={} -e {} new=5".format(
+                kosh_db, ensemble.id),
+            verbose=True)
+        datasets = list(ensemble.find_datasets())
+        self.assertEqual(len(datasets), 1)
+        self.assertEqual(datasets[0].new, 5)
+        store.close()
+        os.remove(kosh_db)
+
     def test_create_store(self):
         name = "kosh_command_open_new.sql"
         if os.path.exists(name):
