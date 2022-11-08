@@ -292,12 +292,50 @@ class KoshStore(object):
         self._cached_loaders = collections.OrderedDict()
         for k in loader.types:
             if k in self.loaders:
-                self.loaders[k].append(loader)
+                if loader not in self.loaders[k]:
+                    self.loaders[k].append(loader)
             else:
                 self.loaders[k] = [loader, ]
 
         if save:  # do we save it in store
             self.save_loader(loader)
+
+    def delete_loader(self, loader, permanently=False):
+        """Removes a loader from the store and possible from its db
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+        :param permanently: Do we also remove it from the db if savd there?
+        :type permanently: bool
+
+        :return: None
+        :rtype: None
+        """
+        # We add a loader we need to clear the cache
+        self._cached_loaders = collections.OrderedDict()
+        for k in loader.types:
+            if k in self.loaders:
+                if loader in self.loaders[k]:
+                    self.loaders[k].remove(loader)
+
+        if permanently:  # Remove it from saved in db as well
+            pickled = pickle.dumps(loader).decode("latin1")
+            rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
+            if rec is not None:
+                self.lock()
+                self.__record_handler__.delete(rec)
+                self.unlock()
+
+    def remove_loader(self, loader):
+        """Removes a loader from the store and its db
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+
+        :return: None
+        :rtype: None
+        """
+        self.delete_loader(loader, permanently=True)
 
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
@@ -375,6 +413,10 @@ class KoshStore(object):
         """
 
         pickled = pickle.dumps(loader).decode("latin1")
+        rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
+        if rec is not None:
+            # already in store
+            return
         rec = Record(id=uuid.uuid4().hex, type="koshloader")
         rec.add_data("code", pickled)
         self.lock()

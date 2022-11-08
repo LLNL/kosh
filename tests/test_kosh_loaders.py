@@ -434,6 +434,45 @@ class KoshTestLoaders(KoshTest):
             self.assertTrue(z < i + 1)
             self.assertTrue(z > i)
 
+    def test_loaders_added_once_only(self):
+        store, db_uri = self.connect()
+        loaders = {key: value[:] for key, value in store.loaders.items()}
+        print(loaders)
+        store.add_loader(SecondHDF5Loader)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        store.add_loader(SecondHDF5Loader, save=True)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.add_loader(SecondHDF5Loader, save=True)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders_2)
+        store.delete_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.remove_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+
 
 if __name__ == "__main__":
     A = KoshTestLoaders()
