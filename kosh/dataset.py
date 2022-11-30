@@ -259,12 +259,12 @@ class KoshDataset(KoshSinaObject):
                     asso = self.__store__._load(associated)
                     print("Finding features for {}".format(asso.uri))
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated, verbose=verbose)
+                    ld, _ = self.__store__._find_loader(associated, requestorId=self.id, verbose=verbose)
                 else:
-                    if associated not in self.__store__._cached_loaders:
-                        self.__store__._cached_loaders[associated] = loader(
-                            self.__store__._load(associated)), None
-                    ld, _ = self.__store__._cached_loaders[associated]
+                    if (associated, self.id) not in self.__store__._cached_loaders:
+                        self.__store__._cached_loaders[associated, self.id] = loader(
+                            self.__store__._load(associated), requestorId=self.id), None
+                    ld, _ = self.__store__._cached_loaders[associated, self.id]
                 loaders.append(ld)
                 try:
                     features += ld._list_features(*
@@ -302,7 +302,7 @@ class KoshDataset(KoshSinaObject):
             if loader is not None:
                 ld = loader
             else:
-                ld, _ = self.__store__._find_loader(Id, verbose=verbose)
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id, verbose=verbose)
             features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
@@ -359,12 +359,12 @@ class KoshDataset(KoshSinaObject):
                         a, _ = a.split("__uri__")
                     a_obj = self.__store__._load(a)
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(a_original)
+                        ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
                         if ld is None:  # unknown mimetype probably
                             continue
                     else:
                         if a_obj.mime_type in loader.types:
-                            ld = loader(a_obj)
+                            ld = loader(a_obj, requestorId=self.id)
                         else:
                             continue
                     # Dataset with curve have themselves as uri
@@ -395,7 +395,7 @@ class KoshDataset(KoshSinaObject):
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
-                ld, _ = self.__store__._find_loader(Id)
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
                 if feature_ in ld._list_features():
                     possible_ids = [Id, ]
                 else:  # ok not a curve maybe a file?
@@ -403,7 +403,7 @@ class KoshDataset(KoshSinaObject):
                     for uri in rec["files"]:
                         if "mimetype" in rec["files"][uri]:
                             full_id = "{}__uri__{}".format(Id, uri)
-                            ld, _ = self.__store__._find_loader(full_id)
+                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id)
                             if ld is not None and feature_ in ld.list_features():
                                 possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
@@ -441,14 +441,14 @@ class KoshDataset(KoshSinaObject):
                 tmp = None
                 try:
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(Id)
+                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
                         mime_type = ld._mime_type
                     else:
-                        if Id not in self.__store__._cached_loaders:
+                        if (Id, self.id) not in self.__store__._cached_loaders:
                             a_obj = self.__store__._load(Id)
-                            self.__store__._cached_loaders[Id] = loader(a_obj)
+                            self.__store__._cached_loaders[Id, self.id] = loader(a_obj, requestorId=self.id)
                             mime_type = a_obj.mime_type
-                        ld = self.__store__._cached_loaders[Id]
+                        ld = self.__store__._cached_loaders[Id, self.id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
                     # But let's not lose the cached list_features
@@ -456,7 +456,7 @@ class KoshDataset(KoshSinaObject):
                         "_KoshLoader__listed_features"]
                     ld_uri = getattr(ld, "uri", None)
                     ld = ld.__class__(
-                        ld.obj, mime_type=ld._mime_type, uri=ld_uri)
+                        ld.obj, mime_type=ld._mime_type, uri=ld_uri, requestorId=self.id)
                     ld.__dict__[
                         "_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
@@ -612,7 +612,7 @@ class KoshDataset(KoshSinaObject):
         loader = None
         if Id is None:
             for a in self._associated_data_:
-                ld, _ = self.__store__._find_loader(a)
+                ld, _ = self.__store__._find_loader(a, requestorId=self.id)
                 if feature in ld._list_features(**kargs) or \
                         (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
@@ -623,7 +623,7 @@ class KoshDataset(KoshSinaObject):
                 "object {Id} is not associated with this dataset".format(
                     Id=Id))
         else:
-            loader, _ = self.__store__._find_loader(Id)
+            loader, _ = self.__store__._find_loader(Id, requestorId=self.id)
         return loader.describe_feature(feature)
 
     def dissociate(self, uri, absolute_path=True):
@@ -661,8 +661,10 @@ class KoshDataset(KoshSinaObject):
             self._update_record(rec, self.__store__._added_unsync_mem_store)
         if len(associated_ids) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
-            if kosh_id in self.__store__._cached_loaders:
-                del self.__store__._cached_loaders[kosh_id]
+            if (kosh_id, self.id) in self.__store__._cached_loaders:
+                del self.__store__._cached_loaders[kosh_id, self.id]
+            if (kosh_id, None) in self.__store__._cached_loaders:
+                del self.__store__._cached_loaders[kosh_id, None]
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -973,7 +975,7 @@ class KoshDataset(KoshSinaObject):
             if ids_only:
                 yield rel.object_id
             else:
-                yield self.__store__.open(rel.object_id)
+                yield self.__store__.open(rel.object_id, requestorId=self.id)
 
     def leave_ensemble(self, ensemble):
         """Removes this dataset from an ensemble
@@ -1000,7 +1002,7 @@ class KoshDataset(KoshSinaObject):
         """
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
-            ensemble = self.__store__.open(ensemble)
+            ensemble = self.__store__.open(ensemble, requestorId=self.id)
         if not isinstance(ensemble, KoshEnsemble):
             raise ValueError(
                 "cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
@@ -1063,7 +1065,7 @@ class KoshDataset(KoshSinaObject):
             ensembles = self.get_ensembles()
         elif isinstance(ensembles, str):
             try:
-                ensembles = self.__store__.open(ensembles)
+                ensembles = self.__store__.open(ensembles, requestorId=self.id)
             except Exception:
                 raise ValueError(
                     "could not find object with id {} in the store".format(ensembles))

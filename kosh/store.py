@@ -559,13 +559,15 @@ class KoshStore(object):
             raise err
         return out
 
-    def _find_loader(self, Id, verbose=False):
+    def _find_loader(self, Id, verbose=False, requestorId=None):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
         :type Id: str
         :param verbose: verbose mode will show errors
         :type verbose: bool
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         :return: Kosh loader object
         """
         Id_original = str(Id)
@@ -576,16 +578,16 @@ class KoshStore(object):
             uri = None
         if verbose:
             print("Finding loader for: {}".format(uri))
-        if Id_original in self._cached_loaders:
+        if (Id_original, requestorId) in self._cached_loaders:
             try:
-                feats = self._cached_loaders[Id_original][0].list_features() != [
-                ]
+                feats = self._cached_loaders[Id_original, requestorId][0].list_features()  # != []
             except Exception as err:
                 feats = []
                 if verbose:
-                    print("Error opening {} with loader {}: {}".format(uri, self._cached_loaders[Id_original], err))
+                    print("Error opening {} with loader {}: {}".format(
+                        uri, self._cached_loaders[Id_original, requestorId], err))
             if feats != []:
-                return self._cached_loaders[Id_original]
+                return self._cached_loaders[Id_original, requestorId]
         record = self.get_record(Id)
         obj = self._load(Id)
         # uri not none means it is pure sina record with file and mime_type
@@ -613,38 +615,41 @@ class KoshStore(object):
                         print("Error opening {} with loader {}: {}".format(obj.uri, ld, err))
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(
-                obj, mime_type=mime_type_passed, uri=uri), record["type"]
-            return self._cached_loaders[Id_original]
+            self._cached_loaders[Id_original, requestorId] = ld(
+                obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId), record["type"]
+            return self._cached_loaders[Id_original, requestorId]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
             for ld in self.loaders[record["type"]]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId).list_features()
                 except Exception:
                     # Something happened can't list features
                     feats = []
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(
-                obj, mime_type=mime_type_passed, uri=uri), record["type"]
-            return self._cached_loaders[Id_original]
+            self._cached_loaders[Id_original, requestorId] = ld(
+                obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId), record["type"]
+            return self._cached_loaders[Id_original, requestorId]
         return None, None
 
-    def open(self, Id, loader=None, *args, **kargs):
+    def open(self, Id, loader=None, requestorId=None, *args, **kargs):
         """open loads an object in store based on its Id
         and run its open function
 
         :param Id: unique id of object to open
         :type Id: str
         :param loader: loader to use, defaults to None which means pick for me
+        :type loader: KoshLoader
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         :return:
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader, _ = self._find_loader(Id, requestorId=requestorId)
         else:
-            loader = loader(self._load(Id))
+            loader = loader(self._load(Id), requestorId=requestorId)
         return loader.open(*args, **kargs)
 
     def _load(self, Id):
@@ -665,7 +670,7 @@ class KoshStore(object):
                                   store=self, record=record)
 
     def get(self, Id, feature, format=None, loader=None,
-            transformers=[], *args, **kargs):
+            transformers=[], requestorId=None, *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -678,11 +683,13 @@ class KoshStore(object):
         :return: data in requested format
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.operator.KoshTransformer
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader, _ = self._find_loader(Id, requestorId=requestorId)
         else:
-            loader = loader(self._load(Id))
+            loader = loader(self._load(Id), requestorId=requestorId)
 
         return loader.get(feature, format, transformers=[], *args, **kargs)
 
