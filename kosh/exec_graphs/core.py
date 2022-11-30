@@ -489,6 +489,28 @@ class KoshExecutionGraph(object):
         else:
             return data
 
+    def get_input_loaders(self):
+        """Return a generator of the originating loaders for the inputs.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        :return: generator of Kosh datasets
+        :rtype: KoshLoader generator
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            yield loader
+
+    def get_input_datasets(self):
+        """Return a generator of the originating datasets for the inputs.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        :return: generator of Kosh datasets
+        :rtype: KoshDataset generator
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            yield loader.get_requestor()
+
     def describe_entries(self):
         """Return a generator of describe_feature for each entry feature.
         It will crawl the graph backward when

@@ -38,7 +38,7 @@ class KoshLoader(KoshExecutionGraph):
     """
     types = {"dataset": []}
 
-    def __init__(self, obj, mime_type=None, uri=None):
+    def __init__(self, obj, mime_type=None, uri=None, requestorId=None):
         """KoshLoader generic Kosh loader
         :param obj: object the loader will try to load from
         :type obj: object
@@ -46,7 +46,10 @@ class KoshLoader(KoshExecutionGraph):
         :type mime_type: str
         :param uri: If you want/need to force the uri to use
         :type uri: str
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         """
+        self.requestorId = requestorId
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(obj.id)
         if mime_type is None:
@@ -76,6 +79,13 @@ class KoshLoader(KoshExecutionGraph):
                     "will not be able to load object of type {mime_type}".format(mime_type=self._mime_type))
         self.obj = obj
         self.__listed_features = None
+
+    def get_requestor(self):
+        """Returns the Kosh object requesting the data"""
+        try:
+            return self.obj.__store__.open(self.requestorId)
+        except Exception:  # some kosh object do not have an open function
+            return self.obj.__store__._load(self.requestorId)
 
     def known_types(self):
         """Lists types of Kosh objects this loader can handle
@@ -290,8 +300,8 @@ class KoshFileLoader(KoshLoader):
     """Kosh loader to load content from files"""
     types = {"file": []}
 
-    def __init__(self, obj, **args):
-        super(KoshFileLoader, self).__init__(obj)
+    def __init__(self, obj, **kwargs):
+        super(KoshFileLoader, self).__init__(obj, **kwargs)
 
     def open(self, mode='r'):
         """open/load the matching Kosh Sina File

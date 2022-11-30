@@ -288,23 +288,28 @@ KOSH DATASET
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A", "project": "test"})
+        print(ds.id)
         ds2 = store.create(
             metadata={
                 "key2": "B",
                 "key3": 2,
                 "project": "test"})
+        print(ds2.id)
         ds3 = store.create(
             metadata={
                 "key2": "c",
                 "key3": 3,
                 "project": "test"})
+        print(ds3.id)
         ds4 = store.create(
             metadata={
                 "key2": "D",
                 "key3": 4,
                 "project": "test"})
+        print(ds4.id)
         ds.associate("setup.py", "ascii")
-        ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
+        ass = ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
+        print("ASSO ID:", ass)
         ds3.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5")
@@ -329,7 +334,9 @@ KOSH DATASET
         store.delete(ds2.id)
         self.assertEqual(len(list(store.find(project="test"))), 2)
         with self.assertRaises(Exception):
-            _ = store.open(ds_associated)
+            tmp = store.open(ds_associated)
+            print("------", tmp, "!!!!!!!!")
+            print(456)
         store.close()
         store2.close()
         os.remove(kosh_db)
