@@ -230,3 +230,18 @@ You should probably use cache if:
 * The results are only going to be used for one project for a relatively small period of time
 * The data is going to be loaded many times in that script or some subprocesses.
 
+## BLAS Error?
+
+Are you running into this error?
+
+BLAS : Program is Terminated. Because you tried to allocate too many memory regions.
+
+"BLAS stands for Basic Linear Algebra Subprograms. BLAS provides standard interfaces for linear algebra, including BLAS1 (vector-vector operations), BLAS2 (matrix-vector operations), and BLAS3 (matrix-matrix operations).
+As per the documentation, if your application is already multi-threaded, it will conflict with OpenBLAS multi-threading. Therefore, you must set OpenBLAS to use a single thread.
+So, it seems that your application is conflicting with OpenBLAS multi-threading. You need to run the followings on the command line and it should fix the error:"
+
+
+export OMP_NUM_THREADS=1
+
+
+source: https://github.com/autogluon/autogluon/issues/1020
