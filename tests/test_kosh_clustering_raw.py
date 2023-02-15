@@ -1,4 +1,5 @@
 from kosh.sampling_methods.cluster_sampling import Cluster
+from kosh.sampling_methods.cluster_sampling.Clustering import makeBatchClusterParallel
 import numpy as np
 import time
 import pytest
@@ -186,7 +187,6 @@ class ClusteringTest(TestCase):
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
-        from sampling_methods.cluster_sampling.Clustering import makeBatchClusterParallel
         import numpy as np
         from mpi4py import MPI
         from sklearn.datasets import make_blobs

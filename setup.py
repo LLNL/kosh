@@ -61,7 +61,8 @@ setup(name="kosh",
           'h5py',
           'scikit-learn>=1.0.2',
           'pandas',
-          'hdbscan'
+          'hdbscan',
+          'tqdm'
       ],
       classifiers=[
           "Programming Language :: Python",
