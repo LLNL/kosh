@@ -13,7 +13,7 @@ class FakeLoader(kosh.loaders.KoshLoader):
         return ["data", ]
 
     def extract(self):
-        out = numpy.array([1, 2, 3, 2, 1], dtype=numpy.float)
+        out = numpy.array([1, 2, 3, 2, 1], dtype=float)
         if self.format == "str":
             return repr(out)
         else:
