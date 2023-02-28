@@ -116,7 +116,7 @@ def merge_datasets_handler(target_dataset, imported_dataset, section="data", **k
 def gen_labels(G):
     """Generates labels to draw on networkx plots of a graph
     :param G: Network to generate labels from
-    :type G: networkx.OrderedDiGraph
+    :type G: networkx.DiGraph (OrderedDiGraph on older version of networkx)
     :returns: labels for this graph
     :rtype: dict
     """
@@ -491,7 +491,10 @@ def get_graph(input_type, loader, transformers):
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
-    G = nx.OrderedDiGraph()
+    try:
+        G = nx.OrderedDiGraph()
+    except AttributeError:  # networkx 3.0 removed OrderedDiGraph
+        G = nx.DiGraph()
     G.seed = random.random()
     start_node = (input_type, loader, G.seed)  # so each graph is unique
     G.add_node(start_node)
