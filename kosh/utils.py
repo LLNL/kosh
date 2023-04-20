@@ -31,7 +31,7 @@ def find_curveset_and_curve_name(name, rec):
     :type name: str
     :param rec: sina record where to look for curves
     :type rec: sina record
-    :return: All possible combinations of (curvset,curve) that match name
+    :return: All possible combinations of (curveset,curve) that match name
     :rtype: tuple of tuples
     """
     sp = name.split("/")

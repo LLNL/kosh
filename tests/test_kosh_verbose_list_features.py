@@ -89,7 +89,7 @@ class KoshTestListFeatureVerbose(KoshTest):
         store.close()
         os.remove(uri)
 
-    def teestNoMime(self):
+    def testNoMime(self):
         store, uri = self.connect()
         store.add_loader(FakeTextLoader)
         ds = store.create()

@@ -305,7 +305,7 @@ class KoshStore(object):
 
         :param loader: The Kosh loader you want to add to the store
         :type loader: KoshLoader
-        :param permanently: Do we also remove it from the db if savd there?
+        :param permanently: Do we also remove it from the db if saved there?
         :type permanently: bool
 
         :return: None

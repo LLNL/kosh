@@ -397,7 +397,7 @@ class KoshSinaLoader(KoshLoader):
             if isinstance(feature, six.string_types):
                 possibilities = find_curveset_and_curve_name(feature, record)
                 if len(possibilities) > 1:
-                    raise ValueError("Could not uniquely resolve {} if to could belond to any of: {}".format(
+                    raise ValueError("Could not uniquely resolve {} if to could belong to any of: {}".format(
                         feature, possibilities))
                 curve_set, curve_name = possibilities[0]
             else:
