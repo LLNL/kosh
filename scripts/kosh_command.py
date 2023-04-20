@@ -161,7 +161,7 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
         else:
             proc = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
             o, e = proc.communicate()
-            print("COMMNAD:" , command)
+            print("COMMAND:" , command)
             print("OUT:", o.decode())
             print("ERR:", e.decode())
     else:
@@ -336,11 +336,37 @@ Available commands are:
                         print("{} (mime_type={}) is missing".format(
                             associated[0].uri, associated[0].mime_type))
 
+    def create_ensemble(self):
+        """create an ensemble into a Kosh store command"""
+        parser = core_parser(
+            prog="kosh create_ensemble",
+            description='Creates an ensemble into a store')
+        parser.add_argument(
+            "--id", "-i", help="Desired Id for dataset", default=None)
+        args, user_params = parser.parse_known_args(sys.argv[2:])
+        params = {}
+        index = 0
+        while index < len(user_params):
+            term = user_params[index]
+            sp = term.split("=")
+            if len(sp) > 1:
+                params[sp[0]] = eval(sp[1])
+                index += 1
+            else:
+                params[sp[0]] = eval(user_params[index+1])
+                index += 2
+
+        print("Adding ensemble to: {}".format(args.store))
+        store = kosh.connect(args.store)
+        store.create_ensemble(id=args.id, metadata=params)
+
     def add(self):
         """add a dataset to a Kosh store command"""
         parser = core_parser(
             prog="kosh add",
-            description='Adds a dataset to store')
+            description='Adds a dataset to a store and possibly an ensemble')
+        parser.add_argument(
+            "--ensemble", "-e", help="Id of the ensemble we want to add this to", default=None)
         parser.add_argument(
             "--id", "-i", help="Desired Id for dataset", default=None)
         args, metadata = parser.parse_known_args(sys.argv[2:])
@@ -348,14 +374,18 @@ Available commands are:
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.create(id=args.id, metadata=metadata)
+        if args.ensemble is not None:
+            ensemble = next(store.find_ensembles(id=args.ensemble))
+            ensemble.add(ds)
+            print(ensemble)
         print(ds.id)
 
     def remove(self):
-        """Remove dataset(s) from store command"""
+        """Remove dataset(s) and or ensemble(s) from store command"""
         parser = core_parser(
             prog="kosh remove",
             description='Removes a dataset from store')
-        parser.add_argument("--ids", "-i", help="ids of datasets to print",
+        parser.add_argument("--ids", "-i", help="ids of datasets/ensembles to remove",
                             nargs="*", required=True, action="append")
         parser.add_argument("--force", "-f", action="store_true",
                             help="remove without asking for confirmation")
@@ -459,9 +489,9 @@ Available commands are:
         """Associate uri with dataset command"""
         parser = core_parser(
             prog="kosh associate",
-            description="Associate a (set of) files with a dataset")
+            description="Associate a (set of) files with a dataset or ensemble")
         parser.add_argument(
-            "--id", "-i", help="id of datasets to which file(s) will be associated", required=True)
+            "--id", "-i", help="id of datasets/ensembles to which file(s) will be associated", required=True)
         parser.add_argument("--uri", "-u", help="uri(s) to associate with dataset",
                             nargs="*", required=True, action="append")
         parser.add_argument(
@@ -477,12 +507,12 @@ Available commands are:
             ds.associate(u, mime_type=args.mime_type)
 
     def dissociate(self):
-        """dissociate uri from dataset command"""
+        """dissociate uri from dataset/ensemble command"""
         parser = core_parser(
             prog="kosh dissociate",
             description="dissociate a (set of) file(s) from a dataset")
         parser.add_argument(
-            "--id", "-i", help="id of datasets from which file(s) will be dissociated", required=True)
+            "--id", "-i", help="id of datasets/ensembles from which file(s) will be dissociated", required=True)
         parser.add_argument("--uri", "-u", help="uri(s) to dissociate from dataset",
                             nargs="*", required=True, action="append")
         args = parser.parse_args(sys.argv[2:])
@@ -916,6 +946,23 @@ Available commands are:
             cmd += " --remove-source-files "
         rsync_ran = []
         for i, source in enumerate(sources):
+            # Now let's run the command and see if it worked
+            # But only if not ran for directory before
+            if os.path.dirname(source) + "/" not in sources[:i]:
+                skip_it = False
+                for ran in rsync_ran:
+                    if ran in source:
+                        skip_it = True
+                        break
+                if not skip_it:
+                    rsync_ran.append(source)
+                    cmd_run = cmd + " {} {}".format(source, targets[i])
+                    p, o, e = process_cmd(cmd_run)
+                    if p.returncode != 0:  # Failed!
+                        raise RuntimeError(
+                            "Error running command {}, aborting!\n{}".format(
+                                cmd_run, e.decode()))
+
             for o_store in origin_stores:
                 datasets = o_store.find(file=source)
                 for dataset in datasets:
@@ -945,24 +992,6 @@ Available commands are:
                             d_store.import_dataset(
                                 exported, args.dataset_matching_attributes,
                                 merge_handler=args.merge_strategy)
-
-            # Now let's run the command and see if it worked
-            # But only if not ran for directory before
-            if os.path.dirname(source) + "/" not in sources[:i]:
-                skip_it = False
-                for ran in rsync_ran:
-                    if ran in source:
-                        skip_it = True
-                        break
-                if skip_it:
-                    continue
-                rsync_ran.append(source)
-                cmd_run = cmd + " {} {}".format(source, targets[i])
-                p, o, e = process_cmd(cmd_run)
-                if p.returncode != 0:  # Failed!
-                    raise RuntimeError(
-                        "Error runnning command {}, aborting!\n{}".format(
-                            cmd_run, e.decode()))
 
             # Ok it's good let's sync the stores
             for store in origin_stores + dest_stores:
@@ -1009,7 +1038,7 @@ Available commands are:
                 index += 2
 
         print("Adding ds to: {}".format(args.store))
-        store = kosh.KoshStore(args.store)
+        store = kosh.connect(args.store)
         store.create(metadata=params)
 
 

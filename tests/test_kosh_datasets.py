@@ -77,7 +77,7 @@ class KoshTestDataset(KoshTest):
                 "creator", "id", "name", "person"])
         self.assertEqual(ds.person, "Charles Doutriaux")
         # delete attribute
-        del(ds.person)
+        del ds.person
         self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
         with self.assertRaises(AttributeError):
             print(ds.person)
@@ -87,7 +87,7 @@ class KoshTestDataset(KoshTest):
         ds.__type__ = "another_type"
         self.assertEqual(ds.__type__, store._dataset_record_type)
         # Make sure you cannot delete it
-        del(ds.__type__)
+        del ds.__type__
         self.assertEqual(ds.__type__, store._dataset_record_type)
         printTestResults = """\
 KOSH DATASET
@@ -288,23 +288,28 @@ KOSH DATASET
         store, kosh_db = self.connect()
         # Create many datasets
         ds = store.create(metadata={"key1": 1, "key2": "A", "project": "test"})
+        print(ds.id)
         ds2 = store.create(
             metadata={
                 "key2": "B",
                 "key3": 2,
                 "project": "test"})
+        print(ds2.id)
         ds3 = store.create(
             metadata={
                 "key2": "c",
                 "key3": 3,
                 "project": "test"})
+        print(ds3.id)
         ds4 = store.create(
             metadata={
                 "key2": "D",
                 "key3": 4,
                 "project": "test"})
+        print(ds4.id)
         ds.associate("setup.py", "ascii")
-        ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
+        ass = ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
+        print("ASSO ID:", ass)
         ds3.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5")
@@ -329,7 +334,9 @@ KOSH DATASET
         store.delete(ds2.id)
         self.assertEqual(len(list(store.find(project="test"))), 2)
         with self.assertRaises(Exception):
-            _ = store.open(ds_associated)
+            tmp = store.open(ds_associated)
+            print("------", tmp, "!!!!!!!!")
+            print(456)
         store.close()
         store2.close()
         os.remove(kosh_db)
@@ -527,6 +534,15 @@ KOSH DATASET
             ds.bad = numpy.arange(5)
         self.assertEqual(len(tuple(store.find())), 1)
         self.assertFalse(hasattr(ds, "bad"))
+        store.close()
+        os.remove(db_uri)
+
+    def test_add_remove_add_attribute(self):
+        store, db_uri = self.connect()
+        ds = store.create()
+        ds.good = "good"
+        del ds.good
+        ds.good = "still good"
         store.close()
         os.remove(db_uri)
 

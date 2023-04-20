@@ -33,6 +33,8 @@ def run_cp(sources, dest, store_sources, store_destinations=None):
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
+    print("OUT:", o.decode())
+    print("ERR:", e.decode())
     return out
 
 
@@ -203,6 +205,7 @@ class KoshTestCp(KoshTest):
             create_file(src)
         ds1 = store1.create(name="test")
         ds1.associate(file_src_orig_associate, mime_type="py")
+        print(ds1)
 
         dest_name_orig = os.path.abspath(rand + "_d2d_dest")
         try:

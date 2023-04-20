@@ -271,7 +271,7 @@ class KoshTestScriptWrapper(KoshTest):
             "python tests/baselines/scripts/dummy.py")
         wrapper.add_argument("--param1", default=0, feed_pos=0)
         wrapper.add_argument("--param2", feed_pos=-1)
-        del(ds1.param1)
+        del ds1.param1
         o, e = wrapper.run(ds1, ds2, ds3)
         self.assertTrue("P1:0" in o.decode())
         self.assertTrue("P2:2" in o.decode())
@@ -296,7 +296,7 @@ class KoshTestScriptWrapper(KoshTest):
         wrapper.add_argument("", feed_attribute="opt1")
         wrapper.add_argument("", feed_attribute="opt2")
         ds1.opt1 = "opt1"
-        del(ds1.opt2)
+        del ds1.opt2
         o, e = wrapper.run(ds1, ds2, ds3)
         self.assertTrue("['opt1']" in o.decode())
 

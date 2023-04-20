@@ -2,4 +2,3 @@ include:
   - project: ASCAML/kosh_aml_files
     ref: develop
     file: gitlab-ci.yml
-  

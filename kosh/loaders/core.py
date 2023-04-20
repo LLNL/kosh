@@ -2,10 +2,11 @@ from kosh.transformers import kosh_cache_dir
 import os
 import hashlib
 import pickle
+import six
 from kosh.exec_graphs import KoshExecutionGraph
 import numpy
 from ..core_sina import KoshSinaObject, KoshSinaFile
-from ..utils import get_graph
+from ..utils import get_graph, find_curveset_and_curve_name
 from ..dataset import KoshDataset
 from ..ensemble import KoshEnsemble
 
@@ -37,7 +38,7 @@ class KoshLoader(KoshExecutionGraph):
     """
     types = {"dataset": []}
 
-    def __init__(self, obj, mime_type=None, uri=None):
+    def __init__(self, obj, mime_type=None, uri=None, requestorId=None):
         """KoshLoader generic Kosh loader
         :param obj: object the loader will try to load from
         :type obj: object
@@ -45,7 +46,10 @@ class KoshLoader(KoshExecutionGraph):
         :type mime_type: str
         :param uri: If you want/need to force the uri to use
         :type uri: str
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         """
+        self.requestorId = requestorId
         self.signature = hashlib.sha256(repr(self.__class__).encode())
         self.signature = self.update_signature(obj.id)
         if mime_type is None:
@@ -75,6 +79,13 @@ class KoshLoader(KoshExecutionGraph):
                     "will not be able to load object of type {mime_type}".format(mime_type=self._mime_type))
         self.obj = obj
         self.__listed_features = None
+
+    def get_requestor(self):
+        """Returns the Kosh object requesting the data"""
+        try:
+            return self.obj.__store__.open(self.requestorId)
+        except Exception:  # some kosh object do not have an open function
+            return self.obj.__store__._load(self.requestorId)
 
     def known_types(self):
         """Lists types of Kosh objects this loader can handle
@@ -264,7 +275,7 @@ class KoshLoader(KoshExecutionGraph):
         """
         return
 
-    def extract(self, feature, format):
+    def extract(self):
         """extract this function does the heavy lifting of the extraction
         it needs to be implemented by each loader.
 
@@ -289,8 +300,8 @@ class KoshFileLoader(KoshLoader):
     """Kosh loader to load content from files"""
     types = {"file": []}
 
-    def __init__(self, obj, **args):
-        super(KoshFileLoader, self).__init__(obj)
+    def __init__(self, obj, **kwargs):
+        super(KoshFileLoader, self).__init__(obj, **kwargs)
 
     def open(self, mode='r'):
         """open/load the matching Kosh Sina File
@@ -364,13 +375,17 @@ class KoshSinaLoader(KoshLoader):
         record = self.obj.__store__.get_record(self.obj.id)
         # Using set in case a variable is both in independent and dependent
         # Dependent would win when getting the data
-        curves = set()
+        curves = ()
         for curve in record["curve_sets"]:
-            curves.add(curve)
+            curves += ((curve, None), )
             for curve_type in ["independent", "dependent"]:
                 for name in record["curve_sets"][curve][curve_type]:
-                    curves.add("{}/{}".format(curve, name))
-        return sorted(curves)
+                    curves += ((curve, name), )
+        joined = sorted([x if y is None else x+"/"+y for x, y in curves])
+        if joined == sorted(set(joined)):
+            return joined
+        else:
+            return sorted(curves, key=lambda x: (x[0], "" if x[1] is None else x[1]))
 
     def extract(self, *args, **kargs):
         features = self.feature
@@ -379,15 +394,23 @@ class KoshSinaLoader(KoshLoader):
         record = self.obj.__store__.get_record(self.obj.id)
         out = []
         for feature in features:
-            sp = feature.split("/")
+            if isinstance(feature, six.string_types):
+                possibilities = find_curveset_and_curve_name(feature, record)
+                if len(possibilities) > 1:
+                    raise ValueError("Could not uniquely resolve {} if to could belong to any of: {}".format(
+                        feature, possibilities))
+                curve_set, curve_name = possibilities[0]
+            else:
+                curve_set, curve_name = feature
             # Here we are assuming the curve root name cannot have "/" in it
-            curve_root = record["curve_sets"][sp[0]]
-            if len(sp) > 1:
-                curve_name = "/".join(sp[1:])
-                if curve_name in curve_root["dependent"]:
-                    curve = curve_root["dependent"][curve_name]["value"]
+            curve_set = record["curve_sets"][curve_set]
+            if curve_name is not None:
+                if curve_name in curve_set["independent"]:
+                    curve = curve_set["independent"][curve_name]["value"]
+                elif curve_name in curve_set["dependent"]:
+                    curve = curve_set["dependent"][curve_name]["value"]
                 else:
-                    curve = curve_root["independent"][curve_name]["value"]
+                    raise ValueError("Cannot find curve {} in curve_set {}".format(curve_name, curve_set))
                 out.append(numpy.array(curve))
             else:
                 # we want all curves
@@ -395,11 +418,10 @@ class KoshSinaLoader(KoshLoader):
                 # Matching order (indep/dep) that we used in list_features
                 for curve_type in ["independent", "dependent"]:
                     # Same order as list_features()
-                    for curve_name in sorted(curve_root[curve_type].keys()):
-                        curve = curve_root[curve_type][curve_name]["value"]
+                    for curve_name in sorted(curve_set[curve_type].keys()):
+                        curve = curve_set[curve_type][curve_name]["value"]
                         all.append(numpy.array(curve))
                 out.append(all)
-
         if not isinstance(self.feature, list):
             return out[0]
         else:

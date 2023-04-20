@@ -223,7 +223,7 @@ class KoshDataset(KoshSinaObject):
         return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, loader=None,
-                      use_cache=True, *args, **kargs):
+                      use_cache=True, verbose=False, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
         then the associated_data uri gets appended to feature name
 
@@ -233,6 +233,8 @@ class KoshDataset(KoshSinaObject):
         :type loader: kosh.loaders.KoshLoader
         :param use_cache: If features is found on cache use it (default: True)
         :type use_cache: bool
+        :param verbose: Verbose mode will show which file is being opened and errors on it
+        :type verbose: bool
         :raises RuntimeError: object id not associated with dataset
         :return: list of features available
         :rtype: list
@@ -253,19 +255,23 @@ class KoshDataset(KoshSinaObject):
         associated_data = self._associated_data_
         if Id is None:
             for associated in associated_data:
+                if verbose:
+                    asso = self.__store__._load(associated)
+                    print("Finding features for {}".format(asso.uri))
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated)
+                    ld, _ = self.__store__._find_loader(associated, requestorId=self.id, verbose=verbose)
                 else:
-                    if associated not in self.__store__._cached_loaders:
-                        self.__store__._cached_loaders[associated] = loader(
-                            self.__store__._load(associated)), None
-                    ld, _ = self.__store__._cached_loaders[associated]
+                    if (associated, self.id) not in self.__store__._cached_loaders:
+                        self.__store__._cached_loaders[associated, self.id] = loader(
+                            self.__store__._load(associated), requestorId=self.id), None
+                    ld, _ = self.__store__._cached_loaders[associated, self.id]
                 loaders.append(ld)
                 try:
                     features += ld._list_features(*
                                                   args, use_cache=use_cache, **kargs)
-                except Exception:  # Ok the loader couldn't get the feature list
-                    pass
+                except Exception as err:  # Ok the loader couldn't get the feature list
+                    if verbose:
+                        print("\tCould not obtain features from loader {}\n\t\tError:{}".format(loader, err))
             if len(features) != len(set(features)):
                 # duplicate features we need to redo
                 # Adding uri to feature name
@@ -293,7 +299,10 @@ class KoshDataset(KoshSinaObject):
                 "object {Id} is not associated with this dataset".format(
                     Id=Id))
         else:
-            ld, _ = self.__store__._find_loader(Id)
+            if loader is not None:
+                ld = loader
+            else:
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id, verbose=verbose)
             features = ld._list_features(*args, use_cache=use_cache, **kargs)
         features_id = self.__dict__["__features__"].get(Id, {})
         features_id[loader] = features
@@ -340,7 +349,7 @@ class KoshDataset(KoshSinaObject):
         possibles = {}
         inter = None
         union = set()
-        for feature_ in features:
+        for index, feature_ in enumerate(features):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
@@ -350,19 +359,34 @@ class KoshDataset(KoshSinaObject):
                         a, _ = a.split("__uri__")
                     a_obj = self.__store__._load(a)
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(a_original)
+                        ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
                         if ld is None:  # unknown mimetype probably
                             continue
                     else:
                         if a_obj.mime_type in loader.types:
-                            ld = loader(a_obj)
+                            ld = loader(a_obj, requestorId=self.id)
                         else:
                             continue
                     # Dataset with curve have themselves as uri
                     obj_uri = getattr(ld.obj, "uri", "self")
-                    if ("_@_" not in feature_ and feature_ in ld._list_features()) or\
+                    ld_features = ld._list_features()
+                    if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
+                        # ok we have to be careful list_features can be returned two ways
+                        if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
+                            # we need to convert the feature to str
+                            possibilities = kosh.utils.find_curveset_and_curve_name(feature_, self.get_record())
+                            if len(possibilities) > 1:
+                                raise ValueError("cannot uniquely pinpoint {}, could be one of {}".format(
+                                    feature_, possibilities))
+                            feature_ = possibilities[0]
+                            features[index] = feature_
+                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, tuple):
+                            feature_ = "/".join(feature_)
+                            features[index] = feature_
+
+                    if ("_@_" not in feature_ and feature_ in ld_features) or\
                             feature_ is None or\
-                            (feature_[:-len(obj_uri) - 3] in ld._list_features() and
+                            (feature_[:-len(obj_uri) - 3] in ld_features and
                              feature_[-len(obj_uri):] == obj_uri):
                         possible_ids.append(a_original)
                 if possible_ids == []:  # All failed but could be something about the feature
@@ -371,7 +395,7 @@ class KoshDataset(KoshSinaObject):
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
-                ld, _ = self.__store__._find_loader(Id)
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
                 if feature_ in ld._list_features():
                     possible_ids = [Id, ]
                 else:  # ok not a curve maybe a file?
@@ -379,7 +403,7 @@ class KoshDataset(KoshSinaObject):
                     for uri in rec["files"]:
                         if "mimetype" in rec["files"][uri]:
                             full_id = "{}__uri__{}".format(Id, uri)
-                            ld, _ = self.__store__._find_loader(full_id)
+                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id)
                             if ld is not None and feature_ in ld.list_features():
                                 possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
@@ -406,7 +430,7 @@ class KoshDataset(KoshSinaObject):
             for feature_ in features:
                 if feature_ in possibles and id_ in possibles[feature_]:
                     matching_features.append(feature_)
-                    del(possibles[feature_])
+                    del possibles[feature_]
             if len(matching_features) > 0:
                 ids[id_] = matching_features
 
@@ -417,14 +441,14 @@ class KoshDataset(KoshSinaObject):
                 tmp = None
                 try:
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(Id)
+                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
                         mime_type = ld._mime_type
                     else:
-                        if Id not in self.__store__._cached_loaders:
+                        if (Id, self.id) not in self.__store__._cached_loaders:
                             a_obj = self.__store__._load(Id)
-                            self.__store__._cached_loaders[Id] = loader(a_obj)
+                            self.__store__._cached_loaders[Id, self.id] = loader(a_obj, requestorId=self.id)
                             mime_type = a_obj.mime_type
-                        ld = self.__store__._cached_loaders[Id]
+                        ld = self.__store__._cached_loaders[Id, self.id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
                     # But let's not lose the cached list_features
@@ -432,7 +456,7 @@ class KoshDataset(KoshSinaObject):
                         "_KoshLoader__listed_features"]
                     ld_uri = getattr(ld, "uri", None)
                     ld = ld.__class__(
-                        ld.obj, mime_type=ld._mime_type, uri=ld_uri)
+                        ld.obj, mime_type=ld._mime_type, uri=ld_uri, requestorId=self.id)
                     ld.__dict__[
                         "_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
@@ -588,7 +612,7 @@ class KoshDataset(KoshSinaObject):
         loader = None
         if Id is None:
             for a in self._associated_data_:
-                ld, _ = self.__store__._find_loader(a)
+                ld, _ = self.__store__._find_loader(a, requestorId=self.id)
                 if feature in ld._list_features(**kargs) or \
                         (feature[:-len(ld.obj.uri) - 3] in ld._list_features()
                          and feature[-len(ld.obj.uri):] == ld.obj.uri):
@@ -599,7 +623,7 @@ class KoshDataset(KoshSinaObject):
                 "object {Id} is not associated with this dataset".format(
                     Id=Id))
         else:
-            loader, _ = self.__store__._find_loader(Id)
+            loader, _ = self.__store__._find_loader(Id, requestorId=self.id)
         return loader.describe_feature(feature)
 
     def dissociate(self, uri, absolute_path=True):
@@ -620,7 +644,7 @@ class KoshDataset(KoshSinaObject):
             # Not associated with this uri anyway
             return
         kosh_id = str(rec["files"][uri]["kosh_id"])
-        del(rec["files"][uri])
+        del rec["files"][uri]
         now = time.time()
         rec["user_defined"]["{uri}___associated_last_modified".format(
             uri=uri)] = now
@@ -637,8 +661,10 @@ class KoshDataset(KoshSinaObject):
             self._update_record(rec, self.__store__._added_unsync_mem_store)
         if len(associated_ids) == 0:  # ok no other object is associated
             self.__store__.delete(kosh_id)
-            if kosh_id in self.__store__._cached_loaders:
-                del(self.__store__._cached_loaders[kosh_id])
+            if (kosh_id, self.id) in self.__store__._cached_loaders:
+                del self.__store__._cached_loaders[kosh_id, self.id]
+            if (kosh_id, None) in self.__store__._cached_loaders:
+                del self.__store__._cached_loaders[kosh_id, None]
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -739,7 +765,7 @@ class KoshDataset(KoshSinaObject):
                     rec_obj["user_defined"]["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
             except TypeError as err:
-                raise(err)
+                raise err
             except Exception:
                 # file already in there
                 # Let's get the matching id
@@ -949,7 +975,7 @@ class KoshDataset(KoshSinaObject):
             if ids_only:
                 yield rel.object_id
             else:
-                yield self.__store__.open(rel.object_id)
+                yield self.__store__.open(rel.object_id, requestorId=self.id)
 
     def leave_ensemble(self, ensemble):
         """Removes this dataset from an ensemble
@@ -976,7 +1002,7 @@ class KoshDataset(KoshSinaObject):
         """
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
-            ensemble = self.__store__.open(ensemble)
+            ensemble = self.__store__.open(ensemble, requestorId=self.id)
         if not isinstance(ensemble, KoshEnsemble):
             raise ValueError(
                 "cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
@@ -1039,7 +1065,7 @@ class KoshDataset(KoshSinaObject):
             ensembles = self.get_ensembles()
         elif isinstance(ensembles, str):
             try:
-                ensembles = self.__store__.open(ensembles)
+                ensembles = self.__store__.open(ensembles, requestorId=self.id)
             except Exception:
                 raise ValueError(
                     "could not find object with id {} in the store".format(ensembles))
@@ -1061,3 +1087,127 @@ class KoshDataset(KoshSinaObject):
             return ""
         else:
             return False
+
+    def add_curve(self, curve, curve_set=None, curve_name=None, independent=None, units=None, tags=None):
+        """Add a curve to a dataset
+        :param curve: The curve data
+        :type curve: array-like
+        :param curve_set: Name of the curve_set.
+                          If not passed will be set to curve_x where x is the highest number available
+                          (if non exist then curve_set_0 will be created)
+        :type curve_set: str
+        :param curve_name: name of the curve.
+                           If not set it will be set to: curve_x where x is the number of curves in this curve_set
+        :type curve_name: str
+        :param independent: Is it an independent variable. If not passed, it will be set to False
+                            unless no independent curve exists, e.g first curve is set as independent
+                            You can avoid this by explicitly passing False
+        :type independent: bool
+        :param units: Units of the curve (if any)
+        :type units: str
+        :param tags: Tags on the curve (if any)
+        :type tags: dict
+
+        :returns: the curve_set/curve_name path
+        :rtype: str
+        """
+        # let's obtain the record
+        rec = self.get_record()
+        # Let's figure out the curve_set name
+        if curve_set is None:
+            i = 0
+            while "curve_set_"+str(i) in rec.raw["curve_sets"]:
+                i += 1
+            if i > 0:
+                i -= 1
+            curve_set = "curve_set_"+str(i)
+
+        # Let's create curveset if not present
+        if curve_set not in rec.raw["curve_sets"]:
+            cs = rec.add_curve_set(curve_set)
+        else:
+            cs = rec.get_curve_set(curve_set)
+        # Ok now let's get a curve_name
+        if curve_name is None:
+            i = 0
+            while "curve_"+str(i) in cs.dependent or "curve_"+str(i) in cs.independent:
+                i += 1
+            curve_name = "curve_"+str(i)
+
+        if curve_name in cs.independent or curve_name in cs.dependent:
+            raise ValueError("curve {} already exist in curve_set {}".format(curve_name, curve_set))
+        # Finally the independent part
+        if independent is None:
+            if len(cs.independent) == 0:
+                independent = True
+            else:
+                independent = False
+        if independent:
+            cs.add_independent(curve_name, curve, units, tags)
+        else:
+            cs.add_dependent(curve_name, curve, units, tags)
+
+        if self.__store__.__sync__:
+            self._update_record(rec)
+        else:
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
+
+        # Since we changed the curves, we need to cleanup
+        # the features cache
+        self.__dict__["__features__"][None] = {}
+
+        return "{}/{}".format(curve_set, curve_name)
+
+    def remove_curve_or_curve_set(self, curve, curve_set=None):
+        """Removes a curve or curve_set from the dataset
+        :param curve: name of the curve or curve_set to remove
+        :type curve: str
+        :param curve_set: curve_set the curve_name belongs to.
+                          If not passed then assumes it is in the curve
+                          name.
+        :type curve_set: str
+        """
+        original_curve_set = curve_set
+        rec = self.get_record()
+        if curve_set is None:
+            # User did not pass the curve_set
+            # The curve_set might be prepended to the curve_name then.
+            try:
+                curve_set, curve = kosh.utils.find_curveset_and_curve_name(curve, rec)[0]
+            except Exception:
+                raise ValueError("You need to pass a curve set for curve {}".format(curve))
+        if curve_set not in rec.raw["curve_sets"]:
+            if original_curve_set is None:
+                if curve in rec.raw["curve_sets"]:
+                    del rec.raw["curve_sets"][curve]
+                    if self.__store__.__sync__:
+                        self._update_record(rec)
+                    else:
+                        self._update_record(rec, self.__store__._added_unsync_mem_store)
+                    self.__dict__["__features__"][None] = {}
+                    return
+            else:
+                raise ValueError("The curve set {} does not exists".format(curve_set))
+        cs = rec.get_curve_set(curve_set)
+        if curve in cs.independent:
+            del rec.raw["curve_sets"][curve_set]["independent"][curve]
+        elif curve in cs.dependent:
+            del rec.raw["curve_sets"][curve_set]["dependent"][curve]
+        elif curve is None:
+            # We want to delete the whole curveset
+            del rec.raw["curve_sets"][curve_set]
+        else:
+            raise ValueError("Could not find {} in curve_set {}".format(curve, curve_set))
+        # In case we removed everything
+        if len(cs.dependent) == 0 and len(cs.independent) == 0:
+            del rec.raw["curve_sets"][curve_set]
+
+        if self.__store__.__sync__:
+            self._update_record(rec)
+        else:
+            self._update_record(rec, self.__store__._added_unsync_mem_store)
+
+        # Since we changed the curves, we need to cleanup
+        # the features cache
+        self.__dict__["__features__"][None] = {}
+        return

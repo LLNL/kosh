@@ -73,7 +73,7 @@ class KoshSinaObject(object):
                 deleted_items = False
                 for att in self.__dict__["__protected__"]:
                     if att in record["data"]:
-                        del(record["data"][att])
+                        del record["data"][att]
                         deleted_items = True
                 if deleted_items:
                     if store.__sync__:
@@ -84,7 +84,7 @@ class KoshSinaObject(object):
         metadata_copy = metadata.copy()
         for key in metadata:
             if att in self.__dict__["__protected__"]:
-                del(metadata_copy[key])
+                del metadata_copy[key]
         self.update(metadata_copy)
 
     def __getattr__(self, name):
@@ -172,7 +172,7 @@ class KoshSinaObject(object):
         :type attributes: dict
         """
         if 'id' in attributes:
-            del(attributes['id'])
+            del attributes['id']
         rec = None
         N = len(attributes)
         n = 0
@@ -211,7 +211,7 @@ class KoshSinaObject(object):
         if record is None:
             record = self.get_record()
         if name == "schema":
-            assert(isinstance(value, KoshSchema))
+            assert isinstance(value, KoshSchema)
             value.validate(self)
         elif self.schema is not None:
             self.schema.validate_attribute(name, value)
@@ -331,7 +331,11 @@ class KoshSinaObject(object):
         last_modif_att = "{name}_last_modified".format(name=name)
         now = time.time()
         record["user_defined"][last_modif_att] = now
-        del(record["data"][name])
+        # We need to remember we touched it otherwise
+        # if we create it again the db will look
+        # out of sync.
+        self.__dict__[last_modif_att] = now
+        del record["data"][name]
         if self.__store__.__sync__:
             self._update_record(record)
 

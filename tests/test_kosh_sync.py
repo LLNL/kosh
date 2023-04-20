@@ -174,11 +174,11 @@ class KoshTestSync(KoshTest):
         self.assertEqual(ds2.test_sync, "I changed it after you")
 
         # Now testing deletion stuff
-        del(ds1.test_sync)
+        del ds1.test_sync
         ds2.test_sync = "Ok let's change you"
         with self.assertRaises(RuntimeError):
             ds2.sync()
-        del(ds2.test_sync)
+        del ds2.test_sync
         ds2.sync()
 
         ds2.associate("ghost", "not_real")

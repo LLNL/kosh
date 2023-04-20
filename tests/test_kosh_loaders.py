@@ -103,7 +103,11 @@ class KoshTestLoaders(KoshTest):
         # Duplicate features names URI should be added
         ds.associate(
             "share/icons/png/Kosh_Logo_Blue.png", "png")
-        features = sorted(ds.list_features(use_cache=False))[::-1]
+        features = sorted(
+            ds.list_features(
+                use_cache=False,
+                verbose=True))[
+            ::-1]
         self.assertEqual(features, [unix_to_win_compatible(
             "image_@_{}/tests/baselines/images/LLNLiconWHITE.png".format(os.getcwd())),
             unix_to_win_compatible(
@@ -433,6 +437,78 @@ class KoshTestLoaders(KoshTest):
             z = numpy.average(z)
             self.assertTrue(z < i + 1)
             self.assertTrue(z > i)
+
+    def test_loaders_added_once_only(self):
+        store, db_uri = self.connect()
+        loaders = {key: value[:] for key, value in store.loaders.items()}
+        store.add_loader(SecondHDF5Loader)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        store.add_loader(SecondHDF5Loader, save=True)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.add_loader(SecondHDF5Loader, save=True)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders_2)
+        store.delete_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.remove_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+        store.close()
+        os.remove(db_uri)
+
+    def testLoaderNeedsRequestor(self):
+        store, db_uri = self.connect()
+
+        class RequestorLoader(kosh.loaders.HDF5Loader):
+            def extract(self):
+                req = self.get_requestor()
+                rng_min = getattr(req, "range_min", 0)
+                rng_max = getattr(req, "range_max", 10)
+                rng_step = getattr(req, "range_step", 1)
+                h5 = super(RequestorLoader, self).extract()
+                return h5[:, rng_min:rng_max:rng_step]
+        ds1 = store.create(
+            metadata={
+                "range_min": 4,
+                "range_max": 8,
+                "range_step": 2})
+        ds1.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds2 = store.create()
+        ds2.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        m9 = ds1["node/metrics_9"][:][:]
+        # remove the hdf5 loader to make sure it picks up ours
+        del store.loaders["hdf5"]
+        store.add_loader(RequestorLoader)
+        self.assertTrue(numpy.allclose(ds2["node/metrics_9"][:], m9[:, :10]))
+        self.assertTrue(numpy.allclose(ds1["node/metrics_9"][:], m9[:, 4:8:2]))
+        self.assertTrue(numpy.allclose(ds1["node/metrics_9"][:], m9[:, 4:8:2]))
+        ds1.range_max = 12
+        self.assertTrue(numpy.allclose(
+            ds1["node/metrics_9"][:], m9[:, 4:12:2]))
 
 
 if __name__ == "__main__":

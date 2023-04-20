@@ -22,6 +22,32 @@ except AttributeError:  # planar is available from nx version 2.5
     default_nx_layout = nx.circular_layout
 
 
+def find_curveset_and_curve_name(name, rec):
+    """Given a curveset or curveset+curve name,
+    returns all matching curve_sets and curves combinations
+    Assumes curveset and curve are separated by a /
+    curve_sets that exactly match the name return (name, None)
+    :param name: Name to parse
+    :type name: str
+    :param rec: sina record where to look for curves
+    :type rec: sina record
+    :return: All possible combinations of (curveset,curve) that match name
+    :rtype: tuple of tuples
+    """
+    sp = name.split("/")
+    possibilities = ()
+    for i in range(len(sp)+1):
+        curve_set = "/".join(sp[:i])
+        if curve_set in rec["curve_sets"]:
+            cs = rec["curve_sets"][curve_set]
+            curve_name = "/".join(sp[i:])
+            if curve_name in cs["dependent"] or curve_name in cs["independent"]:
+                possibilities += ((curve_set, curve_name), )
+            if curve_set == name:  # ok we asked for the curve_set
+                possibilities += ((curve_set, None),)
+    return possibilities
+
+
 def merge_datasets_handler(target_dataset, imported_dataset, section="data", **kargs):
     """When importing a dataset, checks if the imported dataset has
     attributes that match the one in the dataset already in this store.
@@ -90,7 +116,7 @@ def merge_datasets_handler(target_dataset, imported_dataset, section="data", **k
 def gen_labels(G):
     """Generates labels to draw on networkx plots of a graph
     :param G: Network to generate labels from
-    :type G: networkx.OrderedDiGraph
+    :type G: networkx.DiGraph (OrderedDiGraph on older version of networkx)
     :returns: labels for this graph
     :rtype: dict
     """
@@ -465,7 +491,10 @@ def get_graph(input_type, loader, transformers):
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
-    G = nx.OrderedDiGraph()
+    try:
+        G = nx.OrderedDiGraph()
+    except AttributeError:  # networkx 3.0 removed OrderedDiGraph
+        G = nx.DiGraph()
     G.seed = random.random()
     start_node = (input_type, loader, G.seed)  # so each graph is unique
     G.add_node(start_node)

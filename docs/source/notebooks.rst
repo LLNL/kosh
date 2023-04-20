@@ -16,10 +16,11 @@ Jupyter Notebooks
    jupyter/Example_05b_Transformers-SKL
    jupyter/Example_06_Operators
    jupyter/Example_07_Transferring_Datasets
+   jupyter/Kosh_and_Sina_Interoperability
    jupyter/Example_Moving_Datasets
    jupyter/Example_Command_Line_Kosh
    jupyter/Example_Sidre
    jupyter/Example_Custom_Loader
    jupyter/Example_MNIST
    jupyter/Example_Advanced_Data_Slicing
-   jupyter/Kosh_and_Sina_Interoperability
+   jupyter/Example_Cluster_Sampling

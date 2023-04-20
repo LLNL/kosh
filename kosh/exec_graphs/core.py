@@ -10,7 +10,7 @@ import collections
 def possible_ends(graph, start_nodes, end_nodes):
     """Finds all network ends that can be reached by all start nodes
     :param graph: The full graph
-    :type graph: networkx.OrderedDiGraph
+    :type graph: networkx.DiGraph (OrderedDiGraph on older version of networkx)
     :param start_nodes: Node to start paths from
     :type start_nodes: list of nodes
     :param end_nodes: Node to end paths from
@@ -67,9 +67,9 @@ def populate(G, node, output_formats, next_nodes):
 
 
 def find_network_ends(G, start=True, end=True):
-    """Given a networkx.OrderedDiGraph finds start or end nodes or both.
+    """Given an Ordered networkx.DiGraph finds start or end nodes or both.
     :param G: Network of interest
-    :type G: networkx.OrderedDiGraph
+    :type G: networkx.DiGraph (OrderedDiGraph on older version of networkx)
     :param start: Are we searching for start nodes?
     :type start: bool
     :param end: Are we searching for end nodes?
@@ -168,7 +168,10 @@ class KoshExecutionGraph(object):
         # Set the variable to receive results per index
         self.index_results = {}
         # Create a new merged graph
-        new_graph = nx.OrderedDiGraph()
+        try:
+            new_graph = nx.OrderedDiGraph()
+        except AttributeError:
+            new_graph = nx.DiGraph()
         new_graph.seed = random.random()
         for i, G in enumerate(inputs):
             if isinstance(G, KoshExecutionGraph):
@@ -251,10 +254,13 @@ class KoshExecutionGraph(object):
         :param png_template: template to use to generate graph png in verbose mode
                              "_IN"/"_OUT" will be appended and seed will be fed
         :type png_template: str
-        :return a new graph with new seed
-        :rtype: networkx.OrderedDiGraph
+        :return a new ordered graph with new seed
+        :rtype: networkx.DiGraph
         """
-        G = nx.OrderedDiGraph()
+        try:
+            G = nx.OrderedDiGraph()
+        except AttributeError:
+            G = nx.DiGraph()
         if seed is None:
             seed = random.random()
         G.seed = seed
@@ -345,7 +351,10 @@ class KoshExecutionGraph(object):
             pths = self.paths[format]
 
         # Ok let's generate the new network with only the paths
-        out = nx.OrderedDiGraph()
+        try:
+            out = nx.OrderedDiGraph()
+        except AttributeError:
+            out = nx.DiGraph()
         out.seed = G.seed
         for pth in pths:
             for i, node in enumerate(pth[:-1]):
@@ -488,3 +497,41 @@ class KoshExecutionGraph(object):
             return data[0]
         else:
             return data
+
+    def get_input_loaders(self):
+        """Return a generator of the originating loaders for the inputs.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        :return: generator of Kosh datasets
+        :rtype: KoshLoader generator
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            yield loader
+
+    def get_input_datasets(self):
+        """Return a generator of the originating datasets for the inputs.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        :return: generator of Kosh datasets
+        :rtype: KoshDataset generator
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            yield loader.get_requestor()
+
+    def describe_entries(self):
+        """Return a generator of describe_feature for each entry feature.
+        It will crawl the graph backward when
+        it encounters transformers or operators.
+        If a loader did not implement `describe_feature` an empty dictionary
+        will be used instead.
+        :return: generator of info dictionaries
+        """
+        for start_node in self.start_nodes:
+            loader = start_node[1]
+            try:
+                info = loader.describe_feature(loader.feature)
+            except NotImplementedError:
+                info = {}
+            yield info

@@ -1,5 +1,6 @@
 from .current_version import current_version
 import os
+# import .sampling_methods  # noqa
 kosh_cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "kosh")  # noqa
 from .loaders import KoshLoader, KoshSinaLoader  # noqa
 from .utils import create_new_db, walk_dictionary_keys, version  # noqa

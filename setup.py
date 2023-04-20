@@ -8,6 +8,7 @@ import os
 exec(open("./kosh/current_version.py").read())
 version = current_version  # noqa
 sha = None
+
 git_describe_process = Popen(
     ("git",
      "describe",
@@ -42,7 +43,7 @@ setup(name="kosh",
       version=version,
       description=description,
       url="https://github.com/LLNL/Kosh",
-      author="Charles Doutriaux",
+      author="Charles Doutriaux, Renee Olson",
       author_email="doutriaux1@llnl.gov",
       long_description=long_description,
       long_description_content_type="text/markdown",
@@ -54,8 +55,15 @@ setup(name="kosh",
       zip_safe=False,
       install_requires=[
           'llnl-sina >=1.11.0', 
-          'networkx',
-          'numpy',
+          'networkx>=2.6',
+          'numpy>=1.20',
+          'scipy',
+          'h5py>=3',
+          'scikit-learn>=1.0.2',
+          'pandas',
+          'hdbscan',
+          'matplotlib',
+          'tqdm'
       ],
       classifiers=[
           "Programming Language :: Python",
@@ -63,4 +71,4 @@ setup(name="kosh",
           "Operating System :: OS Independent",
       ],
       )
-Popen(("python", "scripts/render_logos.py",)).communicate()
+

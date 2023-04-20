@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.0](#30-release)
 * [2.2](#22-release)
 * [2.1](#21-release)
 * [2.0](#20-release)
@@ -8,6 +9,35 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+## 3.0 Release
+
+### Description
+
+This release introduces clustering capabilities into Kosh. It also drops support for Python 2.
+
+### New in this release
+
+* Support for Clustering (via operators).
+* Dropped Python 2 support.
+* loaders can access the dataset requesting the data
+* Operators now have a `describe_entries` function to help them understand what's coming to them.
+
+### Improvements
+
+* `find` function accepts `id` as an alias for `id_pool` to restrict search to some ids
+* The store can now be used within a context manager
+* Curves can be added/removed to a dataset
+* Ensembles can be created from the command line
+* passing `type=None` when searching the store will return Kosh specific objects as well as regular datasets (e.g associated files objects)
+* Added a `verbose` mode to `dataset.list_features()` to let users know when a loader failed to load a uri. Mostly useful for debugging
+
+
+### Bug fixes
+
+* Fixed an issue where associating a file multiple time was not reflected into the store and a subsequent dissociation or an async association would not be caught. Dissociation would cause the object to be removed from the store.
+* Deleting a dataset attribute and re-adding it would cause a crash
+* Loaders can be removed from store
 
 ## 2.2 Release
 
