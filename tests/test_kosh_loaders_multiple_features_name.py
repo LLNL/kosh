@@ -31,6 +31,7 @@ class KoshTestManyFeaturesSameName(KoshTest):
             self.assertEqual(feat, "fake_@_" + chr(i + 65))
             self.assertEqual(ds.get(feat), "fake___" + chr(i + 65))
 
+        store.close()
         os.remove(kosh_db)
 
     def test_many_hdf5s(self):
@@ -47,6 +48,7 @@ class KoshTestManyFeaturesSameName(KoshTest):
             absolute_path=False)
 
         ds.get('cycles_@_examples/sample_files/run_001.hdf5')
+        store.close()
         os.remove(kosh_db)
 
 

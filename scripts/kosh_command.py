@@ -15,6 +15,7 @@ import ast
 import glob
 import json
 import six
+import sys
 
 
 def get_all_files(opts):
@@ -154,10 +155,19 @@ def process_cmd(command, use_shell=False, shell="/usr/bin/bash"):
 
 
     if use_shell:
-        proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        o, e = proc.communicate(command.encode())
+        if not sys.platform.startswith("win"):
+            proc = Popen(shell, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            o, e = proc.communicate(command.encode())
+        else:
+            proc = Popen(command, stdout=PIPE, stderr=PIPE, shell=True)
+            o, e = proc.communicate()
+            print("COMMAND:" , command)
+            print("OUT:", o.decode())
+            print("ERR:", e.decode())
     else:
-        proc = Popen(shlex.split(command), stdout=PIPE, stderr=PIPE)
+        if not sys.platform.startswith("win"):
+            command = shlex.split(command)
+        proc = Popen(command, stdout=PIPE, stderr=PIPE)
         o, e = proc.communicate()
 
     return proc, o, e
@@ -326,11 +336,37 @@ Available commands are:
                         print("{} (mime_type={}) is missing".format(
                             associated[0].uri, associated[0].mime_type))
 
+    def create_ensemble(self):
+        """create an ensemble into a Kosh store command"""
+        parser = core_parser(
+            prog="kosh create_ensemble",
+            description='Creates an ensemble into a store')
+        parser.add_argument(
+            "--id", "-i", help="Desired Id for dataset", default=None)
+        args, user_params = parser.parse_known_args(sys.argv[2:])
+        params = {}
+        index = 0
+        while index < len(user_params):
+            term = user_params[index]
+            sp = term.split("=")
+            if len(sp) > 1:
+                params[sp[0]] = eval(sp[1])
+                index += 1
+            else:
+                params[sp[0]] = eval(user_params[index+1])
+                index += 2
+
+        print("Adding ensemble to: {}".format(args.store))
+        store = kosh.connect(args.store)
+        store.create_ensemble(id=args.id, metadata=params)
+
     def add(self):
         """add a dataset to a Kosh store command"""
         parser = core_parser(
             prog="kosh add",
-            description='Adds a dataset to store')
+            description='Adds a dataset to a store and possibly an ensemble')
+        parser.add_argument(
+            "--ensemble", "-e", help="Id of the ensemble we want to add this to", default=None)
         parser.add_argument(
             "--id", "-i", help="Desired Id for dataset", default=None)
         args, metadata = parser.parse_known_args(sys.argv[2:])
@@ -338,14 +374,18 @@ Available commands are:
         store = kosh.KoshStore(
             db_uri=args.store, dataset_record_type=args.dataset_record_type)
         ds = store.create(id=args.id, metadata=metadata)
+        if args.ensemble is not None:
+            ensemble = next(store.find_ensembles(id=args.ensemble))
+            ensemble.add(ds)
+            print(ensemble)
         print(ds.id)
 
     def remove(self):
-        """Remove dataset(s) from store command"""
+        """Remove dataset(s) and or ensemble(s) from store command"""
         parser = core_parser(
             prog="kosh remove",
             description='Removes a dataset from store')
-        parser.add_argument("--ids", "-i", help="ids of datasets to print",
+        parser.add_argument("--ids", "-i", help="ids of datasets/ensembles to remove",
                             nargs="*", required=True, action="append")
         parser.add_argument("--force", "-f", action="store_true",
                             help="remove without asking for confirmation")
@@ -449,9 +489,9 @@ Available commands are:
         """Associate uri with dataset command"""
         parser = core_parser(
             prog="kosh associate",
-            description="Associate a (set of) files with a dataset")
+            description="Associate a (set of) files with a dataset or ensemble")
         parser.add_argument(
-            "--id", "-i", help="id of datasets to which file(s) will be associated", required=True)
+            "--id", "-i", help="id of datasets/ensembles to which file(s) will be associated", required=True)
         parser.add_argument("--uri", "-u", help="uri(s) to associate with dataset",
                             nargs="*", required=True, action="append")
         parser.add_argument(
@@ -467,12 +507,12 @@ Available commands are:
             ds.associate(u, mime_type=args.mime_type)
 
     def dissociate(self):
-        """dissociate uri from dataset command"""
+        """dissociate uri from dataset/ensemble command"""
         parser = core_parser(
             prog="kosh dissociate",
             description="dissociate a (set of) file(s) from a dataset")
         parser.add_argument(
-            "--id", "-i", help="id of datasets from which file(s) will be dissociated", required=True)
+            "--id", "-i", help="id of datasets/ensembles from which file(s) will be dissociated", required=True)
         parser.add_argument("--uri", "-u", help="uri(s) to dissociate from dataset",
                             nargs="*", required=True, action="append")
         args = parser.parse_args(sys.argv[2:])
@@ -487,9 +527,13 @@ Available commands are:
 
     def mv(self):
         """mv files command"""
+        if sys.platform.startswith("win"):
+            raise SystemError("you cannot use kosh mv on a windows system, please try to tar/untar or manually move the files and use reassociate")
         self._mv_cp_("mv")
 
     def cp(self):
+        if sys.platform.startswith("win"):
+            raise SystemError("you cannot use kosh cp on a windows system, please manually cp the files and associate them")
         """cp files command"""
         self._mv_cp_("cp")
 
@@ -544,6 +588,7 @@ Available commands are:
         stores = open_stores(args.stores, args.dataset_record_type)
 
         if create:
+            clean_json = True  # windows needs us to del manually
             # Because we cannot add the exported dataset file to a compressed archive
             # We need to figure out the list of files first
             # They should all be in opts and the tar file is not because of -f
@@ -591,22 +636,27 @@ Available commands are:
             tmp_json = tempfile.NamedTemporaryFile(prefix="__kosh_export__",
                                                    suffix=".json",
                                                    dir=os.path.abspath(os.path.dirname(args.file)),
-                                                   mode="w")
+                                                   mode="w",
+                                                   delete=False)
             json.dump(datasets_jsons, tmp_json)
             # Make sure it's all in the file before tarring it
             tmp_json.file.flush()
-
             if no_tarred_files:
                 tarred_files = [os.path.relpath(x) for x in tarred_files]
                 opts += tarred_files
 
+            tmp_json.file.close()
             # Let's tar this!
             cmd = "{} -f {} {} {}".format(tar_command, args.file, " ".join(opts), tmp_json.name)
         else:  # ok we are extracting
+            clean_json = False  # no json created
             cmd = "{} -f {} {}".format(tar_command, args.file, " ".join(opts))
 
         p, out, err = process_cmd(cmd)
-
+        if sys.platform.startswith("win"):  # windows tar put message in err
+            err, out = out, err
+        if clean_json:
+            os.remove(tmp_json.name)
         if p.returncode != 0:
             raise RuntimeError(
                 "Could not run {} cmd: {}\nReceived error: {}".format(
@@ -618,13 +668,15 @@ Available commands are:
 
             # Step 1 figure out the json file that contains our datasets
             filenames = out.decode().split("\n")
+            if sys.platform.startswith("win"):
+                filenames = [filename.split()[1] for filename in filenames if len(filename.split()) > 1]
             if "HTAR" in filenames[0]:
                 # htar used
                 filenames = filenames[:-3]  # last 3 lines are nothing
                 filenames = [x.split(",")[0].split()[-1].strip() for x in filenames]
             # tar removes leading slah from full path
             slashed_filenames = ["/" + x for x in filenames]
-            for filename in filenames:
+            for ifile, filename in enumerate(filenames):
                 base = os.path.basename(filename)
                 if base.startswith("__kosh_export__") and base.endswith(".json"):
                     break
@@ -894,6 +946,23 @@ Available commands are:
             cmd += " --remove-source-files "
         rsync_ran = []
         for i, source in enumerate(sources):
+            # Now let's run the command and see if it worked
+            # But only if not ran for directory before
+            if os.path.dirname(source) + "/" not in sources[:i]:
+                skip_it = False
+                for ran in rsync_ran:
+                    if ran in source:
+                        skip_it = True
+                        break
+                if not skip_it:
+                    rsync_ran.append(source)
+                    cmd_run = cmd + " {} {}".format(source, targets[i])
+                    p, o, e = process_cmd(cmd_run)
+                    if p.returncode != 0:  # Failed!
+                        raise RuntimeError(
+                            "Error running command {}, aborting!\n{}".format(
+                                cmd_run, e.decode()))
+
             for o_store in origin_stores:
                 datasets = o_store.find(file=source)
                 for dataset in datasets:
@@ -923,24 +992,6 @@ Available commands are:
                             d_store.import_dataset(
                                 exported, args.dataset_matching_attributes,
                                 merge_handler=args.merge_strategy)
-
-            # Now let's run the command and see if it worked
-            # But only if not ran for directory before
-            if os.path.dirname(source) + "/" not in sources[:i]:
-                skip_it = False
-                for ran in rsync_ran:
-                    if ran in source:
-                        skip_it = True
-                        break
-                if skip_it:
-                    continue
-                rsync_ran.append(source)
-                cmd_run = cmd + " {} {}".format(source, targets[i])
-                p, o, e = process_cmd(cmd_run)
-                if p.returncode != 0:  # Failed!
-                    raise RuntimeError(
-                        "Error runnning command {}, aborting!\n{}".format(
-                            cmd_run, e.decode()))
 
             # Ok it's good let's sync the stores
             for store in origin_stores + dest_stores:
@@ -987,7 +1038,7 @@ Available commands are:
                 index += 2
 
         print("Adding ds to: {}".format(args.store))
-        store = kosh.KoshStore(args.store)
+        store = kosh.connect(args.store)
         store.create(metadata=params)
 
 

@@ -152,6 +152,7 @@ class TestKoshTransformers(koshbase.KoshTest):
 
         if os.path.exists("kosh_cache"):
             shutil.rmtree("kosh_cache")
+        store.close()
         os.remove(db_uri)
         os.remove("kosh_transformers_chaining_example.ascii")
 
@@ -227,6 +228,7 @@ class TestKoshTransformers(koshbase.KoshTest):
         self.assertTrue(numpy.allclose(train[-5:], [784, 394, 942, 146, 918]))
         self.assertTrue(numpy.allclose(test[-5:], [16, 138, 174, 146, 150]))
         self.assertTrue(numpy.allclose(validation[-5:], [162, 69, 59, 6, 52]))
+        store.close()
         os.remove(db_uri)
 
 

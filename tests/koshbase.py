@@ -24,3 +24,7 @@ class KoshTest(unittest.TestCase):
         if db_uri is None:
             store.delete_all_contents(force="SKIP PROMPT")
         return store, os.path.abspath(kosh_db)
+
+    def cleanup_store(self, store):
+        store.close()
+        os.remove(store.db_uri)

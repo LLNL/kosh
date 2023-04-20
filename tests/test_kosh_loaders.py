@@ -5,6 +5,15 @@ import h5py
 import json
 import random
 import numpy
+import sys
+
+
+def unix_to_win_compatible(pth):
+    """converts unix path to windows"""
+    if sys.platform.startswith("win"):
+        return pth.replace("/", "\\")
+    else:
+        return pth
 
 
 class SecondHDF5Loader(kosh.loaders.HDF5Loader):
@@ -55,6 +64,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(ct, ["b", "a"])
         ct = ds.get(["B", "A"], format="dict", group=True)
         self.assertEqual(ct, {"B": "b", "A": "a"})
+        store.close()
         os.remove(name)
         os.remove(kosh_db)
 
@@ -66,6 +76,7 @@ class KoshTestLoaders(KoshTest):
         ld, _ = store._find_loader(ds._associated_data_[0])
         self.assertEqual(sorted(ld.known_types()), ["hdf5"])
         self.assertEqual(ld.known_load_formats("file"), [])
+        store.close()
         os.remove(kosh_db)
 
     def test_generic_loader(self):
@@ -78,6 +89,7 @@ class KoshTestLoaders(KoshTest):
             set(["file", store._sources_type])))
         self.assertEqual(ld.known_load_formats("file"), [])
         self.assertIsInstance(ds.get(None), list)
+        store.close()
         os.remove(kosh_db)
 
     def test_images(self):
@@ -91,9 +103,15 @@ class KoshTestLoaders(KoshTest):
         # Duplicate features names URI should be added
         ds.associate(
             "share/icons/png/Kosh_Logo_Blue.png", "png")
-        features = sorted(ds.list_features(use_cache=False))[::-1]
-        self.assertEqual(features, ["image_@_{}/tests/baselines/images/LLNLiconWHITE.png".format(os.getcwd()),
-                                    "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd())])
+        features = sorted(
+            ds.list_features(
+                use_cache=False,
+                verbose=True))[
+            ::-1]
+        self.assertEqual(features, [unix_to_win_compatible(
+            "image_@_{}/tests/baselines/images/LLNLiconWHITE.png".format(os.getcwd())),
+            unix_to_win_compatible(
+            "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))])
 
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate("tests/baselines/images/buffalo.pgm", "pgm")
@@ -112,15 +130,18 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["max_value"], 255)
         ds.associate("share/icons/png/Kosh_Logo_Blue.png", mime_type="png")
         self.assertEqual(sorted(ds.list_features(use_cache=False))[::-1],
-                         ['image_@_{}/tests/baselines/images/brain_398.ascii.pgm'.format(os.getcwd()),
-                          'image_@_{}/share/icons/png/Kosh_Logo_Blue.png'.format(
-                              os.getcwd())])  # URI is now added to feature to disambiguate them
+                         [unix_to_win_compatible(
+                             'image_@_{}/tests/baselines/images/brain_398.ascii.pgm'.format(os.getcwd())),
+                          unix_to_win_compatible(
+                              'image_@_{}/share/icons/png/Kosh_Logo_Blue.png'.format(
+                                  os.getcwd()))])  # URI is now added to feature to disambiguate them
         info = ds.describe_feature(
-            "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
+            unix_to_win_compatible("image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd())))
         self.assertEqual(info["size"], (1035, 403))
         data = ds.get(
-            "image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd()))
+            unix_to_win_compatible("image_@_{}/share/icons/png/Kosh_Logo_Blue.png".format(os.getcwd())))
         self.assertEqual(data.shape[:-1], info["size"][::-1])
+        store.close()
         os.remove(kosh_db)
 
     def test_force_loader(self):
@@ -139,6 +160,7 @@ class KoshTestLoaders(KoshTest):
         diff = new - original * 2.
 
         self.assertEqual(diff.max(), 0.)
+        store.close()
         os.remove(kosh_db)
 
     def test_hdf5(self):
@@ -245,6 +267,7 @@ class KoshTestLoaders(KoshTest):
         h5 = ds.open(Id=kosh_id, mode="r+")
         self.assertEqual(h5.mode, "r+")
         h5.close()
+        store.close()
         os.remove(kosh_db)
 
     def test_npy(self):
@@ -263,6 +286,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(info["size"], (2, 3))
         self.assertEqual(info["format"], "numpy")
         self.assertEqual(info["type"], a.dtype)
+        store.close()
         os.remove(kosh_db)
 
     def assertAllClose(self, a, b):
@@ -274,7 +298,11 @@ class KoshTestLoaders(KoshTest):
         pth = "tests/baselines/npy"
 
         # just numbers
-        ds.associate(os.path.join(pth, "example_columns_no_header.txt"), "numpy/txt")
+        ds.associate(
+            os.path.join(
+                pth,
+                "example_columns_no_header.txt"),
+            "numpy/txt")
         self.assertEqual(ds.list_features(), ["features"])
         d1 = ds["features"]
         all = d1[:]
@@ -331,7 +359,10 @@ class KoshTestLoaders(KoshTest):
             ds.list_features(), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self._check_feature_values(ds)
-        ds.dissociate(os.path.join(pth, "example_first_line_header_with_column_names.txt"))
+        ds.dissociate(
+            os.path.join(
+                pth,
+                "example_first_line_header_with_column_names.txt"))
         ds.associate(
             os.path.join(
                 pth,
@@ -343,7 +374,10 @@ class KoshTestLoaders(KoshTest):
             ds.list_features(), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self._check_feature_values(ds)
-        ds.dissociate(os.path.join(pth, "example_three_hashed_header_rows.txt"))
+        ds.dissociate(
+            os.path.join(
+                pth,
+                "example_three_hashed_header_rows.txt"))
         ds.associate(
             os.path.join(
                 pth,
@@ -379,7 +413,10 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(
             ds.list_features(use_cache=False), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
-        ds.dissociate(os.path.join(pth, "example_tab_separated_column_names.txt"))
+        ds.dissociate(
+            os.path.join(
+                pth,
+                "example_tab_separated_column_names.txt"))
         id_ = ds.associate(
             os.path.join(
                 pth,
@@ -390,6 +427,7 @@ class KoshTestLoaders(KoshTest):
         self.assertEqual(
             ds.list_features(), [
                 "time", "zeros col", "ones  col", "twos col", "threes col", "fours"])
+        store.close()
         os.remove(kosh_db)
 
     def _check_feature_values(self, ds):
@@ -399,6 +437,78 @@ class KoshTestLoaders(KoshTest):
             z = numpy.average(z)
             self.assertTrue(z < i + 1)
             self.assertTrue(z > i)
+
+    def test_loaders_added_once_only(self):
+        store, db_uri = self.connect()
+        loaders = {key: value[:] for key, value in store.loaders.items()}
+        store.add_loader(SecondHDF5Loader)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+        store.close()
+        store = kosh.connect(db_uri)
+        store.add_loader(SecondHDF5Loader, save=True)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.add_loader(SecondHDF5Loader, save=True)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders_2)
+        store.delete_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertTrue(SecondHDF5Loader in loaders_2["hdf5"])
+        self.assertNotEqual(loaders, loaders_2)
+        store.remove_loader(SecondHDF5Loader)
+        loaders_3 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders_3, loaders)
+        store.close()
+        store = kosh.connect(db_uri)
+        loaders_2 = {key: value[:] for key, value in store.loaders.items()}
+        self.assertEqual(loaders, loaders_2)
+        store.close()
+        os.remove(db_uri)
+
+    def testLoaderNeedsRequestor(self):
+        store, db_uri = self.connect()
+
+        class RequestorLoader(kosh.loaders.HDF5Loader):
+            def extract(self):
+                req = self.get_requestor()
+                rng_min = getattr(req, "range_min", 0)
+                rng_max = getattr(req, "range_max", 10)
+                rng_step = getattr(req, "range_step", 1)
+                h5 = super(RequestorLoader, self).extract()
+                return h5[:, rng_min:rng_max:rng_step]
+        ds1 = store.create(
+            metadata={
+                "range_min": 4,
+                "range_max": 8,
+                "range_step": 2})
+        ds1.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        ds2 = store.create()
+        ds2.associate(
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
+        m9 = ds1["node/metrics_9"][:][:]
+        # remove the hdf5 loader to make sure it picks up ours
+        del store.loaders["hdf5"]
+        store.add_loader(RequestorLoader)
+        self.assertTrue(numpy.allclose(ds2["node/metrics_9"][:], m9[:, :10]))
+        self.assertTrue(numpy.allclose(ds1["node/metrics_9"][:], m9[:, 4:8:2]))
+        self.assertTrue(numpy.allclose(ds1["node/metrics_9"][:], m9[:, 4:8:2]))
+        ds1.range_max = 12
+        self.assertTrue(numpy.allclose(
+            ds1["node/metrics_9"][:], m9[:, 4:12:2]))
 
 
 if __name__ == "__main__":

@@ -70,6 +70,7 @@ class KoshTestOperators(KoshTest):
 
         with self.assertRaises(Exception):
             ADD(nb, nb)
+        store.close()
         os.remove(db_uri)
 
     def test_simple_add(self):
@@ -87,6 +88,7 @@ class KoshTestOperators(KoshTest):
 
         self.assertEqual(numpy.allclose(
             A[:], numpy.array([2, 4, 6, 8, 10, 12])), 1)
+        store.close()
         os.remove(db_uri)
 
     def test_nested_graphs(self):
@@ -104,6 +106,30 @@ class KoshTestOperators(KoshTest):
 
         self.assertEqual(numpy.allclose(
             A2[:], numpy.array([3, 6, 9, 12, 15, 18])), 1)
+        store.close()
+        os.remove(db_uri)
+
+    def test_operator_get_inputs(self):
+        store, db_uri = self.connect()
+        store.add_loader(StringsLoader)
+
+        ds = store.create()
+        ds.associate("some_file.nb", mime_type="ascii")
+        ds2 = store.create()
+        ds2.associate("some_file.nb", mime_type="ascii")
+
+        nb = ds.get_execution_graph("numbers", transformers=[MyT(), ])
+        nb2 = ds2.get_execution_graph("numbers", transformers=[MyT(), ])
+
+        # Now with the transformer we should be good
+        A = ADD(nb2, nb)
+        A2 = ADD(A, nb, nb2)
+
+        req = A2.get_input_datasets()
+        self.assertEqual([x.id for x in req], [ds2.id, ds.id, ds.id, ds2.id])
+        req = A2.get_input_loaders()
+        self.assertEqual([x.feature for x in req], ["numbers", ]*4)
+        store.close()
         os.remove(db_uri)
 
     def test_operator_and_transformers_verbose(self):
@@ -131,7 +157,8 @@ class KoshTestOperators(KoshTest):
         for filename in [my_t_log, add_log]:
             with open(filename) as f:
                 self.assertTrue("Loaded results from cache file" in f.read())
-                os.remove(filename)
+            os.remove(filename)
+        store.close()
         os.remove(db_uri)
 
 

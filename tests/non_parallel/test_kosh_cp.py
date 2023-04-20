@@ -28,10 +28,13 @@ def run_cp(sources, dest, store_sources, store_destinations=None):
             cmd += " --destination-store {}".format(store)
     cmd += " --sources {} --destination {}".format(" ".join(sources), dest)
 
-    print("TESTING:", cmd)
-    p = Popen(shlex.split(cmd), stdout=PIPE, stderr=PIPE)
+    if not sys.platform.startswith("win"):
+        cmd = shlex.split(cmd)
+    p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
+    print("OUT:", o.decode())
+    print("ERR:", e.decode())
     return out
 
 
@@ -61,6 +64,9 @@ class KoshTestCp(KoshTest):
     def test_file_to_file(self):
         # kosh cv --stores store1.sql --destination_stores store3.sql --source
         # file1 --destination file2
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -102,6 +108,9 @@ class KoshTestCp(KoshTest):
     def test_files_to_new_directory(self):
         # kosh mv --stores_store1.sql store2.sql--destination_stores store3.sql
         # --source dir1 --destination dir2
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -174,6 +183,9 @@ class KoshTestCp(KoshTest):
     def test_copy_directory_not_existing(self):
         # kosh cp --stores_store1.sql store2.sql --destination_stores
         # store3.sql --source dir1 --destination dir2
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -193,6 +205,7 @@ class KoshTestCp(KoshTest):
             create_file(src)
         ds1 = store1.create(name="test")
         ds1.associate(file_src_orig_associate, mime_type="py")
+        print(ds1)
 
         dest_name_orig = os.path.abspath(rand + "_d2d_dest")
         try:
@@ -248,6 +261,9 @@ class KoshTestCp(KoshTest):
     def test_move_files_pattern_to_new_directory(self):
         # kosh mv --stores store1.sql store2.sql --source *.testme --source
         # dir1/testing_it_*.testme --destination dir2
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -352,6 +368,9 @@ class KoshTestCp(KoshTest):
         pass
 
     def test_dir_and_files_to_dir(self):
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()
@@ -431,6 +450,9 @@ class KoshTestCp(KoshTest):
             os.remove(db)
 
     def test_file_in_double_dir_to_file(self):
+        if sys.platform.startswith("win"):
+            print("Skipping test, we are on windows")
+            return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
         store2, db2 = self.connect()

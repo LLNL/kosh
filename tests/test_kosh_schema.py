@@ -5,7 +5,7 @@ from kosh.schema import KoshSchema
 
 
 def g5(value):
-    assert(value > 5)
+    assert value > 5
     return True
 
 
@@ -62,6 +62,8 @@ class KoshTestDataset(KoshTest):
         self.assertTrue("req_int" in ds2.schema.required)
         self.assertEqual(len(ds2.schema.required), 4)
         self.assertEqual(len(ds2.schema.optional), 2)
+        store.close()
+        store2.close()
         os.remove(kosh_db)
 
     def test_dataset_schema(self):
@@ -86,10 +88,11 @@ class KoshTestDataset(KoshTest):
         store.create(schema=schema, metadata=meta)
 
         with self.assertRaises(ValueError):
-            del(meta["req1"])
+            del meta["req1"]
             meta["opt_g5"] = 3.
             meta["req_list"] = 6
             store.create(schema=schema, metadata=meta)
+        store.close()
         os.remove(kosh_db)
 
     def test_validation(self):

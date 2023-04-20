@@ -1,10 +1,13 @@
 import os
+import gc
+import sys
 import uuid
 import sina.utils
 from sina.model import Relationship
-import fcntl
 import collections
-import grp
+if not sys.platform.startswith("win"):
+    import fcntl
+    import grp
 import hashlib
 import warnings
 import time
@@ -188,7 +191,7 @@ class KoshStore(object):
         self.db_uri = db_uri
         if db == "sql":
             if not os.path.exists(db_uri):
-                if ("://" in db_uri and "@" in db_uri):
+                if "://" in db_uri:
                     self.__sina_store = sina_connect(
                         db_uri, read_only=read_only)
                 else:
@@ -220,6 +223,9 @@ class KoshStore(object):
         self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
         self._kosh_reserved_record_types = kosh_reserved_record_types + \
             rec["data"]["reserved_types"]["value"]
+        kosh_reserved = list(self._kosh_reserved_record_types)
+        kosh_reserved.remove(self._sources_type)
+        self._kosh_datasets_and_sources = sina.utils.Negation(kosh_reserved)
 
         # Associated stores
         self._associated_stores_ = []
@@ -268,6 +274,9 @@ class KoshStore(object):
             loader.types[self._sources_type] = loader.types["file"]
         self.loaders[self._sources_type] = self.loaders["file"]
 
+    def __enter__(self):
+        return self
+
     def add_loader(self, loader, save=False):
         """Adds a loader to the store
 
@@ -283,12 +292,50 @@ class KoshStore(object):
         self._cached_loaders = collections.OrderedDict()
         for k in loader.types:
             if k in self.loaders:
-                self.loaders[k].append(loader)
+                if loader not in self.loaders[k]:
+                    self.loaders[k].append(loader)
             else:
                 self.loaders[k] = [loader, ]
 
         if save:  # do we save it in store
             self.save_loader(loader)
+
+    def delete_loader(self, loader, permanently=False):
+        """Removes a loader from the store and possible from its db
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+        :param permanently: Do we also remove it from the db if saved there?
+        :type permanently: bool
+
+        :return: None
+        :rtype: None
+        """
+        # We add a loader we need to clear the cache
+        self._cached_loaders = collections.OrderedDict()
+        for k in loader.types:
+            if k in self.loaders:
+                if loader in self.loaders[k]:
+                    self.loaders[k].remove(loader)
+
+        if permanently:  # Remove it from saved in db as well
+            pickled = pickle.dumps(loader).decode("latin1")
+            rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
+            if rec is not None:
+                self.lock()
+                self.__record_handler__.delete(rec)
+                self.unlock()
+
+    def remove_loader(self, loader):
+        """Removes a loader from the store and its db
+
+        :param loader: The Kosh loader you want to add to the store
+        :type loader: KoshLoader
+
+        :return: None
+        :rtype: None
+        """
+        self.delete_loader(loader, permanently=True)
 
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
@@ -337,6 +384,10 @@ class KoshStore(object):
     def close(self):
         """closes store and sina related things"""
         self.__sina_store.close()
+        gc.collect()
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.close()
 
     def delete_all_contents(self, force=""):
         """
@@ -362,6 +413,10 @@ class KoshStore(object):
         """
 
         pickled = pickle.dumps(loader).decode("latin1")
+        rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
+        if rec is not None:
+            # already in store
+            return
         rec = Record(id=uuid.uuid4().hex, type="koshloader")
         rec.add_data("code", pickled)
         self.lock()
@@ -385,7 +440,7 @@ class KoshStore(object):
                 keys = list(record["user_defined"].keys())
                 for key in keys:
                     if key[-14:] == "_last_modified":
-                        del(record["user_defined"][key])
+                        del record["user_defined"][key]
             record["user_defined"]["last_update_from_db"] = time.time()
         return record
 
@@ -408,7 +463,7 @@ class KoshStore(object):
         if not self.__sync__:
             self._added_unsync_mem_store.records.delete(Id)
             if Id in self.__sync__dict__:
-                del(self.__sync__dict__[Id])
+                del self.__sync__dict__[Id]
                 self.__sync__deleted__[Id] = rec
                 rec["user_defined"]["deleted_time"] = time.time()
         else:
@@ -499,16 +554,20 @@ class KoshStore(object):
                 self.__record_handler__.delete(Id)
                 self.unlock()
             else:
-                del(self.__sync__dict__[Id])
+                del self.__sync__dict__[Id]
                 self._added_unsync_mem_store.records.delete(rec)
             raise err
         return out
 
-    def _find_loader(self, Id, format=None, transformers=[]):
+    def _find_loader(self, Id, verbose=False, requestorId=None):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
         :type Id: str
+        :param verbose: verbose mode will show errors
+        :type verbose: bool
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         :return: Kosh loader object
         """
         Id_original = str(Id)
@@ -517,14 +576,18 @@ class KoshStore(object):
             Id, uri = Id.split("__uri__")
         else:
             uri = None
-        if Id_original in self._cached_loaders:
+        if verbose:
+            print("Finding loader for: {}".format(uri))
+        if (Id_original, requestorId) in self._cached_loaders:
             try:
-                feats = self._cached_loaders[Id_original][0].list_features() != [
-                ]
-            except Exception:
+                feats = self._cached_loaders[Id_original, requestorId][0].list_features()  # != []
+            except Exception as err:
                 feats = []
+                if verbose:
+                    print("Error opening {} with loader {}: {}".format(
+                        uri, self._cached_loaders[Id_original, requestorId], err))
             if feats != []:
-                return self._cached_loaders[Id_original]
+                return self._cached_loaders[Id_original, requestorId]
         record = self.get_record(Id)
         obj = self._load(Id)
         # uri not none means it is pure sina record with file and mime_type
@@ -545,43 +608,48 @@ class KoshStore(object):
             for ld in self.loaders[mime_type]:
                 try:
                     feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
-                except Exception:
+                except Exception as err:
                     # Something happened can't list features
                     feats = []
+                    if verbose:
+                        print("Error opening {} with loader {}: {}".format(obj.uri, ld, err))
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(
-                obj, mime_type=mime_type_passed, uri=uri), record["type"]
-            return self._cached_loaders[Id_original]
+            self._cached_loaders[Id_original, requestorId] = ld(
+                obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId), record["type"]
+            return self._cached_loaders[Id_original, requestorId]
         # sometime types have subtypes (e.g 'file') let's look if we
         # understand a subtype since we can't figure it out from mime_type
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
             for ld in self.loaders[record["type"]]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId).list_features()
                 except Exception:
                     # Something happened can't list features
                     feats = []
                 if feats != []:
                     break
-            self._cached_loaders[Id_original] = ld(
-                obj, mime_type=mime_type_passed, uri=uri), record["type"]
-            return self._cached_loaders[Id_original]
+            self._cached_loaders[Id_original, requestorId] = ld(
+                obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId), record["type"]
+            return self._cached_loaders[Id_original, requestorId]
         return None, None
 
-    def open(self, Id, loader=None, *args, **kargs):
+    def open(self, Id, loader=None, requestorId=None, *args, **kargs):
         """open loads an object in store based on its Id
         and run its open function
 
         :param Id: unique id of object to open
         :type Id: str
         :param loader: loader to use, defaults to None which means pick for me
+        :type loader: KoshLoader
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         :return:
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader, _ = self._find_loader(Id, requestorId=requestorId)
         else:
-            loader = loader(self._load(Id))
+            loader = loader(self._load(Id), requestorId=requestorId)
         return loader.open(*args, **kargs)
 
     def _load(self, Id):
@@ -602,7 +670,7 @@ class KoshStore(object):
                                   store=self, record=record)
 
     def get(self, Id, feature, format=None, loader=None,
-            transformers=[], *args, **kargs):
+            transformers=[], requestorId=None, *args, **kargs):
         """get returns an associated source's data
 
         :param Id: Id of object to retrieve
@@ -615,11 +683,13 @@ class KoshStore(object):
         :return: data in requested format
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.operator.KoshTransformer
+        :param requestorId: The id of the dataset requesting data
+        :type requestorId: str
         """
         if loader is None:
-            loader, _ = self._find_loader(Id)
+            loader, _ = self._find_loader(Id, requestorId=requestorId)
         else:
-            loader = loader(self._load(Id))
+            loader = loader(self._load(Id), requestorId=requestorId)
 
         return loader.get(feature, format, transformers=[], *args, **kargs)
 
@@ -664,7 +734,6 @@ class KoshStore(object):
         :return: generator of matching objects in store
         :rtype: generator
         """
-
         for result in self._find(*atts, **keys):
             yield result
 
@@ -728,19 +797,13 @@ class KoshStore(object):
                 DeprecationWarning)
             record_types = keys.pop("kosh_type")
         else:
-            record_types = keys.pop("types", None)
+            record_types = keys.pop("types", (None, None))  # can't use just None
 
         if isinstance(record_types, six.string_types):
             record_types = [record_types, ]
-        if record_types is not None and not isinstance(
-                record_types, (list, tuple)):
-            raise ValueError("`types` must be str or list")
-
-        if record_types is None:
-            # Ok we want anything, but we need to exclude Kosh reserved
-            record_types = sina.utils.not_(self._kosh_reserved_record_types)
-
-        sina_kargs["types"] = record_types
+        if record_types not in [None, (None, None)] and not isinstance(
+                record_types, (list, tuple, sina.utils.Negation)):
+            raise ValueError("`types` must be None, str, list or sina.utils.Negation")
 
         if 'file_uri' in keys and 'file' in keys:
             raise ValueError(
@@ -750,11 +813,26 @@ class KoshStore(object):
         else:
             file_uri = keys.pop("file_uri", None)
 
+        # Ok now let's look if the user wants to search for an id
+        if "id" in keys:
+            if "id_pool" in keys:
+                raise ValueError("you cannot use id and id_pool together")
+            warnings.warn("When searching by id use id_pool")
+            sina_kargs["id_pool"] = keys["id"]
+            del keys["id"]
+        else:
+            sina_kargs["id_pool"] = keys.pop("id_pool", None)
+
         sina_kargs["file_uri"] = file_uri
-        sina_kargs["id_pool"] = keys.pop("id_pool", None)
         sina_kargs["query_order"] = keys.pop(
             "query_order", ("data", "file_uri", "types"))
 
+        if record_types == (None, None):
+            record_types = sina.utils.not_(self._kosh_reserved_record_types)
+            if sina_kargs["id_pool"] is not None:
+                record_types = None
+
+        sina_kargs["types"] = record_types
         # The data dict for sina
         sina_data = keys.pop("data", {})
         if not isinstance(sina_data, dict):
@@ -770,7 +848,8 @@ class KoshStore(object):
 
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
-
+        if isinstance(sina_kargs["id_pool"], six.string_types):
+            sina_kargs["id_pool"] = [sina_kargs["id_pool"], ]
         # is it a blank search, e.g get me everything?
         get_all = sina_kargs.get("data", {}) == {} and \
             sina_kargs.get("file_uri", None) is None and \
@@ -798,7 +877,13 @@ class KoshStore(object):
             self.synchronous()
 
         for rec_id in match:
-            yield rec_id if ids_only else self.open(rec_id)
+            if ids_only:
+                yield rec_id
+            else:
+                try:
+                    yield self.open(rec_id)
+                except Exception:
+                    yield self._load(rec_id)
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
@@ -994,7 +1079,7 @@ class KoshStore(object):
                             # ok it's an associated thing
                             uri = att[:-27]
                             if uri not in local["files"]:  # dissociated
-                                del(db["files"][uri])
+                                del db["files"][uri]
                             elif att not in db["user_defined"]:  # newly associated
                                 db["files"][uri] = local["files"][uri]
                                 db["user_defined"][att] = local["user_defined"][att]
@@ -1006,7 +1091,7 @@ class KoshStore(object):
                             name = att[:-14]
                             if name not in local["data"]:  # we deleted it
                                 if name in db["data"]:
-                                    del(db["data"][name])
+                                    del db["data"][name]
                             elif local["user_defined"][att] > db["user_defined"][att]:
                                 db["data"][name] = local["data"][name]
                                 db["user_defined"][att] = local["user_defined"][att]
@@ -1032,10 +1117,10 @@ class KoshStore(object):
             except Exception:
                 pass
             try:
-                del(self.__sync__dict__[key])
+                del self.__sync__dict__[key]
             except Exception:
                 # probably coming from del then
-                del(self.__sync__deleted__[key])
+                del self.__sync__deleted__[key]
 
     def add_user(self, username, groups=[]):
         """add_user adds a user to the Kosh store
@@ -1074,7 +1159,10 @@ class KoshStore(object):
             raise ValueError("group {} already exist".format(group))
 
         # now get unix groups
-        unix_groups = [g[0] for g in grp.getgrall()]
+        if not sys.platform.startswith("win"):
+            unix_groups = [g[0] for g in grp.getgrall()]
+        else:
+            unix_groups = []
         if group in unix_groups:
             raise ValueError("{} is a unix group on this system.format(group)")
 
@@ -1140,7 +1228,7 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}):
+                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
@@ -1172,6 +1260,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1179,16 +1269,18 @@ class KoshStore(object):
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
-                                        merge_handler_kargs=merge_handler_kargs)
+                                        merge_handler_kargs=merge_handler_kargs,
+                                        skip_sina_record_sections=skip_sina_record_sections)
         else:
             for dataset in datasets:
                 out.append(self._import_dataset(dataset, match_attributes=match_attributes,
                                                 merge_handler=merge_handler,
-                                                merge_handler_kargs=merge_handler_kargs))
+                                                merge_handler_kargs=merge_handler_kargs,
+                                                skip_sina_record_sections=skip_sina_record_sections))
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}):
+            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1209,6 +1301,8 @@ class KoshStore(object):
         :param merge_handler_kargs: If a function is passed to merge_handler these keywords arguments
                                     will be passed in addition to this store dataset and the imported dataset.
         :type merge_handler_kargs: dict
+        :param skip_sina_record_sections: When importing a sina record, skip over these sections
+        :type skip_sina_record_sections: list
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1242,6 +1336,8 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            for section in skip_sina_record_sections:
+                record[section] = {}
             data = record["data"]
             if record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
@@ -1281,16 +1377,14 @@ class KoshStore(object):
                     match_rec = match.get_record()
                     remapped[record["id"]] = match_rec.id
                 else:  # Non existent dataset
-                    cont = True
-                    while cont:
-                        try:
-                            self.__record_handler__.get(record["id"])
-                            # Ok this record already exists
-                            # and we need a new unique one
-                            record["id"] = uuid.uuid4().hex
-                        except ValueError:
-                            # Does not exists, let's keep the id
-                            cont = False
+                    try:
+                        self.__record_handler__.get(record["id"])
+                        # Ok this record already exists
+                        # and we need a new unique one
+                        record["id"] = uuid.uuid4().hex
+                    except (KeyError, ValueError):
+                        # Does not exists, let's keep the id
+                        pass
                     match_rec = record
             else:  # ok it is a source
                 # Let's find the source rec that match this uri
@@ -1307,15 +1401,18 @@ class KoshStore(object):
                             raise ValueError("trying to import an associated source {} with mime_type {} but "  # noqa
                                              "this store already associated"  # noqa
                                              " this source with mime_type {}".format(data["uri"]["value"],
-                                                                                     data["mime_type"["value"],
-                                                                                     match.mime_type]))
+                                                                                     data["mime_type"]["value"],
+                                                                                     match.mime_type))
                     match_rec = match.get_record()
                 else:
                     match_rec = record
             # update the record
             # But first make sure it is a record :)
             if isinstance(match_rec, dict):
+                if 'id' not in match_rec:
+                    match_rec['id'] = uuid.uuid4().hex
                 match_rec = sina.model.generate_record_from_json(match_rec)
+
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
                 if section in record:
@@ -1392,7 +1489,7 @@ class KoshStore(object):
                         pass
                     self.__record_handler__.insert(rec)
 
-        return [self._load(x) for x in matches]
+        return [self.open(x) for x in matches]
 
     def reassociate(self, target, source=None, absolute_path=True):
         """This function allows to re-associate data whose uri might have changed
