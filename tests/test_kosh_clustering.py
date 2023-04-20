@@ -263,7 +263,7 @@ class KoshTestClusters(KoshTest):
 
         res2 = ''.join(random.choices(string.ascii_uppercase +
                                       string.digits, k=rand_n))
-        fileName2 = 'data_' + str(res2) + 'h5'
+        fileName2 = 'data_' + str(res2) + '.h5'
 
         # Create random data, add redundant data
         data = np.random.random((Nsamples, Ndims))

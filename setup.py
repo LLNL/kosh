@@ -62,6 +62,7 @@ setup(name="kosh",
           'scikit-learn>=1.0.2',
           'pandas',
           'hdbscan',
+          'matplotlib',
           'tqdm'
       ],
       classifiers=[

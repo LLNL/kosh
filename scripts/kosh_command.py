@@ -960,7 +960,7 @@ Available commands are:
                     p, o, e = process_cmd(cmd_run)
                     if p.returncode != 0:  # Failed!
                         raise RuntimeError(
-                            "Error runnning command {}, aborting!\n{}".format(
+                            "Error running command {}, aborting!\n{}".format(
                                 cmd_run, e.decode()))
 
             for o_store in origin_stores:

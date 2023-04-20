@@ -15,14 +15,14 @@ class KoshTestCurves(KoshTest):
         self.assertEqual(len(features), 2)
         self.assertEqual(features, ['curve_set_0', 'curve_set_0/curve_0'])
         # delete the feature
-        # Need to pass a curvset
+        # Need to pass a curveset
         with self.assertRaises(ValueError):
             ds.remove_curve_or_curve_set("curve_0")
-        # Delete with curvset
+        # Delete with curveset
         ds.remove_curve_or_curve_set("curve_0", "curve_set_0")
         features = ds.list_features()
         self.assertEqual(len(features), 0)
-        # Remove from inexisting curveset
+        # Remove from non existing curveset
         ds.add_curve([1, 2, 3])
         with self.assertRaises(ValueError):
             ds.remove_curve_or_curve_set("curve_0", "curve_set_1")

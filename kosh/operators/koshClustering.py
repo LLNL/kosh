@@ -9,9 +9,9 @@ class KoshCluster(KoshOperator):
     types = {"numpy": ["numpy", "pandas"]}
 
     def __init__(self, *args, **options):
-        """Clusters together similar samples from a data set, and then returns cluster representatives
-        to form a non-redundant subsample of the original data set. The data sets need to be of shape
-        (n_samples, n_features). All data sets must have the same number of features. If the data sets
+        """Clusters together similar samples from a dataset, and then returns cluster representatives
+        to form a non-redundant subsample of the original dataset. The datasets need to be of shape
+        (n_samples, n_features). All datasets must have the same number of features. If the datasets
         are more than two dimensions there is an option to flatten them.
         """
         super(KoshCluster, self).__init__(*args, **options)
@@ -44,7 +44,7 @@ class KoshCluster(KoshOperator):
     def operate(self, *inputs, **kargs):
 
         if self.rank == 0:
-            print("Reading in %s data sets." % len(inputs))
+            print("Reading in %s datasets." % len(inputs))
 
         # Get the sizes of each kosh dataset
         input_sizes = []
@@ -63,7 +63,7 @@ class KoshCluster(KoshOperator):
 
 def _koshParallelClustering_(inputs, options, comm, input_sizes):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features). Data sets must have same number of n_features.
+    :param inputs: One or more arrays of size (n_samples, n_features). datasets must have same number of n_features.
     :type inputs: kosh datasets
     :param flatten: Flattens data to two dimensions. (n_samples, n_features_1*n_features_2* ... *n_features_m)
     :type flatten: bool
@@ -79,7 +79,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     :param core_sample: Whether to retain a sample from the center of the cluster (core sample),
                         or a randomly chosen sample.
     :type core_sample: bool
-    :param eps: The distance around a sample that defines its' neighbors.
+    :param eps: The distance around a sample that defines its neighbors.
     :type eps: float
     :param min_samples: The minimum number of samples to form a cluster.
     :type min_samples: int
@@ -87,7 +87,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     :type output: string
     :param format: Returns the indices as numpy array ('numpy') or defaults to pandas dataframe.
     :type format: string
-    :returns: clustered subsample of original data set, or indices of subsample
+    :returns: clustered subsample of original dataset, or indices of subsample
     :rtype: numpy array or pandas dataframe
     """
 
@@ -177,7 +177,7 @@ def _koshParallelReader_(inputs, comm, input_sizes):
 
 def _koshSerialClustering_(inputs, options):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features). Data sets must have same number of n_features.
+    :param inputs: One or more arrays of size (n_samples, n_features). datasets must have same number of n_features.
     :type inputs: kosh datasets
     :param method: DBSCAN or HAC (Hierarchical Agglomerative Clustering)
     :type method: str
@@ -194,7 +194,7 @@ def _koshSerialClustering_(inputs, options):
     :type batch_size: int
     :param convergence_num: Converged if the data size is the same for 'num' iterations. The default is 2.
     :type convergence_num: int
-    :param eps: The distance around a sample that defines its' neighbors. (Only for DBSCAN)
+    :param eps: The distance around a sample that defines its neighbors. (Only for DBSCAN)
     :type eps: float
     :param min_samples: The minimum number of samples to form a cluster. (Only for DBSCAN)
     :type min_samples: int
@@ -218,7 +218,7 @@ def _koshSerialClustering_(inputs, options):
     :type format: string
     :param output: The retained data or the indices to get the retained data from the original dataset.
     :type output: string
-    :returns: clustered subsample of original data set, or indices of subsample
+    :returns: clustered subsample of original dataset, or indices of subsample
     :rtype: numpy array or pandas dataframe
     """
 
@@ -342,7 +342,7 @@ class KoshHopkins(KoshOperator):
 
     def operate(self, *inputs, **kargs):
         """
-        from a sample of the data set. A value close to 0 means uniformly
+        from a sample of the dataset. A value close to 0 means uniformly
         distributed, .5 means randomly distributed, and a value close to 1
         means highly clustered.
 

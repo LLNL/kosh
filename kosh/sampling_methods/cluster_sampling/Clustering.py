@@ -45,7 +45,7 @@ class Cluster(object):
         self.cluster_labels = None
         self.probabilities = None
 
-        # Optionaly scale the data
+        # Optionally scale the data
         self.scaling_function = scaling_function
         if self.scaling_function:
             self.scaleData()
@@ -92,7 +92,7 @@ class Cluster(object):
         """Clusters samples with scikit-learn's DBSCAN, and saves data
         and cluster labels in a pandas data frame.
 
-        :param eps: The distance around a sample that defines its' neighbors.
+        :param eps: The distance around a sample that defines its neighbors.
         :type eps: float
         :param min_samples: The number of samples (or total weight) in a neighborhood
                             for a point to be considered a core point.
@@ -269,7 +269,7 @@ class Cluster(object):
         """Clusters samples with scipy's hierarchical agglomerative clustering
         and the Ward variance minimizing algorithm. The flat clusters are created
         by a specified distance. Default distance is the maximum distance between
-        any two samples in the data set (self.default_distance), and you can adjust the
+        any two samples in the dataset (self.default_distance), and you can adjust the
         default distance with HAC_scaling_distance. Alternatively you can define the
         distance yourself (HAC_distance_value), or define the number of clusters
         (Nclusters). The cluster labels are saved as the last column in a dataframe
@@ -393,7 +393,7 @@ class Cluster(object):
         :type verbose: bool
         :param Nclusters: User defines number of clusters
         :type Nclusters: int
-        :param eps: The distance around a sample that defines its' neighbors.
+        :param eps: The distance around a sample that defines its neighbors.
         :type eps: float
         :param min_samples: The number of samples (or total weight) in a neighborhood
                             for a point to be considered a core point.
@@ -401,7 +401,7 @@ class Cluster(object):
         :type min_samples: int
         :param n_jobs: The number of parallel jobs to run. -1 means using all processors.
         :type n_jobs: int
-        :returns: subsample of original data set or indices of subsample
+        :returns: subsample of original dataset or indices of subsample
         :rtype: pandas dataframe or numpy array
         """
 
@@ -512,11 +512,11 @@ class Cluster(object):
         :param core_sample: Whether to retain a sample from the center of the cluster (core sample),
                             or a randomly chosen sample.
         :type cores_sample: bool
-        :param eps: The distance around a sample that defines its' neighbors.
+        :param eps: The distance around a sample that defines its neighbors.
         :type eps: float
         :param n_jobs: The number of parallel jobs to run. -1 means using all processors.
         :type n_jobs: int
-        :returns: subsample of original data set or indices of subsample
+        :returns: subsample of original dataset or indices of subsample
         :rtype: pandas dataframe or numpy array
         """
         # Number of clusters
@@ -630,8 +630,8 @@ class Cluster(object):
                                uniformly_selected_observations: pd.DataFrame):
             tree = BallTree(df, leaf_size=2)
             dist, _ = tree.query(uniformly_selected_observations, k=1)
-            uniformly_df_distances_to_nearest_neighbours = dist
-            return uniformly_df_distances_to_nearest_neighbours
+            uniformly_df_distances_to_nearest_neighbors = dist
+            return uniformly_df_distances_to_nearest_neighbors
 
         def simulate_df_with_same_variation(
                 df: pd.DataFrame, sampling_size: int
@@ -660,12 +660,12 @@ class Cluster(object):
                 uniformly_selected_observations)
             return uniformly_selected_observations_df
 
-        def get_distance_sample_to_nearest_neighbours(
+        def get_distance_sample_to_nearest_neighbors(
                 df: pd.DataFrame, data_frame_sample):
             tree = BallTree(df, leaf_size=2)
             dist, _ = tree.query(data_frame_sample, k=2)
-            data_frame_sample_distances_to_nearest_neighbours = dist[:, 1]
-            return data_frame_sample_distances_to_nearest_neighbours
+            data_frame_sample_distances_to_nearest_neighbors = dist[:, 1]
+            return data_frame_sample_distances_to_nearest_neighbors
 
         def sample_observation_from_dataset(df, sampling_size: int):
             if sampling_size > df.shape[0]:
@@ -680,7 +680,7 @@ class Cluster(object):
         data_frame_sample = sample_observation_from_dataset(
             data_frame, sampling_size)
 
-        sample_distances_to_nearest_neighbours = get_distance_sample_to_nearest_neighbours(
+        sample_distances_to_nearest_neighbors = get_distance_sample_to_nearest_neighbors(
             data_frame, data_frame_sample
         )
 
@@ -688,12 +688,12 @@ class Cluster(object):
             data_frame, sampling_size
         )
 
-        df_distances_to_nearest_neighbours = get_nearest_sample(
+        df_distances_to_nearest_neighbors = get_nearest_sample(
             data_frame, uniformly_selected_observations_df
         )
 
-        x = sum(sample_distances_to_nearest_neighbours)
-        y = sum(df_distances_to_nearest_neighbours)
+        x = sum(sample_distances_to_nearest_neighbors)
+        y = sum(df_distances_to_nearest_neighbors)
 
         if x + y == 0:
             raise Exception(
@@ -703,7 +703,7 @@ class Cluster(object):
 
     def hopkins(self, sample_ratio=.1):
         """Calculates the Hopkins statistic or cluster tendency of the data
-        from a sample of the data set. A value close to 0 means uniformly
+        from a sample of the dataset. A value close to 0 means uniformly
         distributed, .5 means randomly distributed, and a value close to 1
         means highly clustered.
 
@@ -938,9 +938,10 @@ def makeBatchClusterParallel(data, global_ind, comm, flatten=False, batch_size=1
         if (is_converged):
             retained = data[np.array(subset_indices), :]
             break
-        elif (total_subsamples < 50000):
+        elif (total_subsamples < batch_size):
             if rank == 0:
-                print("Data size < 50,000. Moving all the data to rank 0.")
+                print(f"Total data size ({total_subsamples}) < batch size ({batch_size})."
+                      " Moving all the data to rank 0.")
             # Send all data to rank = 0
             #  lowercase "gather" supports GatherV like behavior
             last_data = comm.gather(data[np.array(subset_indices), :], root=0)
@@ -1008,7 +1009,7 @@ def makeBatchClusterParallel(data, global_ind, comm, flatten=False, batch_size=1
         else:
             out = retained[:, nfeatures:].astype(int)
 
-    # If data size < 50k all data was sent to rank 0, and other ranks return
+    # If data size < batch size, all data was sent to rank 0 and other ranks return
     # None
     else:
         out = None
