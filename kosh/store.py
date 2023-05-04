@@ -1451,9 +1451,9 @@ class KoshStore(object):
                                 record["curve_sets"][curve_set]["dependent"])
                         else:  # preserve
                             pass
-            try:
+            if self.__record_handler__.exist(match_rec["id"]):
                 self.__record_handler__.update(match_rec)
-            except ValueError:
+            else:
                 self.__record_handler__.insert(match_rec)
             matches.append(match_rec["id"])
 
