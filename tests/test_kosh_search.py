@@ -52,6 +52,52 @@ class TestKoshSearch(koshbase.KoshTest):
         store.close()
         os.remove(kosh_db)
 
+    def test_find_by_whole_record(self):
+        store, kosh_db = self.connect(sync=False)
+        sina_recs = store.get_sina_records()
+        rec0 = Record("foo1", type="blah")
+        rec1 = Record("foo2", type="blah")
+        rec2 = Record("bar1", type="blah")
+        rec3 = Record("bar2", type="blah")
+        rec4 = Record("bar3", type="blah")
+        sina_recs.insert(iter((rec0, rec1, rec2, rec3, rec4)))
+
+        # Search by multiple Sina records
+        recs = sina_recs.get(["bar1", "bar2"])  # Multiple Sina records
+
+        dataset1 = store.find(rec0, recs, id_pool="foo2")
+        self.assertEqual(len(list(dataset1)), 4)
+
+        # Search by multiple Kosh datsets
+        recs = sina_recs.get(["bar1", "bar2"])  # Multiple Sina records
+        dataset1 = store.find(rec0, recs, id_pool=["foo2"])  # Search by multiple Sina records
+
+        dataset2 = store.find(dataset1)
+        self.assertEqual(len(list(dataset2)), 4)
+
+        # Search by multiple Kosh datsets with multiple ids
+        recs = sina_recs.get(["bar1", "bar2"])  # Multiple Sina records
+        dataset1 = store.find(rec0, recs, id_pool=["foo2", "bar3"])  # Search by multiple Sina records
+
+        dataset2 = store.find(dataset1)  # Search by multiple Kosh datsets
+        self.assertEqual(len(list(dataset2)), 5)
+
+        # Search by single Kosh dataset
+        recs = sina_recs.get(["bar1", "bar2"])  # Multiple Sina records
+        dataset1 = store.find(rec0, recs, id_pool=["foo2", "bar3"])  # Search by multiple Sina records
+        dataset2 = store.find(dataset1)  # Search by multiple Kosh datsets
+        dataset3 = next(dataset2)
+
+        dataset4 = store.find(dataset3)
+        self.assertEqual(len(list(dataset4)), 1)
+
+        # Open by single Sina record
+        dataset1 = store.open(rec0)
+        self.assertEqual(dataset1.id, "foo1")
+
+        store.close()
+        os.remove(kosh_db)
+
 
 if __name__ == "__main__":
     A = TestKoshSearch()

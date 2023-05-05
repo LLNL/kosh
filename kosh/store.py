@@ -638,7 +638,7 @@ class KoshStore(object):
         """open loads an object in store based on its Id
         and run its open function
 
-        :param Id: unique id of object to open
+        :param Id: unique id of object to open. Can also be a Sina record.
         :type Id: str
         :param loader: loader to use, defaults to None which means pick for me
         :type loader: KoshLoader
@@ -646,6 +646,9 @@ class KoshStore(object):
         :type requestorId: str
         :return:
         """
+        if isinstance(Id, sina.model.Record):  # Sina record by itself
+            Id = Id.id
+
         if loader is None:
             loader, _ = self._find_loader(Id, requestorId=requestorId)
         else:
@@ -730,10 +733,34 @@ class KoshStore(object):
         "file_uri" is a reserved key that will return all records being associated
                    with the given "uri", e.g store.find(file_uri=uri)
         "types" let you search over specific sina record types only.
+        "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
 
         :return: generator of matching objects in store
         :rtype: generator
         """
+
+        if 'id_pool' in keys:
+            if isinstance(keys['id_pool'], str):
+                ids_to_add = [keys['id_pool']]
+            else:
+                ids_to_add = [id for id in keys['id_pool']]
+        else:
+            ids_to_add = []
+
+        atts_to_remove = []
+        for attr in atts:
+            if isinstance(attr, (sina.model.Record, kosh.dataset.KoshDataset)):  # Sina record or Kosh dataset by itself
+                ids_to_add.append(attr.id)
+                atts_to_remove.append(attr)
+            elif isinstance(attr, types.GeneratorType):  # Multiple records from Sina.find() or Kosh.find()
+                for at in attr:
+                    ids_to_add.append(at.id)
+                atts_to_remove.append(attr)
+
+        atts = tuple([item for item in atts if item not in atts_to_remove])
+        if 'id_pool' in keys or ids_to_add:  # Create key if doesn't exist
+            keys['id_pool'] = [*set(ids_to_add)]
+
         for result in self._find(*atts, **keys):
             yield result
 
@@ -1451,9 +1478,9 @@ class KoshStore(object):
                                 record["curve_sets"][curve_set]["dependent"])
                         else:  # preserve
                             pass
-            try:
+            if self.__record_handler__.exist(match_rec["id"]):
                 self.__record_handler__.update(match_rec)
-            except ValueError:
+            else:
                 self.__record_handler__.insert(match_rec)
             matches.append(match_rec["id"])
 

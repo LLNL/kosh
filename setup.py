@@ -15,20 +15,23 @@ git_describe_process = Popen(
      "--tags"),
     stdout=PIPE,
     stderr=PIPE)
-try:
-    out, _ = git_describe_process.communicate()
-    version = out.decode("utf-8")
-    sp = version.split("-")
-    version = sp[0]
-    # Clean tag?
-    if len(sp) != 0:
-        commits = sp[1]
-        sha = sp[2]
-        version += "."+commits
-    else:
-        sha = None
-except Exception:
-    pass
+if os.path.isdir(os.path.join(os.path.dirname(
+    os.path.abspath(__file__)),'.git')):
+    try:
+        out, _ = git_describe_process.communicate()
+        trial_version = out.decode("utf-8")
+        sp = trial_version.split("-")
+        trial_version = sp[0]
+        # Clean tag?
+        if len(sp) != 0:
+            commits = sp[1]
+            sha = sp[2]
+            trial_version += "."+commits
+        else:
+            sha = None
+        version = trial_version
+    except Exception:
+        pass
 
 description="Manages Data Store with External Bulk Data"
 if sha is not None:
@@ -50,6 +53,7 @@ setup(name="kosh",
       license="MIT",
       packages=find_packages(),
       scripts=["scripts/kosh",
+               "scripts/kosh_command.py",
                "scripts/sbang",
                ],
       zip_safe=False,

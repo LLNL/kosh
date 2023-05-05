@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.0.1](#301-release)
 * [3.0](#30-release)
 * [2.2](#22-release)
 * [2.1](#21-release)
@@ -9,6 +10,26 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+
+## 3.0.1 Release
+
+### Description
+
+This release is a patch release.
+
+### New in this release
+
+* store can open a dataset based on a Sina record (`store.open(sina_record)`).
+
+### Improvements
+
+* Copyright for `compute_hopkins_statistic`
+* Uses sinas `exist` function rather than a `try`/`except` to decide if we update or insert new records into the store.
+
+### Bug fixes
+
+* None
 
 ## 3.0 Release
 
@@ -40,7 +61,6 @@ This release introduces clustering capabilities into Kosh. It also drops support
 * Loaders can be removed from store
 
 ## 2.2 Release
-
 ### Description
 
 This is a maintenace release, with added support for Windows systems.
