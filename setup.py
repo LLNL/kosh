@@ -15,8 +15,8 @@ git_describe_process = Popen(
      "--tags"),
     stdout=PIPE,
     stderr=PIPE)
-if os.path.isdir(os.path.dirname(os.path.join(
-    os.path.abspath(__file__),'.git'))):
+if os.path.isdir(os.path.join(os.path.dirname(
+    os.path.abspath(__file__)),'.git')):
     try:
         out, _ = git_describe_process.communicate()
         trial_version = out.decode("utf-8")
