@@ -546,5 +546,8 @@ def update_json_file_with_records_and_relationships(file, output_dict):
             file_dict = output_dict
 
         with open(file, "w") as f:
-            f.write(orjson.dumps(file_dict).decode())
+            try:
+                f.write(orjson.dumps(file_dict).decode())
+            except AttributeError:
+                f.write(orjson.dumps(file_dict))
     return output_dict
