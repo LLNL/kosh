@@ -646,7 +646,7 @@ class KoshDataset(KoshSinaObject):
         kosh_id = str(rec["files"][uri]["kosh_id"])
         del rec["files"][uri]
         now = time.time()
-        rec["user_defined"]["{uri}___associated_last_modified".format(
+        rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
             uri=uri)] = now
         if self.__store__.__sync__:
             self._update_record(rec)
@@ -726,7 +726,7 @@ class KoshDataset(KoshSinaObject):
                         uri = os.path.abspath(uri)
                     if not os.path.isdir(uri) and "fast_sha" not in meta:
                         meta["fast_sha"] = compute_fast_sha(uri)
-                rec["user_defined"]["{uri}___associated_last_modified".format(
+                rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
                     uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
                 tmp_uris = list(self.__store__.find(
@@ -734,7 +734,7 @@ class KoshDataset(KoshSinaObject):
 
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
-                    rec_obj = Record(id=Id, type=self.__store__._sources_type)
+                    rec_obj = Record(id=Id, type=self.__store__._sources_type, user_defined={'kosh_information': {}})
                     new_recs.append(rec_obj)
                 else:
                     rec_obj = self.__store__.get_record(tmp_uris[0])
@@ -760,9 +760,9 @@ class KoshDataset(KoshSinaObject):
                     else:
                         rec_obj["data"][key]["value"] = meta[key]
                     last_modif_att = "{name}_last_modified".format(name=key)
-                    rec_obj["user_defined"][last_modif_att] = time.time()
+                    rec_obj["user_defined"]['kosh_information'][last_modif_att] = time.time()
                 if not self.__store__.__sync__:
-                    rec_obj["user_defined"]["last_update_from_db"] = time.time()
+                    rec_obj["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
             except TypeError as err:
                 raise err

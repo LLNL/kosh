@@ -46,13 +46,13 @@ class KoshSinaObject(object):
         self.__dict__["__type__"] = kosh_type
         if Id is None:
             Id = uuid.uuid4().hex
-            record = Record(id=Id, type=kosh_type)
+            record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
             if store.__sync__:
                 store.lock()
                 store.__record_handler__.insert(record)
                 store.unlock()
             else:
-                record["user_defined"]["last_update_from_db"] = time.time()
+                record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
                 self.__store__.__sync__dict__[Id] = record
             self.__dict__["id"] = Id
         else:
@@ -61,14 +61,14 @@ class KoshSinaObject(object):
                 try:
                     record = self.get_record()
                 except BaseException:  # record exists nowhere
-                    record = Record(id=Id, type=kosh_type)
+                    record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
                     if store.__sync__:
                         store.lock()
                         store.__record_handler__.insert(record)
                         store.unlock()
                     else:
                         self.__store__.__sync__dict__[Id] = record
-                        record["user_defined"]["last_update_from_db"] = time.time()
+                        record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
             else:
                 deleted_items = False
                 for att in self.__dict__["__protected__"]:
@@ -154,8 +154,7 @@ class KoshSinaObject(object):
             # old records have user id let's fix this
             if value in self.__store__.__record_handler__.find_with_type(
                     self.__store__._users_type, ids_only=True):
-                value = self.__store__.get_record(
-                    value)["data"]["username"]["value"]
+                value = self.__store__.get_record(value)["data"]["username"]["value"]
         return value
 
     def get_sina_store(self):
@@ -265,7 +264,7 @@ class KoshSinaObject(object):
             last = time.time()
         try:
             # Time we last read its value
-            last_db = record["user_defined"][last_modif_att]
+            last_db = record["user_defined"]['kosh_information'][last_modif_att]
         except KeyError:
             last_db = last
         # last time attribute was modified in db
@@ -281,7 +280,7 @@ class KoshSinaObject(object):
         if "{name}_last_modified".format(name=name) not in self.__protected__:
             self.__dict__["__protected__"] += [last_modif_att, ]
         self.__dict__[last_modif_att] = now
-        record["user_defined"][last_modif_att] = now
+        record["user_defined"]['kosh_information'][last_modif_att] = now
         if name == "schema":
             self.__dict__["__schema__"] = value
             value = pickle.dumps(value).decode("latin1")
@@ -330,7 +329,7 @@ class KoshSinaObject(object):
         record = self.get_record()
         last_modif_att = "{name}_last_modified".format(name=name)
         now = time.time()
-        record["user_defined"][last_modif_att] = now
+        record["user_defined"]['kosh_information'][last_modif_att] = now
         # We need to remember we touched it otherwise
         # if we create it again the db will look
         # out of sync.
@@ -383,8 +382,7 @@ class KoshSinaObject(object):
                 # old records have user id let's fix this
                 if attributes[a] in self.__store__.__record_handler__.find_with_type(
                         self.__store__._users_type, ids_only=True):
-                    attributes[a] = self.__store__.get_record(
-                        attributes[a])["data"]["username"]["value"]
+                    attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
 
     def __str__(self):

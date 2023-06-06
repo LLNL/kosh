@@ -314,7 +314,7 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         # ok it's the old type or a new store, let's try to upgrade it for next time
         # and add the store info
         # Because of mpi ranks issues let's fix the id
-        rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__")
+        rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__", user_defined={'kosh_information': {}})
         if hasattr(records, "insert"):  # Readonly can't insert
             # It's possible many ranks will try to create this record
             # They are all identical, let's allow the error
@@ -398,7 +398,7 @@ def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), 
             types=[user_type, ], data={"username": user}))
         if len(new_user) == 0:
             uid = hashlib.md5(user.encode()).hexdigest()
-            user_record = Record(id=uid, type=user_type)
+            user_record = Record(id=uid, type=user_type, user_defined={'kosh_information': {}})
             user_record.add_data("username", user)
             record_handler.insert(user_record)
 
@@ -520,10 +520,10 @@ def cleanup_sina_record_from_kosh_sync(record):
     :return: json loaded representation of the record
     :rtype: dict"""
     # cleanup the record
-    record["user_defined"].pop("last_update_from_db", None)
-    for key in list(record["user_defined"].keys()):
+    record["user_defined"]['kosh_information'].pop("last_update_from_db", None)
+    for key in list(record["user_defined"]['kosh_information'].keys()):
         if key.endswith("last_modified"):
-            record["user_defined"].pop(key)
+            record["user_defined"]['kosh_information'].pop(key)
     return orjson.loads(record.to_json())
 
 
