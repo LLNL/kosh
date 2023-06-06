@@ -417,7 +417,7 @@ class KoshStore(object):
         if rec is not None:
             # already in store
             return
-        rec = Record(id=uuid.uuid4().hex, type="koshloader")
+        rec = Record(id=uuid.uuid4().hex, type="koshloader", user_defined={'kosh_information': {}})
         rec.add_data("code", pickled)
         self.lock()
         self.__record_handler__.insert(rec)
@@ -437,11 +437,18 @@ class KoshStore(object):
             record = self.__record_handler__.get(Id)
             self.__sync__dict__[Id] = record
             if not self.__sync__:  # we are not autosyncing
-                keys = list(record["user_defined"].keys())
+                try:
+                    keys = list(record["user_defined"]['kosh_information'].keys())
+                except KeyError:
+                    record["user_defined"]['kosh_information'] = {}
+                    keys = []
                 for key in keys:
                     if key[-14:] == "_last_modified":
-                        del record["user_defined"][key]
-            record["user_defined"]["last_update_from_db"] = time.time()
+                        del record["user_defined"]['kosh_information'][key]
+            try:
+                record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+            except KeyError:
+                record["user_defined"]['kosh_information'] = {"last_update_from_db": time.time()}
         return record
 
     def delete(self, Id):
@@ -453,7 +460,6 @@ class KoshStore(object):
         """
         if not isinstance(Id, six.string_types):
             Id = Id.id
-
         rec = self.get_record(Id)
         if rec.type not in self._kosh_reserved_record_types:
             kosh_obj = self.open(Id)
@@ -465,7 +471,7 @@ class KoshStore(object):
             if Id in self.__sync__dict__:
                 del self.__sync__dict__[Id]
                 self.__sync__deleted__[Id] = rec
-                rec["user_defined"]["deleted_time"] = time.time()
+                rec["user_defined"]['kosh_information']["deleted_time"] = time.time()
         else:
             self.__record_handler__.delete(Id)
 
@@ -535,7 +541,7 @@ class KoshStore(object):
         metadata["_associated_data_"] = None
         for k in metadata:
             metadata[k] = {'value': metadata[k]}
-        rec = Record(id=Id, type=sina_type, data=metadata)
+        rec = Record(id=Id, type=sina_type, data=metadata, user_defined={'kosh_information': {}})
         if self.__sync__:
             self.lock()
             self.__record_handler__.insert(rec)
@@ -928,14 +934,14 @@ class KoshStore(object):
                     local_record = self.__sync__dict__[key]
                     # Dataset created locally on unsynced store do not have
                     # this attribute
-                    last_local = local_record["user_defined"].get(
+                    last_local = local_record["user_defined"]['kosh_information'].get(
                         "last_update_from_db", -1)
-                    for att in db_record["user_defined"]:
+                    for att in db_record["user_defined"]['kosh_information']:
                         conflict = False
                         if att[-14:] != "_last_modified":
                             continue
-                        last_db = db_record["user_defined"][att]
-                        if last_db > last_local and att in local_record["user_defined"]:
+                        last_db = db_record["user_defined"]['kosh_information'][att]
+                        if last_db > last_local and att in local_record["user_defined"]['kosh_information']:
                             # Conflict
                             if att[-27:-14] == "___associated":
                                 # ok dealing with associated data
@@ -954,7 +960,7 @@ class KoshStore(object):
                                                   last_db,
                                                   local_record["files"].get(uri, {"mimetype": "deleted"})[
                                         "mimetype"],
-                                        local_record["user_defined"][att])}
+                                        local_record["user_defined"]['kosh_information'][att])}
                                     if key not in conflicts:
                                         conflicts[key] = conf
                                     else:
@@ -977,7 +983,7 @@ class KoshStore(object):
                                                    last_db,
                                                    local_record["data"].get(
                                         name, {"value": "deleted"})["value"],
-                                        local_record["user_defined"][att])}
+                                        local_record["user_defined"]['kosh_information'][att])}
                                     if key not in conflicts:
                                         conflicts[key] = conf
                                     else:
@@ -986,13 +992,13 @@ class KoshStore(object):
                                     conflicts[key]["type"] = "attribute"
                 except Exception:  # ok let's see if it was a delete ones
                     local_record = self.__sync__deleted[key]
-                    last_local = local_record["user_defined"].get(
+                    last_local = local_record["user_defined"]['kosh_information'].get(
                         "last_update_from_db", -1)
-                    for att in db_record["user_defined"]:
+                    for att in db_record["user_defined"]['kosh_information']:
                         conflict = False
                         if att[-14:] != "_last_modified":
                             continue
-                        last_db = db_record["user_defined"][att]
+                        last_db = db_record["user_defined"]['kosh_information'][att]
                         if last_db > last_local:
                             conf = {att[:14]: (
                                 "modified in db", "ds deleted here", "")}
@@ -1008,7 +1014,7 @@ class KoshStore(object):
                     local_record = self.__sync__dict__[key]
                     # Dataset created locally on unsynced store do not have
                     # this attribute
-                    last_local = local_record["user_defined"].get(
+                    last_local = local_record["user_defined"]['kosh_information'].get(
                         "last_update_from_db", -1)
                     if last_local != -1:  # yep we read it from store
                         conf = {
@@ -1100,28 +1106,33 @@ class KoshStore(object):
                 continue
             try:
                 db = self.__record_handler__.get(key)
-                for att in local["user_defined"]:
+                for att in local["user_defined"]['kosh_information']:
                     if att[-14:] == "_last_modified":  # We touched it
                         if att[-27:-14] == "___associated":
                             # ok it's an associated thing
                             uri = att[:-27]
                             if uri not in local["files"]:  # dissociated
                                 del db["files"][uri]
-                            elif att not in db["user_defined"]:  # newly associated
+                            elif att not in db["user_defined"]['kosh_information']:  # newly associated
                                 db["files"][uri] = local["files"][uri]
-                                db["user_defined"][att] = local["user_defined"][att]
-                            elif local["user_defined"][att] > db["user_defined"][att]:
+                                db["user_defined"]['kosh_information'][att] = \
+                                    local["user_defined"]['kosh_information'][att]
+                            elif local["user_defined"]['kosh_information'][att] > \
+                                    db["user_defined"]['kosh_information'][att]:
                                 # last changed locally
                                 db["files"][uri] = local["files"][uri]
-                                db["user_defined"][att] = local["user_defined"][att]
+                                db["user_defined"]['kosh_information'][att] = \
+                                    local["user_defined"]['kosh_information'][att]
                         else:
                             name = att[:-14]
                             if name not in local["data"]:  # we deleted it
                                 if name in db["data"]:
                                     del db["data"][name]
-                            elif local["user_defined"][att] > db["user_defined"][att]:
+                            elif local["user_defined"]['kosh_information'][att] > \
+                                    db["user_defined"]['kosh_information'][att]:
                                 db["data"][name] = local["data"][name]
-                                db["user_defined"][att] = local["user_defined"][att]
+                                db["user_defined"]['kosh_information'][att] = \
+                                    local["user_defined"]['kosh_information'][att]
                 if db is not None:
                     update_records.append(db)
                 else:  # db did not have that key and returned None (no error)
@@ -1164,7 +1175,7 @@ class KoshStore(object):
         if username not in users:
             # Create user
             uid = hashlib.md5(username.encode()).hexdigest()
-            user = Record(id=uid, type=self._users_type)
+            user = Record(id=uid, type=self._users_type, user_defined={'kosh_information': {}})
             user.add_data("username", username)
             self.__record_handler__.insert(user)
             self.add_user_to_group(username, groups)
@@ -1195,7 +1206,7 @@ class KoshStore(object):
 
         # Create group
         uid = uuid.uuid4().hex
-        group_rec = Record(id=uid, type=self._groups_type)
+        group_rec = Record(id=uid, type=self._groups_type, user_defined={'kosh_information': {}})
         group_rec.add_data("name", group)
         self.__record_handler__.insert(group_rec)
 
@@ -1363,6 +1374,9 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            if 'user_defined' not in record.keys():
+                record["user_defined"] = {}
+            record["user_defined"]['kosh_information'] = {}
             for section in skip_sina_record_sections:
                 record[section] = {}
             data = record["data"]
