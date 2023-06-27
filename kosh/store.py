@@ -725,7 +725,7 @@ class KoshStore(object):
         """
         return self.find(types=self._ensembles_type, *atts, **keys)
 
-    def find(self, *atts, **keys):
+    def find(self, load_type='dataset', *atts, **keys):
         """Find objects matching some metadata in the store
         and its associated stores.
 
@@ -741,6 +741,10 @@ class KoshStore(object):
         "types" let you search over specific sina record types only.
         "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
 
+        :param load_type: How the dataset is returned ('dataset' for Kosh Dataset,
+            'record' for Sina Record, 'dictionary' for Dictonary).
+            Used for faster load times, defaults to 'dataset'
+        :type load_type: str, optional
         :return: generator of matching objects in store
         :rtype: generator
         """
@@ -752,6 +756,11 @@ class KoshStore(object):
                 ids_to_add = [id for id in keys['id_pool']]
         else:
             ids_to_add = []
+
+        # If no *atts are passed, just a single value, load_type gets overwritten
+        if load_type not in ('dataset', 'record', 'dictionary'):
+            atts = atts + (load_type,)
+            load_type = 'dataset'
 
         atts_to_remove = []
         for attr in atts:
@@ -767,7 +776,7 @@ class KoshStore(object):
         if 'id_pool' in keys or ids_to_add:  # Create key if doesn't exist
             keys['id_pool'] = [*set(ids_to_add)]
 
-        for result in self._find(*atts, **keys):
+        for result in self._find(load_type, *atts, **keys):
             yield result
 
         searched_stores = [self.db_uri]
@@ -792,7 +801,7 @@ class KoshStore(object):
                 if id_ in store.searched_stores:
                     store.searched_stores.remove(id_)
 
-    def _find(self, *atts, **keys):
+    def _find(self, load_type='dataset', *atts, **keys):
         """Find objects matching some metadata in the store
         arguments are the metadata name we are looking for e.g
         find("attr1", "attr2")
@@ -805,6 +814,10 @@ class KoshStore(object):
                    with the given "uri", e.g store.find(file_uri=uri)
         "types" let you search over specific sina record types only.
 
+        :param load_type: How the dataset is returned ('datset' for Kosh Dataset,
+            'record' for Sina Record, 'dictionary' for Dictonary).
+            Used for faster load times, defaults to 'dataset'
+        :type load_type: str, optional
         :return: generator of matching objects in store
         :rtype: generator
         """
@@ -913,10 +926,15 @@ class KoshStore(object):
             if ids_only:
                 yield rec_id
             else:
-                try:
-                    yield self.open(rec_id)
-                except Exception:
+                if load_type == 'dataset':
+                    try:
+                        yield self.open(rec_id)
+                    except Exception:
+                        yield self._load(rec_id)
+                elif load_type == 'record':
                     yield self._load(rec_id)
+                elif load_type == 'dictionary':
+                    yield self.__record_handler__.get(rec_id).__dict__['raw']
 
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
