@@ -1,4 +1,4 @@
-#!/bin/sh sbang
+#!/bin/bash sbang
 #!/usr/bin/env python
 # This implements Kosh's CLI
 from __future__ import print_function
