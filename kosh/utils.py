@@ -10,6 +10,7 @@ from .wrapper import KoshScriptWrapper  # noqa
 import warnings
 from sina.model import Record
 from kosh.exec_graphs import find_network_ends, populate
+import pickle
 try:
     import orjson
 except ImportError:
@@ -20,6 +21,40 @@ try:
     default_nx_layout = nx.planar_layout
 except AttributeError:  # planar is available from nx version 2.5
     default_nx_layout = nx.circular_layout
+
+
+class KoshPickler(object):
+    def __init__(self, encode_types=["windows-1252", "latin1"]):
+        self.encode_types = encode_types
+
+    def dumps(self, data):
+        success = False
+        for encode_type in self.encode_types:
+            try:
+                encoded = pickle.dumps(data).decode(encode_type)
+                self.loads(encoded)
+                success = True
+                break
+            except Exception:
+                pass
+        if success:
+            return encoded
+        else:
+            raise RuntimeError("Could not pickle")
+
+    def loads(self, data):
+        success = False
+        for encode_type in self.encode_types:
+            try:
+                loaded = pickle.loads(data.encode(encode_type))
+                success = True
+                break
+            except Exception:
+                pass
+        if success:
+            return loaded
+        else:
+            raise RuntimeError("Could not load pickled")
 
 
 def find_curveset_and_curve_name(name, rec):

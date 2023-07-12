@@ -11,7 +11,6 @@ if not sys.platform.startswith("win"):
 import hashlib
 import warnings
 import time
-import pickle
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
 from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
@@ -19,7 +18,7 @@ from .loaders import NpyLoader
 from .loaders import NumpyTxtLoader
 from .dataset import KoshDataset
 from .ensemble import KoshEnsemble
-from .core_sina import KoshSinaFile, KoshSinaObject
+from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
 from .utils import create_kosh_users
 from .utils import update_store_and_get_info_record
 from sina.datastore import connect as sina_connect
@@ -261,8 +260,7 @@ class KoshStore(object):
 
         # Now let's add the loaders in the store
         for rec_loader in self.__record_handler__.find_with_type("koshloader"):
-            pickled_code = rec_loader.data["code"]["value"].encode("latin1")
-            loader = pickle.loads(pickled_code)
+            loader = kosh_pickler.loads(rec_loader.data["code"]["value"])
             self.add_loader(loader)
         self._added_unsync_mem_store = sina_connect(None)
         self._cached_loaders = {}
@@ -319,7 +317,7 @@ class KoshStore(object):
                     self.loaders[k].remove(loader)
 
         if permanently:  # Remove it from saved in db as well
-            pickled = pickle.dumps(loader).decode("latin1")
+            pickled = kosh_pickler.dumps(loader)
             rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
             if rec is not None:
                 self.lock()
@@ -412,7 +410,7 @@ class KoshStore(object):
         :type loader: KoshLoader
         """
 
-        pickled = pickle.dumps(loader).decode("latin1")
+        pickled = kosh_pickler.dumps(loader)
         rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
         if rec is not None:
             # already in store
