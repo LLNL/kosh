@@ -4,7 +4,10 @@ import time
 from .schema import KoshSchema
 from sina.model import Record
 from sina import get_version
-import pickle
+from .utils import KoshPickler
+
+
+kosh_pickler = KoshPickler()
 
 
 sina_version = float(".".join(get_version().split(".")[:2]))
@@ -138,8 +141,7 @@ class KoshSinaObject(object):
         elif name == "schema":
             if self.__dict__[
                     "__schema__"] is None and "schema" in record["data"]:
-                schema = pickle.loads(
-                    record["data"]["schema"]["value"].encode("latin1"))
+                schema = kosh_pickler.loads(record["data"]["schema"]["value"])
                 self.__dict__["__schema__"] = schema
             return self.__dict__["__schema__"]
         if name not in record["data"]:
@@ -283,7 +285,7 @@ class KoshSinaObject(object):
         record["user_defined"]['kosh_information'][last_modif_att] = now
         if name == "schema":
             self.__dict__["__schema__"] = value
-            value = pickle.dumps(value).decode("latin1")
+            value = kosh_pickler.dumps(value)
         record["data"][name] = {"value": value}
         if update_db and self.__store__.__sync__:
             self._update_record(record)
