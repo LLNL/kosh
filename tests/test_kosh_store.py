@@ -7,6 +7,12 @@ from koshbase import KoshTest
 
 
 class KoshTestStore(KoshTest):
+    def test_disable_lock_file(self):
+        with self.assertWarns(ResourceWarning):
+            kosh.connect("mysql+mysqlconnector://cz-kosh-testkoshdb.apps.czapps.llnl.gov"
+                         + f":30637/?read_default_file={os.path.expanduser('~/.my.kosh.testdb.cnf')}",
+                         use_lock_file=True)
+
     def test_connect_base_function(self):
         s, kosh_test_sql_file = self.connect()
         s.close()

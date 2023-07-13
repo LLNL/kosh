@@ -18,8 +18,7 @@ def create_dataset(datastore, num):
     for i in range(num):
         datastore.create(i)
         dataset = list(datastore.search(name=i))[0]
-        for attribute in metadata:
-            setattr(dataset, attribute, metadata[attribute])
+        dataset.update(metadata)
 
     return datastore
 
@@ -30,22 +29,22 @@ class TestKoshFastLoad(koshbase.KoshTest):
         store, kosh_db = self.connect()
 
         start = datetime.now()
-        store = create_dataset(store, 1024)
+        store = create_dataset(store, 64)
         create_time = datetime.now()-start
 
         start = datetime.now()
         for dataset in store.find():
-            print(dataset.param1)
+            dataset.param1
         dataset_time = datetime.now()-start
 
         start = datetime.now()
         for dataset in store.find(load_type='record'):
-            print(dataset.param1)
+            dataset.param1
         record_time = datetime.now()-start
 
         start = datetime.now()
         for dataset in store.find(load_type='dictionary'):
-            print(dataset['data']['param1'])
+            dataset['data']['param1']
         dictionary_time = datetime.now()-start
 
         print('\nCreate: ', create_time,)
