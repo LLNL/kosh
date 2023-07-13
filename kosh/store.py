@@ -145,6 +145,9 @@ class KoshStore(object):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
+        if "://" in db_uri and use_lock_file:
+            warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
+            use_lock_file = False
         self.use_lock_file = use_lock_file
         self.loaders = {}
         self.storeLoader = KoshLoader
@@ -337,7 +340,7 @@ class KoshStore(object):
 
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
-        if not self.use_lock_file:
+        if not self.use_lock_file or "://" in self.db_uri:
             return
         locked = False
         while not locked:
@@ -350,7 +353,7 @@ class KoshStore(object):
 
     def unlock(self):
         """Unlocks the store so other can access it"""
-        if not self.use_lock_file:
+        if not self.use_lock_file or "://" in self.db_uri:
             return
         fcntl.lockf(self.lock_file, fcntl.LOCK_UN)
         self.lock_file.close()
@@ -364,7 +367,7 @@ class KoshStore(object):
 
     def __del__(self):
         """delete the KoshStore object"""
-        if not self.use_lock_file:
+        if not self.use_lock_file or "://" in self.db_uri:
             return
         name = self.lock_file.name
         self.lock_file.close()
