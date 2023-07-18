@@ -227,9 +227,16 @@ class KoshSinaObject(object):
             for relationship in relationships:
                 ensemble = self.__store__.open(relationship.object_id)
                 if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
-                    raise KeyError(
-                        "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
-                            name, relationship.object_id))
+                    if value != getattr(ensemble, name):
+                        raise KeyError(
+                            "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
+                                name, relationship.object_id))
+                    else:
+                        warnings.warn(
+                            "The attribute {} is controlled by ensemble: {}"
+                            ". You should NOT set this attribute at the dataset level"
+                            ". Values match so we will accept it here".format(
+                                name, relationship.object_id), UserWarning)
 
         # For Ensembles we need to set it on all members
         from kosh.ensemble import KoshEnsemble

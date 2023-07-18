@@ -4,6 +4,22 @@ from koshbase import KoshTest
 
 
 class KoshTestEnsembles(KoshTest):
+    def test_create_dataset_with_ensemble_attributes(self):
+        store, db = self.connect()
+        e = store.create_ensemble()
+        e.root = "foo"
+        with self.assertRaises(ValueError):
+            e.create(metadata={"root": "foo2"})
+        with self.assertWarns(UserWarning):
+            ds = e.create(metadata={"root": "foo"})
+        self.assertEqual(ds.root, "foo")
+        with self.assertRaises(KeyError):
+            ds.root = "bar"
+        self.assertEqual(ds.root, "foo")
+        with self.assertWarns(UserWarning):
+            ds.root = "foo"
+        self.assertEqual(ds.root, "foo")
+
     def test_create_and_print(self):
         store, db = self.connect()
         e1 = store.create_ensemble()
