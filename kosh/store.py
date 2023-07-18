@@ -26,6 +26,8 @@ from inspect import isfunction, ismethod
 import kosh
 import six
 import types
+import sys
+from .kosh_command import KoshCmd
 
 try:
     from .loaders import HDF5Loader
@@ -1748,3 +1750,213 @@ class KoshStore(object):
                 yield store.db_uri
             else:
                 yield store
+
+    def _cli_list_creator(self, arg, var, cmmd, path=""):
+        """Creates a list of arg and var pairs for the cmmd passed to kosh_command.py
+
+        :param arg: The argparse argument to use
+        :type arg: str
+        :param var: The variable that goes along with the argparse argument
+        :type var: str
+        :param cmmd: The command list to append to
+        :type cmmd: list
+        :param path: Path that will be combined with var, defaults to ""
+        :type path: str, optional
+        :return: The appended command list
+        :rtype: list
+        """
+
+        if isinstance(var, str):
+            var = f"{arg} " + os.path.join(path, var)
+        elif isinstance(var, list):
+            if len(var) == 1:
+                var = f"{arg} " + os.path.join(path, var[0])
+            else:
+                for i, v in enumerate(var):
+                    var[i] = os.path.join(path, v)
+                var = f"{arg} " + f" {arg} ".join(var)
+        var = var.split()
+
+        cmmd = cmmd + var
+
+        return cmmd
+
+    def _mv_cp(self, src, dst, mv_cp,
+               stores, destination_stores, dataset_record_type,
+               dataset_matching_attributes, version, merge_strategy):
+        """Creates the cmmd for mv and cp passed to kosh_command.py
+
+        :param src: The source of files or directories to mv or cp
+        :type src: Union[str, list]
+        :param dst: The destination of files or directories to mv or cp
+        :type dst: str
+        :param mv_cp: Move or copy files or directories
+        :type mv_cp: str
+        :param stores: Kosh stores to associate the mv or cp???
+        :type stores: Union[kosh.dataset.KoshDataset, list]
+        :param destination_stores: Kosh stores to associate the mv or cp???
+        :type destination_stores: Union[kosh.dataset.KoshDataset, list]
+        :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset
+        :type dataset_record_type: str
+        :param dataset_matching_attributes: List of attributes used to identify if two datasets are identical
+        :type dataset_matching_attributes: list
+        :param version: Print version and exit
+        :type version: bool
+        :param merge_strategy: When importing dataset, how do we handle conflict
+        :type merge_strategy: str
+        """
+
+        # --stores
+        cmmd = ["--stores",  self.db_uri]
+
+        if stores:
+            if isinstance(stores, list):
+                for i, store in enumerate(stores):
+                    stores[i] = store.db_uri
+            else:
+                stores = stores.db_uri
+            cmmd = self._cli_list_creator("--stores", stores, cmmd, os.getcwd())
+
+        # --destination_stores
+        if destination_stores:
+            if isinstance(destination_stores, list):
+                for i, destination_store in enumerate(destination_stores):
+                    destination_stores[i] = destination_store.db_uri
+            else:
+                destination_stores = destination_stores.db_uri
+            cmmd = self._cli_list_creator("--destination_stores", destination_stores, cmmd, os.getcwd())
+
+        # --sources
+        cmmd = self._cli_list_creator("--sources", src, cmmd, os.getcwd())
+
+        # --dataset_record_type
+        cmmd.extend(["--dataset_record_type", dataset_record_type])
+
+        # --dataset_matching_attributes
+        cmmd.extend(["--dataset_matching_attributes", f"{dataset_matching_attributes}"])
+
+        # --destination
+        cmmd.extend(["--destination", dst])
+
+        # --version
+        if version:
+            cmmd.extend(["--version"])
+
+        # --merge_strategy
+        cmmd.extend(["--merge_strategy", merge_strategy])
+
+        KoshCmd._mv_cp_(self, mv_cp, store_args=cmmd)
+
+    def mv(self, src, dst, stores=[],
+           destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
+           version=False, merge_strategy="conservative"):
+        """Moves files or directories
+
+        :param src: The source of files or directories to mv or cp
+        :type src: Union[str, list]
+        :param dst: The destination of files or directories to mv or cp
+        :type dst: str
+        :param stores: Kosh stores to associate the mv or cp???, defaults to []
+        :type stores: Union[kosh.dataset.KoshDataset, list], optional
+        :param destination_stores: Kosh stores to associate the mv or cp???, defaults to []
+        :type destination_stores: Union[kosh.dataset.KoshDataset, list], optional
+        :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset, defaults to "dataset"
+        :type dataset_record_type: str, optional
+        :param dataset_matching_attributes: List of attributes used to identify if two datasets are identical,
+            defaults to ["name", ]
+        :type dataset_matching_attributes: list, optional
+        :param version: Print version and exit, defaults to False
+        :type version: bool, optional
+        :param merge_strategy: When importing dataset, how do we handle conflict, defaults to "conservative"
+        :type merge_strategy: str, optional
+        """
+
+        self._mv_cp(src, dst, "mv", stores, destination_stores, dataset_record_type,
+                    dataset_matching_attributes, version, merge_strategy)
+
+    def cp(self, src, dst, stores=[],
+           destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
+           version=False, merge_strategy="conservative"):
+        """Copies files or directories
+
+        :param src: The source of files or directories to mv or cp
+        :type src: Union[str, list]
+        :param dst: The destination of files or directories to mv or cp
+        :type dst: str
+        :param stores: Kosh stores to associate the mv or cp???, defaults to []
+        :type stores: Union[kosh.dataset.KoshDataset, list], optional
+        :param destination_stores: Kosh stores to associate the mv or cp???, defaults to []
+        :type destination_stores: Union[kosh.dataset.KoshDataset, list], optional
+        :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset, defaults to "dataset"
+        :type dataset_record_type: str, optional
+        :param dataset_matching_attributes: List of attributes used to identify if two datasets are identical,
+            defaults to ["name", ]
+        :type dataset_matching_attributes: list, optional
+        :param version: Print version and exit, defaults to False
+        :type version: bool, optional
+        :param merge_strategy: When importing dataset, how do we handle conflict, defaults to "conservative"
+        :type merge_strategy: str, optional
+        """
+
+        self._mv_cp(src, dst, "cp", stores, destination_stores, dataset_record_type,
+                    dataset_matching_attributes, version, merge_strategy)
+
+    def tar(self, tar_file, tar_opts, src="", tar_type="tar",
+            stores=[], dataset_record_type="dataset", no_absolute_path=False,
+            dataset_matching_attributes=["name", ], merge_strategy="conservative"):
+        """Creates or extracts a tar file
+
+        :param tar_file: The name of the tar file
+        :type tar_file: str
+        :param tar_opts: Extra arguments such as -c to create and -x to extract
+        :type tar_opts: str
+        :param src: List of files or directories to tar
+        :type src: list, optional
+        :param tar_type: Type of tar file including htar, defaults to "tar"
+        :type tar_type: str, optional
+        :param stores: Kosh store(s) to use, defaults to []
+        :type stores: list, optional
+        :param dataset_record_type: Record type used by Kosh when adding
+            datasets to Sina database, defaults to "dataset"
+        :type dataset_record_type: str, optional
+        :param no_absolute_path: Do not use absolute path when searching stores, defaults to False
+        :type no_absolute_path: bool, optional
+        :param dataset_matching_attributes: List of attributes used to identify if two datasets
+            are identical, defaults to ["name", ]
+        :type dataset_matching_attributes: list, optional
+        :param merge_strategy: When importing dataset, how do we handle conflict, defaults to "conservative"
+        :type merge_strategy: str, optional
+        """
+
+        # Options includes src
+        opts = tar_opts.split()
+        opts.extend(src)
+
+        # --stores
+        cmmd = ["--stores",  self.db_uri]
+
+        if stores:
+            if isinstance(stores, list):
+                for i, store in enumerate(stores):
+                    stores[i] = store.db_uri
+            else:
+                stores = stores.db_uri
+            cmmd = self._cli_list_creator("--stores", stores, cmmd, os.getcwd())
+
+        # --dataset_record_type
+        cmmd.extend(["--dataset_record_type", dataset_record_type])
+
+        # --file
+        cmmd.extend(["--file",  tar_file])
+
+        # --no_absolute_path
+        if no_absolute_path:
+            cmmd.extend(["--no_absolute_path"])
+
+        # --dataset_matching_attributes
+        cmmd.extend(["--dataset_matching_attributes", f"{dataset_matching_attributes}"])
+
+        # --merge_strategy
+        cmmd.extend(["--merge_strategy", merge_strategy])
+
+        KoshCmd._tar(self, tar_type, store_args=cmmd, opts=opts)

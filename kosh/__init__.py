@@ -13,6 +13,7 @@ from .transformers import typed_transformer, numpy_transformer, typed_transforme
 from .transformers import KoshTransformer  # noqa
 from .operators import KoshOperator  # noqa
 from .operators import typed_operator_with_kwargs, typed_operator, numpy_operator  # noqa
+from .kosh_command import KoshCmd  # noqa
 
 try:
     d = pkg_resources.get_distribution("kosh")
