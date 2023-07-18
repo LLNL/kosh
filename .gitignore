@@ -1,0 +1,6 @@
+__pycache__/
+*.egg-info/
+kosh_test_*.sql
+kosh_random_npy_*.npy
+data_*.h5
+*_new_name*.py

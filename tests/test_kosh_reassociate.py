@@ -25,7 +25,7 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
         python_pth = os.path.join(sys.prefix, "python")
     else:
         python_pth = os.path.join(sys.prefix, "bin", "python")
-    cmd_pth = os.path.join("scripts", "kosh_command.py")
+    cmd_pth = os.path.join("kosh", "kosh_command.py")
     cmd = "{} {} reassociate --dataset_record_type=blah ".format(
         python_pth, cmd_pth)
     for store in store_sources:

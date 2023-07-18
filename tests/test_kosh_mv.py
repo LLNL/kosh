@@ -14,7 +14,7 @@ def create_file(filename):
 
 
 def run_mv(sources, dest, store_sources, store_destinations=None, verbose=False):
-    cmd = "python scripts/kosh_command.py mv --dataset_record_type=blah "
+    cmd = "python kosh/kosh_command.py mv --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
     if store_destinations is not None:
