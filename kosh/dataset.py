@@ -556,30 +556,7 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
-        # First let's convert to abs path if necessary
-        if absolute_path:
-            if os.path.exists(target):
-                target = os.path.abspath(target)
-            if source is not None and os.path.exists(source):
-                source = os.path.abspath(source)
-
-        # Now, did we pass a source for uri to replace?
-        if source is None:
-            source = compute_fast_sha(target)
-
-        # Ok now let's get all associated uri that match
-        # Fist assuming it's a fast_sha
-        matches = list(self.find(fast_sha=source, ids_only=True))
-        # Now it could be simply a uri
-        matches += list(self.find(uri=source, ids_only=True))
-
-        # And it's quite possible it's a long_sha too
-        matches += list(self.find(long_sha=source, ids_only=True))
-
-        # And now let's do the work
-        for match_id in matches:
-            match = self.__store__._load(match_id)
-            match.uri = target
+        self.__store__.reassociate(target, source=source, absolute_path=absolute_path)
 
     def validate(self):
         """If dataset has a schema then make sure all attributes pass the schema"""

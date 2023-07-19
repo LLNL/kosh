@@ -1604,6 +1604,16 @@ class KoshStore(object):
         for match_id in matches:
             try:
                 match = self._load(match_id)
+                for associated_id in match.associated:
+                    associated = self.open(associated_id)
+                    associated_record = associated.get_record()
+                    raw_associated_record = associated_record.raw
+                    raw_associated_record["files"][target] = raw_associated_record["files"][match.uri]
+                    del raw_associated_record["files"][match.uri]
+                    if self.sync:
+                        associated._update_record(associated_record)
+                    else:
+                        associated._update_record(associated_record, self._added_unsync_mem_store)
                 match.uri = target
             except Exception:
                 pass
