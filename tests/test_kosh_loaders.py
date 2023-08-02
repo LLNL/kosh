@@ -448,16 +448,12 @@ class KoshTestLoaders(KoshTest):
             self.assertTrue(z > i)
 
     def test_loaders_mariadb(self):
-
-        store, db_uri = self.connect(db_uri="mysql+mysqlconnector://cz-kosh-testkoshdb.apps.czapps.llnl.gov"
-                                     + f":30637/?read_default_file={os.path.expanduser('~/.my.kosh.testdb.cnf')}",
-                                     delete_all_contents=True)
+        store, db_uri = self.connect(self.mariadb, delete_all_contents=True)
         store.add_loader(FooLoader, save=True)
         store.close()
         store = kosh.connect(db_uri)
         store.delete_loader(FooLoader)
         store.close()
-        print("DONE")
 
     def test_loaders_added_once_only(self):
         store, db_uri = self.connect()

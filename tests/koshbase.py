@@ -13,6 +13,11 @@ for name in ["sina.datastores.sql", "sina.model", "sina.utils", "sina.dao",
 
 
 class KoshTest(unittest.TestCase):
+    dbname = os.environ.get("KOSH_TEST_MARIADB", "cz-kosh-testkoshdb.apps.czapps.llnl.gov:30637")
+    dbcnf = os.environ.get("KOSH_TEST_MARIACNF", '~/.my.kosh.testdb.cnf')
+    dbcnf = os.path.expanduser(dbcnf)
+    mariadb = f"mysql+mysqlconnector://{dbname}/?read_default_file={dbcnf}"
+
     def connect(self, db_uri=None, sync=True,
                 dataset_record_type="blah",
                 delete_all_contents=False):
