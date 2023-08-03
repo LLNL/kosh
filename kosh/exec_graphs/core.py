@@ -411,7 +411,7 @@ class KoshExecutionGraph(object):
                     if new_keys is None:
                         res = getattr(node[1], "index_results", {}).get(input_index, None)
                         do_res = False
-                elif type(self) == kosh.exec_graphs.core.KoshExecutionGraph or node == end[0]:
+                elif type(self) is kosh.exec_graphs.core.KoshExecutionGraph or node == end[0]:
                     new_keys = False
                     kargs2["__getitem_key__"] = getitem_key
                 else:
