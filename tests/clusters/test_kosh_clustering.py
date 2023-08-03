@@ -147,7 +147,7 @@ class KoshTestClusters(KoshTest):
                                      min_cluster_size=2, output="samples")[:]
         samp = data_subsample[0]
 
-        assert (samp.shape[0] <= Nsamples)
+        self.assertLessEqual(samp.shape[0], Nsamples)
 
         # Cleanup
         os.remove(fileName)
@@ -406,6 +406,7 @@ class KoshTestClusters(KoshTest):
         else:
             self.assertIsNone(samp)
 
+        comm.Barrier()
         if rank == 0:
             # Cleanup
             os.remove(fileName)
@@ -455,10 +456,11 @@ class KoshTestClusters(KoshTest):
                                      batch=True, batch_size=3000)[:]
 
         if rank == 1:
-            assert type(data_subsample[0]) == np.ndarray
+            self.assertIsInstance(data_subsample[0], np.ndarray)
         else:
-            assert data_subsample is None
+            self.assertIsNone(data_subsample, None)
 
+        comm.Barrier()
         # Cleanup
         if rank == 0:
             os.remove(fileName)
