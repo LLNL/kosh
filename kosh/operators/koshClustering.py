@@ -98,7 +98,7 @@ class KoshCluster(KoshOperator):
                 print("Switching to serial clustering.")
                 print("Idling all non-primary processors.")
             if self.rank != self.primary:
-                return None
+                return [None, ]
 
         if not self.autoEPS:
             # Standard calls to operator just calls either option
@@ -122,7 +122,7 @@ class KoshCluster(KoshOperator):
             r_data = [data, epsActual]
             # When data is None return None instead of list
             if data is None:
-                return None
+                return [None, ]
 
         return r_data
 
