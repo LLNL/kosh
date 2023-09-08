@@ -458,7 +458,7 @@ class KoshTestClusters(KoshTest):
         if rank == 1:
             self.assertIsInstance(data_subsample[0], np.ndarray)
         else:
-            self.assertIsNone(data_subsample, None)
+            self.assertIsNone(data_subsample[0], None)
 
         comm.Barrier()
         # Cleanup
