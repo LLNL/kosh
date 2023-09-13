@@ -1,4 +1,4 @@
-# Welcome to the Kosh test suite
+# Instructions for LC users
 
 ## To run the Kosh CI follow these steps:
 
