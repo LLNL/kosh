@@ -13,17 +13,21 @@ There are two tests that require connection to a MariaDB server: test_loaders_ma
 
 https://mariadb.com/downloads/community/
 
-Name the file ".my.kosh.testdb.cnf"
+The MariaDB URI can be controlled via env variable KOSH_TEST_MARIADB and the location to the cnf file is controlled via the env variable KOSH_TEST_MARIACNF
 
-## Parallel and Serial Tests
-Some tests require more than one processor to run. 
-
-To run parallel tets you need at least 4 processors. 
+## Running parallel and serial tests locally
+Some tests will fail if not run with adequate resources.
 ~~~
 srun -n4 -p pdebug pytest --with-mpi tests/clusters/test_kosh_cluster*.py
 ~~~
 
-The rest of the tests can be run with this command:
+The rest of the tests can be run with these commands:
 ~~~
-pytest tests/test_kosh*py
+pytest tests/clusters/test_kosh_cluster*.py
+~~~
+~~~
+pytest -s --cov=kosh tests/non_parallel/test_kosh_*.py
+~~~
+~~~
+pytest --cov=kosh --cov-append -n 16 tests/test_kosh_*.py
 ~~~

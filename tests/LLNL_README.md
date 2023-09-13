@@ -24,9 +24,12 @@ Create a new SSH RSA key titled "gitlab"
 https://hpc.llnl.gov/cloud/services/GitLab/create-ssh-keys/
 
 ## MariaDB Server Tests
-There are two tests that require connection to a MariaDB server. You can request the file from a Kosh developer. doutriaux1@llnl.gov, muryanto1@llnl.gov, moreno45@llnl.gov, olson59@llnl.gov
+There are two tests that require connection to a MariaDB server: test_loaders_mariadb and test_disable_lock_file. 
 
-Save the file as ".my.kosh.testdb.cnf" in your home directory.
+LaunchIT provides an easy way to create a MariaDB workspace.
+https://hpc.llnl.gov/cloud/services/LaunchIT/
+
+The MariaDB URI in Kosh can be controlled via env variable KOSH_TEST_MARIADB and the location to the cnf file is controlled via the env variable KOSH_TEST_MARIACNF.
 
 ## Run test locally on all nodes
 Repeatedly ssh into all the nodes possible. For example, "Runner: #254 (f42dVtUo_) ruby967-shell"
