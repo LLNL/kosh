@@ -404,9 +404,10 @@ class Cluster(object):
         :param batch_size: Number of samples for each batch. It
         will be adjusted to produce evenly sized batches.
         :type batch_size: int
-        :param convergence_num: Converged if the data size is the
-        same for 'num' iterations. The default is 2.
-        :type convergence_num: int
+        :param convergence_num: If int, converged after the data size is the same for
+        'num' iterations. The default is 2. If float, converged after the change in data
+        size is less than convergence_num*100 percent of the original data size.
+        :type convergence_num: int or float between 0 and 1
         :param output: Returns the subsamples as pandas dataframe
         ('samples') or as 'indices' in numpy array.
         :type format: string
@@ -445,7 +446,23 @@ class Cluster(object):
         new_n = batch_data.shape[0]
         is_converged = False
 
-        data_size = [new_n] * convergence_num
+        # Verify convergence_num
+        msg = f"convergence_num should be an int > 0 or "
+        msg += f"a float between 0 and 1."
+
+        convergence_int = False
+        if is_instance(convergence_num, int):
+            convergence_int = True
+            assert convergence_num > 0, msg
+        elif is_instance(convergence_num, float):
+            assert convergence_num > 0. and convergence_num < 1., msg
+        else:
+            raise TypeError("convergence_num should be an int or float") 
+
+        if convergence_int:
+            data_size = [new_n] * convergence_num
+        else:
+            data_size = [new_n] * 2
         # This batching loop will continue until sample size is small enough to
         # cluster all together or sample size has converged.
         total_loss = 0
@@ -520,8 +537,11 @@ class Cluster(object):
 
             # Check convergence
             data_size.append(len(clusteredDataArrs))
-            last_num = list(data_size[-convergence_num:])
-            is_converged = len(set(last_num)) == 1
+            if convergence_int:
+                last_num = list(data_size[-convergence_num:])
+                is_converged = len(set(last_num)) == 1
+            else:
+                is_converged = abs(data_size[-1]-data_size[-2]) < data_size[0] * convergence_num
 
         final_result = data_pd
         self.loss_estimate = total_loss
@@ -1007,7 +1027,14 @@ def makeBatchClusterParallel(data,
 
     is_converged = False
 
-    data_size = [total_data_size]
+    # Check convergence_num type
+    if is_instance(convergence_num, int):
+        convergence_int = True
+
+    if convergence_int:
+        data_size = [total_data_size] * convergence_num
+    else:
+        data_size = [total_data_size] * 2
     total_loss = 0
     while not is_converged:
 
@@ -1036,8 +1063,11 @@ def makeBatchClusterParallel(data,
             print("Data size: %s" % total_subsamples)
 
         # Check convergence
-        last_n = data_size[-convergence_num:]
-        is_converged = len(set(last_n)) == 1
+        if convergence_int:
+            last_n = data_size[-convergence_num:]
+            is_converged = len(set(last_n)) == 1
+        else:
+            is_converged = abs(data_size[-1]-data_size[-2]) < data_size[0] * convergence_num
 
         if (is_converged):
             retained = data[np.array(subset_indices), :]

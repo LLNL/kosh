@@ -176,9 +176,10 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     :param gather_to: Which process to gather data to if samples are
     smaller than number of processes or batch size.
     type gather_to: int
-    :param convergence_num: Converged if the data size is the same for
-    'num' iterations. The default is 2.
-    :type convergence_num: int
+    :param convergence_num: If int, converged after the data size is the same for
+    'num' iterations. The default is 2. If float, converged after the change in data
+    size is less than convergence_num*100 percent of the original data size.
+    :type convergence_num: int or float between 0 and 1
     :param core_sample: Whether to retain a sample from the center of
     the cluster (core sample), or a randomly chosen sample.
     :type core_sample: bool
@@ -294,9 +295,10 @@ def _koshSerialClustering_(inputs, options):
     :type batch: bool
     :param batch_size: Size of the batches
     :type batch_size: int
-    :param convergence_num: Converged if the data size is the same
-    for 'num' iterations. The default is 2.
-    :type convergence_num: int
+    :param convergence_num: If int, converged after the data size is the same for
+    'num' iterations. The default is 2. If float, converged after the change in data
+    size is less than convergence_num*100 percent of the original data size.
+    :type convergence_num: int or float between 0 and 1
     :param eps: The distance around a sample that defines its
     neighbors. (Only for DBSCAN)
     :type eps: float
