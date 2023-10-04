@@ -631,7 +631,7 @@ Available commands are:
                     recs = store.get_sina_records()
                     file_type = recs.get("__kosh_store_info__")["data"]["sources_type"]["value"]
                     store_ds = [x["data"]["associated"]["value"] for x in recs.find(
-                        data={"uri": filename}, types=[file_type,])]
+                        data={"uri": filename}, types=[file_type, ])]
                     for ds in store_ds:
                         store_datasets[store.db_uri] += ds
 

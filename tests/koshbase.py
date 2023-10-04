@@ -20,13 +20,13 @@ class KoshTest(unittest.TestCase):
 
     def connect(self, db_uri=None, sync=True,
                 dataset_record_type="blah",
-                delete_all_contents=False):
+                delete_all_contents=False, **kwargs):
         if db_uri is None:
             kosh_db = "kosh_test_{}.sql".format(uuid.uuid1().hex)
         else:
             kosh_db = db_uri
         # os.getlogin does not work on my WSL
-        store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
+        store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False, **kwargs)
         if db_uri is None or delete_all_contents:
             store.delete_all_contents(force="SKIP PROMPT")
         return store, os.path.abspath(kosh_db) if "://" not in kosh_db else kosh_db
