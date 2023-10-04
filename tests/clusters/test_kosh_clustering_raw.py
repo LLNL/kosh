@@ -11,7 +11,7 @@ class ClusteringTest(TestCase):
         self.assertTrue(callable(Cluster))
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d(self):
+    def test_subsample_HAC(self):
 
         Nsamples = 100
         Ndims = 2
@@ -30,7 +30,7 @@ class ClusteringTest(TestCase):
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_DBSCAN(self):
+    def test_subsample_DBSCAN(self):
 
         Nsamples = 100
         Ndims = 2
@@ -49,7 +49,7 @@ class ClusteringTest(TestCase):
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
-    def test_subsample_rank3_DBSCAN(self):
+    def test_subsample_flatten_DBSCAN(self):
 
         Nsamples = 100
         Ndimsx = 2
@@ -70,7 +70,7 @@ class ClusteringTest(TestCase):
         self.assertEqual(data_sub.shape[1], total_features)
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_NHAC(self):
+    def test_subsample_NHAC(self):
 
         Nsamples = 100
         Ndims = 2
@@ -90,7 +90,7 @@ class ClusteringTest(TestCase):
         self.assertTrue((data_sub.shape[0] >= 28) & (data_sub.shape[0] <= 32))
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_NDBSCAN(self):
+    def test_subsample_NDBSCAN(self):
 
         Nsamples = 100
         Ndims = 2
@@ -147,7 +147,7 @@ class ClusteringTest(TestCase):
         self.assertEqual(len(results[0]), len(results[1]))
 
     @pytest.mark.mpi_skip
-    def test_batch_subsample_2d(self):
+    def test_batch_subsample(self):
 
         Nsamples = 2200
         Ndims = 2
@@ -165,6 +165,24 @@ class ClusteringTest(TestCase):
                                                verbose=False,
                                                eps=.003,
                                                output='indices')
+
+        self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
+
+    @pytest.mark.mpi_skip
+    def test_convergence_float(self):
+
+        Nsamples = 200
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        my_cluster = Cluster(dataT, method='DBSCAN')
+        data_sub = my_cluster.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
 
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 

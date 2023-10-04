@@ -451,10 +451,10 @@ class Cluster(object):
         msg += f"a float between 0 and 1."
 
         convergence_int = False
-        if is_instance(convergence_num, int):
+        if isinstance(convergence_num, int):
             convergence_int = True
             assert convergence_num > 0, msg
-        elif is_instance(convergence_num, float):
+        elif isinstance(convergence_num, float):
             assert convergence_num > 0. and convergence_num < 1., msg
         else:
             raise TypeError("convergence_num should be an int or float") 
@@ -557,8 +557,8 @@ class Cluster(object):
         else:
             return np.array(final_result['global_ind']).astype(int)
 
-    def subsample(self, distance_function='euclidean',
-                  output='samples', core_sample=True, n_jobs=1):
+    def subsample(self, distance_function='euclidean', output='samples', 
+                    core_sample=True, n_jobs=1):
         """Takes a sample from each cluster to form subsample of
         the entire dataset
 
@@ -584,7 +584,7 @@ class Cluster(object):
 
             if self.method == 'DBSCAN':
                 eps = self.eps
-            elif self.method == 'HAC':
+            if self.method == 'HAC':
                 eps = self.cutoff_distance
 
             # Counts for each cluster
@@ -609,13 +609,16 @@ class Cluster(object):
                         neighbors_model = NearestNeighbors(
                             radius=eps_c, algorithm='auto')
                         neighbors_model.fit(clust_data)
+                        # for each point, get an array of the points within eps_c 
                         neighborhoods = neighbors_model.radius_neighbors(
                             clust_data, return_distance=False)
                         n_neighbors = np.array(
                             [len(neighbors) for neighbors in neighborhoods])
-                        core_sample = n_neighbors.max()
+                        most_neighbors = n_neighbors.max()
+                        # the indices of all points with a neighborhood of size <most_neighbors>
                         core_sample_indices = np.where(
-                            n_neighbors == core_sample)[0]
+                            n_neighbors == most_neighbors)[0]
+                        # get the dataframe indices for the selected points
                         cs_global_index = clust_data.index[core_sample_indices]
                         max_neighbor_indices = np.append(
                             max_neighbor_indices, cs_global_index)
@@ -1028,7 +1031,7 @@ def makeBatchClusterParallel(data,
     is_converged = False
 
     # Check convergence_num type
-    if is_instance(convergence_num, int):
+    if isinstance(convergence_num, int):
         convergence_int = True
 
     if convergence_int:
