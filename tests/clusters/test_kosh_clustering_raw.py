@@ -1,6 +1,7 @@
 from kosh.sampling_methods.cluster_sampling import Cluster
 from kosh.sampling_methods.cluster_sampling.Clustering import makeBatchClusterParallel
 import numpy as np
+import time
 import pytest
 from unittest import TestCase
 
@@ -171,7 +172,7 @@ class ClusteringTest(TestCase):
     @pytest.mark.mpi_skip
     def test_convergence_float(self):
 
-        Nsamples = 200
+        Nsamples = 1000
         Ndims = 2
 
         data = np.random.random((Nsamples, Ndims))
@@ -181,10 +182,20 @@ class ClusteringTest(TestCase):
 
         dataT = np.concatenate((data, dataR), axis=0)
 
-        my_cluster = Cluster(dataT, method='DBSCAN')
-        data_sub = my_cluster.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
+        # Test convergence num as float is faster than int
+        t1_start = time.time()
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+        data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=30)
+        t1_stop = time.time()
+        t1 = t1_stop - t1_start
 
-        self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
+        t2_start = time.time()
+        my_cluster2 = Cluster(dataT, method='DBSCAN')
+        data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
+        t2_stop = time.time()
+        t2 = t2_stop - t2_start
+
+        self.assertLessEqual(t2, t1)
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
