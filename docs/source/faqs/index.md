@@ -245,3 +245,24 @@ export OMP_NUM_THREADS=1
 
 
 source: https://github.com/autogluon/autogluon/issues/1020
+
+## I am using MPI should I do anything special?
+
+In general we recommend making write operations on rank 0 only, especially when using sqlite as a backend.
+
+## What about MPI and mariadb?
+
+When opening a mariadb backend, in order to avoid sync error between ranks you should use:
+
+```python
+store = kosh.connect(mariadb, execution_options={"isolation_level": "READ COMMITTED"})
+```
+
+## I am using a mariadb backend and I want my attributes to be case sensitive
+
+You will need to fix your dtabase collate:
+
+```python
+store = kosh.connect(mariadb)
+store.get_sina_store()._dao_factory.session.execute("SET NAMES latin1 COLLATE latin1_general_ci")
+```
