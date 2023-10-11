@@ -133,7 +133,7 @@ Currently Kosh comes with the following loaders
      - conduit
 ```
 
-# What transformers come with Kosh by default?
+## What transformers come with Kosh by default?
 
 Currently Kosh provides the following transformers
 
@@ -212,7 +212,7 @@ Currently Kosh provides the following transformers
 ```
 
 
-# Cache vs Association?
+## Cache vs Association?
 
 Is it better to cache results from transformers or should I associate the results with the store?
 
