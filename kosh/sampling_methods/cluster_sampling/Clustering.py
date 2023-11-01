@@ -58,6 +58,9 @@ class Cluster(object):
             self.scaleData()
 
     def scaleData(self):
+        """
+        Scale or normalize data, or provide custom scaling function.
+        """
 
         if isinstance(self.scaling_function, type('')):
             if self.scaling_function == "standard":
@@ -283,16 +286,15 @@ class Cluster(object):
                          HAC_distance_scaling=1.0, HAC_distance_value=-1,
                          Nclusters=-1):
         """Clusters samples with scipy's hierarchical agglomerative
-        clustering and the Ward variance minimizing algorithm. The
-        flat clusters are created by a specified distance. Default
-        distance is the maximum distance between any two samples in
-        the dataset (self.default_distance), and you can adjust the
-        default distance with HAC_scaling_distance. Alternatively
-        you can define the distance yourself (HAC_distance_value),
-        or define the number of clusters (Nclusters). The cluster
-        labels are saved as the last column in a dataframe of the
-        original data. *This algorithm is not good for clustering
-        the same data more than once, or clustering in batches.
+        clustering and the Ward variance minimizing algorithm. The flat 
+        clusters are created by a specified distance. Default distance is 
+        the maximum distance between any two samples in the dataset 
+        (self.default_distance), and you can adjust the default distance 
+        with HAC_scaling_distance. Alternatively you can define the distance 
+        yourself (HAC_distance_value), or define the number of clusters 
+        (Nclusters). The cluster labels are saved as the last column in a 
+        dataframe of the original data. This algorithm is not consistent when 
+        clustering the same data more than once, or clustering in batches.
 
         :param distance_function: distance metric 'euclidean',
         'seuclidean', 'sqeuclidean', 'beuclidean', or user defined
@@ -404,10 +406,11 @@ class Cluster(object):
         :param batch_size: Number of samples for each batch. It
         will be adjusted to produce evenly sized batches.
         :type batch_size: int
-        :param convergence_num: If int, converged after the data size is the same for
-        'num' iterations. The default is 2. If float, converged after the change in data
-        size is less than convergence_num*100 percent of the original data size.
-        :type convergence_num: int or float between 0 and 1
+        :param convergence_num: If int, converged after the data size is the
+        same for 'num' iterations. The default is 2. If float, it's converged
+        after the change in data size is less than convergence_num*100 percent
+        of the original data size.
+        :type convergence_num: int >= 2 or float between 0. and 1.
         :param output: Returns the subsamples as pandas dataframe
         ('samples') or as 'indices' in numpy array.
         :type format: string
@@ -447,17 +450,17 @@ class Cluster(object):
         is_converged = False
 
         # Verify convergence_num
-        msg = f"convergence_num should be an int > 0 or "
-        msg += f"a float between 0 and 1."
+        msg = f"convergence_num should be an int >= 2, or a"
+        msg += f"float between 0. and 1."
 
         convergence_int = False
-        if isinstance(convergence_num, int):
+        if isinstance(convergence_num, int) or np.issubdtype(convergence_num, np.integer):
             convergence_int = True
-            assert convergence_num > 0, msg
+            assert convergence_num >= 2, msg
         elif isinstance(convergence_num, float):
             assert convergence_num > 0. and convergence_num < 1., msg
         else:
-            raise TypeError("convergence_num should be an int or float") 
+            raise TypeError("convergence_num should be an int or float")
 
         if convergence_int:
             data_size = [new_n] * convergence_num
@@ -966,20 +969,28 @@ class Cluster(object):
             return [val_range, total_dist, sample_size]
 
 
-def makeBatchClusterParallel(data,
-                             global_ind,
-                             comm,
-                             flatten=False,
-                             batch_size=3000,
-                             convergence_num=2,
+def makeBatchClusterParallel(data, comm,  global_ind=None, flatten=False,
+                             batch_size=3000, convergence_num=2,
                              distance_function="euclidean",
-                             scaling_function='',
-                             core_sample=True,
-                             gather_to=0,
-                             output='samples',
-                             verbose=False,
-                             eps=.05,
-                             min_samples=2):
+                             scaling_function='', core_sample=True,
+                             gather_to=0, output='samples',
+                             verbose=False, eps=.05, min_samples=2):
+    """
+    Clusters data with DBSCAN and returns a list containing:
+    1. The reduced dataset or indices of the reduced data
+    2. The information loss estimate or the epsilon value found if the 
+        auto eps algorithm was triggered because eps=-1
+
+    :param data: A Numpy array or Pandas dataframe of shape
+    (n_samples, n_features)
+    :type data: array
+    :param comm: 
+    :param scaling_function: function for scaling the features
+    :type scaling_function: String or callable
+    :param flatten: Flattens data to two dimensions.
+    (n_samples, n_features_1*n_features_2* ... *n_features_m)
+    :type flatten: bool
+    """
 
     from mpi4py import MPI
     rank = comm.Get_rank()
@@ -999,6 +1010,10 @@ def makeBatchClusterParallel(data,
                          "to 2 dimensions.")
 
     nfeatures = data.shape[1]
+
+    # Make global indices if not provided
+    if not global_ind:
+        global_ind = np.arange(data.shape[0])
 
     # Add global indices to data
     data = np.concatenate((data, global_ind.reshape(-1, 1)), axis=1)
@@ -1029,9 +1044,10 @@ def makeBatchClusterParallel(data,
               "'standard' or define your own scaling function.")
 
     is_converged = False
+    convergence_int = False
 
     # Check convergence_num type
-    if isinstance(convergence_num, int):
+    if isinstance(convergence_num, int) or np.issubdtype(convergence_num, np.integer):
         convergence_int = True
 
     if convergence_int:
@@ -1159,7 +1175,7 @@ def makeBatchClusterParallel(data,
     # If data size < batch size, all data was sent to primary
     # rank and other ranks return None.
     else:
-        out = None
+        out = [None]
 
     # No labels since parallel is always batched
     return [out, global_loss]
@@ -1188,6 +1204,12 @@ def numpyParallelReader(inputs, input_sizes, comm):
     counter = 0
     data = []
 
+    # Get global indices
+    start = sum(data_to_procs[0:rank])
+    end = start + data_to_procs[rank]
+    global_ind = np.arange(start, end)
+    global_ind = global_ind.reshape(-1, 1)
+
     for i in range(len(input_sizes)):
 
         readData = True
@@ -1214,7 +1236,7 @@ def numpyParallelReader(inputs, input_sizes, comm):
                 readData = False
 
     data = np.concatenate(data)
-    return data
+    return data, global_ind
 
 
 def scaleDataParallel(data, comm, scaling_function,
