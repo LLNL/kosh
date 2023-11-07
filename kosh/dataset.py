@@ -895,6 +895,7 @@ class KoshDataset(KoshSinaObject):
         :return: dataset and its associated data
         :rtype: dict"""
         rec = self.get_record()
+        relationships = self.get_sina_store().relationships.find(self.id)
         # cleanup the record
         rec_json = cleanup_sina_record_from_kosh_sync(rec)
         jsns = [rec_json, ]
@@ -909,7 +910,8 @@ class KoshDataset(KoshSinaObject):
             "minimum_kosh_version": None,
             "kosh_version": kosh.version(comparable=True),
             "sources_type": self.__store__._sources_type,
-            "records": jsns
+            "records": jsns,
+            "relationships": relationships
         }
 
         update_json_file_with_records_and_relationships(file, output_dict)

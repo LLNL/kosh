@@ -913,6 +913,8 @@ Available commands are:
                             help="print version and exit")
         parser.add_argument("--merge_strategy", help="When importing dataset, how do we handle conflict",
                             default=None, choices=["conservative", "preserve", "overwrite"])
+        parser.add_argument("--mk_dirs", action="store_true",
+                            help="Make destination directories if they don't exist")
 
         if store_args == "":
             args, opts = parser.parse_known_args(sys.argv[2:])
@@ -940,7 +942,7 @@ Available commands are:
             if is_remote(target) or sum([is_remote(x) for x in files]) > 0:
                 raise ValueError("kosh mv only works on local files")
 
-        sources, targets = find_sources_and_targets(opts, files, target)
+        sources, targets, source_dict = find_sources_and_targets(opts, files, target, args.mk_dirs)
 
         if command == "rm":
             targets = ["", ] * len(sources)
@@ -982,31 +984,42 @@ Available commands are:
 
             for o_store in origin_stores:
                 datasets = o_store.find(file=source)
+
+                # find_sources_and_targets() returns abs path with removed links
+                # but dataset might only have local path or linked path
+                datasets_search = o_store.find(file=source)  # Don't want to use generator up with if statement below
+                if not list(datasets_search):
+                    try:
+                        source = source_dict[source]
+                        datasets = o_store.find(file=source)
+                    except KeyError:
+                        datasets = []
+
                 for dataset in datasets:
+                    associated_uris = dataset.find(uri=source)
                     if command == "mv":
-                        associated_uris = dataset.find(uri=source)
                         for associated in associated_uris:
                             associated.uri = targets[i]
                         # we also need to update the file section of our record
                         rec = dataset.get_record()
-                        rec["files"][targets[i]] = rec["files"][source]
+                        rec["files"][targets[i]] = rec["files"][source]  # uri needs to be the same for moved files
                         del (rec["files"][source])
-                        o_store.get_sina_records().update(rec)
-                    else:
-                        exported = dataset.export()
-                        # Ok we need to update the uri to point to the new
-                        # target
-                        delte_these = []
-                        for indx, a in enumerate(exported["records"][1:]):
-                            if a["data"]["uri"]["value"] == source:
-                                a["data"]["uri"]["value"] = targets[i]
-                            else:
-                                delte_these.append(indx + 1)
-                        for indx in delte_these[::-1]:
-                            del (exported["records"][indx])
+                    else:  # cp
+                        associated_found = False
+                        for associated in associated_uris:
+                            associated_found = True
+                            dataset.associate(targets[i], associated.mime_type)
+                        rec = dataset.get_record()
 
-                        for d_store in dest_stores:
-                            d_store.import_dataset(
+                        # Sometimes the dataset might have source in ['files'] but was never associated
+                        if not associated_found:
+                            rec["files"][targets[i]] = {}  # uri needs to be different for copied files
+
+                    o_store.get_sina_records().update(rec)
+                    exported = dataset.export()
+
+                    for d_store in dest_stores:
+                        d_store.import_dataset(
                                 exported, args.dataset_matching_attributes,
                                 merge_handler=args.merge_strategy)
 
@@ -1140,7 +1153,7 @@ def find_depth(path):
     return depth - 1
 
 
-def find_sources_and_targets(options, sources, target):
+def find_sources_and_targets(options, sources, target, mk_dirs=False):
     """Given a list of sources (files, dir, patterns) and a target destination,
     runs 'rsync' between these to obtain the list of files being touched
     :param options: option to send to rsync
@@ -1149,28 +1162,46 @@ def find_sources_and_targets(options, sources, target):
     :type sources: list
     :param target: target file or directory
     :type target: str
+    :param mk_dirs: Make destination directories if they don't exist
+    :type mk_dirs: bool, optional
     :return: List of sources and there matching path after cp/mv
-    :rtype: list, list
+    :rtype: list, list, dict
     """
+
+    if mk_dirs and not os.path.islink(target):
+        split = os.path.split(target)
+        root_ext = os.path.splitext(target)
+        if root_ext[1] == '':
+            os.makedirs(target, exist_ok=True)
+        else:
+            os.makedirs(split[0], exist_ok=True)
+
     target_realpath, is_target_remote, is_target_dir, target_exists = get_realpath_and_status(
         target)
     source_uris = []
     target_uris = []
+    source_dict = {}
     for source in sources:
         source_realpath, is_source_remote, is_source_dir, source_exists = get_realpath_and_status(
             source)
+        source_dict[source_realpath] = source
+
+        if is_source_dir and source[-1] == '/':
+            source = source[:-1]
+
         if len(sources) > 1 and not is_source_dir and not target_exists:
             raise ValueError(
-                "Destination ({}) does not exists and you're trying to send multiple sources to it".format(target))
+                "Destination ({}) does not exist and you're trying to send multiple sources to it".format(target))
         if not source_exists:
             raise RuntimeError("Source {} does not exists".format(source))
-        # if len(sources)==1 and not is_target_dir and not is_target_file and is_source_dir:
-        #    raise ValueError("Destination does not exists and you're trying to send multiple sources to it")
+
+        if os.path.islink(source):
+            source = source_realpath
+
         cmd = "rsync -v --dry-run -r" + " ".join(options)
         cmd += " " + source + " " + target
         p, o, e = process_cmd(cmd, use_shell=True)
         rsync_dryrun_out_lines = o.decode().split("\n")
-
         found_a_dir_to_rsync = False
         for i, ln in enumerate(rsync_dryrun_out_lines):
             if i == 0:
@@ -1200,15 +1231,21 @@ def find_sources_and_targets(options, sources, target):
                         # it's a dir
                         target_uris.append(target_realpath)
                     else:
-                        target_uris.append(os.path.join(
-                            target_realpath, ln.strip()))
+                        if mk_dirs and os.path.split(target)[1] == ln.strip():
+                            target_uris.append(target_realpath)
+                        else:
+                            if is_target_dir:
+                                target_uris.append(os.path.join(
+                                    target_realpath, ln.strip()))
+                            else:
+                                target_uris.append(target_realpath)
                 else:
                     if ln.strip()[-1] == "/" or not is_source_dir:
                         target_uris.append(target_realpath)
                     else:
                         target_uris.append(os.path.join(
                             target_realpath, ln.strip()))
-    return source_uris, target_uris
+    return source_uris, target_uris, source_dict
 
 
 if __name__ == '__main__':
