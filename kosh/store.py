@@ -519,6 +519,8 @@ class KoshStore(object):
         :type schema: KoshSchema
         :param sina_type: If you want to query the store for a specific sina record type, not just a dataset
         :type sina_type: str
+        :param alias_feature: Dictionary of feature aliases
+        :type alias_feature: dict, opt
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
         :raises RuntimeError: Dataset already exists
@@ -552,7 +554,10 @@ class KoshStore(object):
             metadata["name"] = name
         metadata["_associated_data_"] = None
         for k in metadata:
-            metadata[k] = {'value': metadata[k]}
+            if k == 'alias_feature':
+                metadata[k] = {'value':  kosh_pickler.dumps(metadata[k])}
+            else:
+                metadata[k] = {'value': metadata[k]}
         rec = Record(id=Id, type=sina_type, data=metadata, user_defined={'kosh_information': {}})
         if self.__sync__:
             self.lock()

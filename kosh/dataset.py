@@ -126,7 +126,10 @@ class KoshDataset(KoshSinaObject):
                     continue
                 if self.is_ensemble_attribute(a, ensemble):
                     st += "\t\t{}: {}\n".format(a, atts[a])
-
+        if self.alias_feature is not {}:
+            st += '--- Alias Feature Dictionary ---'
+            for key, val in self.alias_feature.items():
+                st += f"\n\t{key}: {val}"
         return st
 
     def _repr_pretty_(self, p, cycle):
@@ -349,27 +352,49 @@ class KoshDataset(KoshSinaObject):
         possibles = {}
         inter = None
         union = set()
+
+        alias_feature = self.alias_feature
+        alias_feature_flattened = [[]] * len(alias_feature)
+        for i, (key, val) in enumerate(alias_feature.items()):
+            alias_feature_flattened[i] = [key]
+            if isinstance(val, list):
+                alias_feature_flattened[i].extend(val)
+            elif isinstance(val, str):
+                alias_feature_flattened[i].extend([val])
+
+        def find_features(self, a):
+
+            a_original = a
+
+            if "__uri__" in a:
+                # Ok this is a pure sina file with mime_type
+                a, _ = a.split("__uri__")
+            a_obj = self.__store__._load(a)
+            if loader is None:
+                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
+                if ld is None:  # unknown mimetype probably
+                    return _, None, _, _
+            else:
+                if a_obj.mime_type in loader.types:
+                    ld = loader(a_obj, requestorId=self.id)
+                else:
+                    return _, None, _, _
+
+            # Dataset with curve have themselves as uri
+            obj_uri = getattr(ld.obj, "uri", "self")
+            ld_features = ld._list_features()
+
+            return a_original, ld, obj_uri, ld_features
+
         for index, feature_ in enumerate(features):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
-                    a_original = a
-                    if "__uri__" in a:
-                        # Ok this is a pure sina file with mime_type
-                        a, _ = a.split("__uri__")
-                    a_obj = self.__store__._load(a)
-                    if loader is None:
-                        ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
-                        if ld is None:  # unknown mimetype probably
-                            continue
-                    else:
-                        if a_obj.mime_type in loader.types:
-                            ld = loader(a_obj, requestorId=self.id)
-                        else:
-                            continue
-                    # Dataset with curve have themselves as uri
-                    obj_uri = getattr(ld.obj, "uri", "self")
-                    ld_features = ld._list_features()
+
+                    a_original, ld, obj_uri, ld_features = find_features(self, a)
+                    if ld is None:  # No features
+                        continue
+
                     if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
                         # ok we have to be careful list_features can be returned two ways
                         if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
@@ -390,8 +415,40 @@ class KoshDataset(KoshSinaObject):
                              feature_[-len(obj_uri):] == obj_uri):
                         possible_ids.append(a_original)
                 if possible_ids == []:  # All failed but could be something about the feature
-                    raise ValueError(
-                        "Cannot find feature {} in dataset".format(feature_))
+                    found = False
+                    if alias_feature_flattened:
+                        feature_original = feature_
+                        af = []
+                        for af_list in alias_feature_flattened:
+                            if feature_.split("/")[-1] in af_list:
+                                af = af_list
+                                if feature_ in af_list:
+                                    af.remove(feature_)
+                                break
+
+                        poss = []
+                        for a in self._associated_data_:
+
+                            a_original, ld, obj_uri, ld_features = find_features(self, a)
+                            if ld is None:  # No features
+                                continue
+
+                            for ld in ld_features:
+
+                                if ld.split('/')[-1] in af or ld in af:
+
+                                    found = True
+                                    feature_ = ld
+                                    features[index] = ld
+                                    possible_ids.append(a_original)
+                                    poss.append(ld)
+
+                        if len(poss) > 1:
+                            raise ValueError("Cannot uniquely pinpoint {}, could be one of {}"
+                                             .format(feature_original, poss))
+                    if not found:
+                        raise ValueError("Cannot find feature {} in dataset"
+                                         .format(feature_))
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve

@@ -57,6 +57,7 @@ class KoshTestSinaFiles(KoshTest):
 --- Ensemble (0)---
 \t[]
 --- Ensemble Attributes ---
+--- Alias Feature Dictionary ---
 """.format(dataset.param5, list(dataset.find(mime_type="png", ids_only=True))[0])  # noqa
         store.close()
         os.remove(kosh_db)
@@ -114,6 +115,7 @@ class KoshTestSinaFiles(KoshTest):
 --- Ensembles (0)---
 \t[]
 --- Ensemble Attributes ---
+--- Alias Feature Dictionary ---
 """.format(dataset.param5)  # noqa
 
         self.assertEqual(print_str.strip(), str(dataset).strip())
@@ -172,6 +174,7 @@ class KoshTestSinaFiles(KoshTest):
 --- Ensembles (0)---
 \t[]
 --- Ensemble Attributes ---
+--- Alias Feature Dictionary ---
 """.format(dataset.param5)  # noqa
         self.assertEqual(print_str.strip(), str(dataset).strip())
         store.close()

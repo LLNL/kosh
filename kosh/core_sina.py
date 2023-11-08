@@ -144,6 +144,11 @@ class KoshSinaObject(object):
                 schema = kosh_pickler.loads(record["data"]["schema"]["value"])
                 self.__dict__["__schema__"] = schema
             return self.__dict__["__schema__"]
+        elif name == 'alias_feature':
+            if name in record["data"]:
+                return kosh_pickler.loads(record["data"]["alias_feature"]["value"])
+            else:
+                return {}
         if name not in record["data"]:
             if name == "mime_type":
                 return record["type"]
@@ -216,6 +221,8 @@ class KoshSinaObject(object):
             value.validate(self)
         elif self.schema is not None:
             self.schema.validate_attribute(name, value)
+        elif name == 'alias_feature':
+            value = kosh_pickler.dumps(value)
 
         # For datasets we need to check if the att comes from ensemble
         from kosh.dataset import KoshDataset
@@ -386,6 +393,8 @@ class KoshSinaObject(object):
         record = self.get_record()
         attributes = {}
         for a in record["data"]:
+            if a == 'alias_feature':
+                continue
             attributes[a] = record["data"][a]["value"]
             if a == "creator":
                 # old records have user id let's fix this
