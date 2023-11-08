@@ -102,6 +102,7 @@ KOSH DATASET
 --- Ensembles (0)---
         []
 --- Ensemble Attributes ---
+--- Alias Feature Dictionary ---
 """.format(id=ds.id, creator=ds.creator)
         print(str(ds).replace("\t", "        "))
         self.assertEqual(
