@@ -1371,27 +1371,29 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     # 2) Compute max loss @ epsMax
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
-    scaling_function = options.get("scaling_function", "")
-    flatten = options.get("flatten", False)
+    distance_function = options.get("distance_function", "euclidean")
 
-    # To do: make this work in parallel
-    temp_cluster_object = Cluster(
-        data,
-        scaling_function=scaling_function,
-        flatten=flatten)
+    if isinstance(distance_function, type('')):
+        # For string option
+        if distance_function == 'euclidean':
+            # Calculate distance between sample values
+            dd = sch.distance.pdist(data, 'euclidean')
+        elif distance_function == 'seuclidean':
 
-    h_estimate = temp_cluster_object.hopkins()
-    h_estimate = MPI.COMM_WORLD.allreduce(h_estimate, MPI.SUM) / MPI.COMM_WORLD.size
-    if h_estimate < 0.8:
-        denom = 10
+            dd = sch.distance.pdist(data, 'seuclidean')
+        elif distance_function == 'sqeuclidean':
+            dd = sch.distance.pdist(data, 'sqeuclidean')
+        else:
+            print('Error: no valid distance string option given')
+            exit()
     else:
-        denom = 100
-    if rank == primary:
-        print("Hopkins estimate: " + str(h_estimate))
+        dd = distance_function(data)
+
+    ave_dist = np.mean(dd)
 
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    epsGuess = epsMax / denom
-    bounds = [1e-8, epsMax]
+    epsGuess = ave_dist
+    bounds = [1e-15, epsMax]
 
     if rank == primary:
         print("epsGuess: " + str(epsGuess))
