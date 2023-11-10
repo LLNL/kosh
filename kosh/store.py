@@ -21,7 +21,7 @@ from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
 from .utils import create_kosh_users
 from .utils import update_store_and_get_info_record
-from sina.datastore import connect as sina_connect
+from sina import connect as sina_connect
 from inspect import isfunction, ismethod
 import kosh
 import six
@@ -53,7 +53,7 @@ except ImportError:
 
 def connect(database, keyspace=None, database_type=None,
             allow_connection_pooling=False, read_only=False,
-            delete_all_contents=False, **kargs):
+            delete_all_contents=False, execution_options={}, **kargs):
     """Connect to a Sina store.
 
 Given a uri/path (and, if required, the name of a keyspace),
@@ -73,6 +73,8 @@ figures out which backend is required.
 :type allow_connection_pooling: bool
 :param read_only: whether to create a read-only store
 :type read_only: bool
+:param execution_options: execution options keyword to pass to sina store record_dao at creation time
+:type execution_options: dict
 :param kargs: Any extra arguments you wish to pass to the KoshStore function
 :type kargs: dict, key=value
 :param delete_all_contents: Deletes all data after opening the db
@@ -91,6 +93,8 @@ figures out which backend is required.
                               database_type=database_type,
                               allow_connection_pooling=allow_connection_pooling,
                               read_only=read_only)
+    # sina_store._record_dao.session.connection(execution_options=execution_options)
+
     if not read_only:
         if delete_all_contents:
             sina_store.delete_all_contents(force="SKIP PROMPT")
@@ -103,6 +107,7 @@ figures out which backend is required.
     store = KoshStore(database, sync=sync, keyspace=keyspace, read_only=read_only,
                       db=database_type,
                       allow_connection_pooling=allow_connection_pooling,
+                      execution_options=execution_options,
                       **kargs)
     return store
 
@@ -113,7 +118,7 @@ class KoshStore(object):
     def __init__(self, db_uri=None, username=os.environ.get("USER", "default"), db=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
-                 read_only=False, allow_connection_pooling=False, ensemble_predicate=None):
+                 read_only=False, allow_connection_pooling=False, ensemble_predicate=None, execution_options={}):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -144,6 +149,8 @@ class KoshStore(object):
         :type allow_connection_pooling: bool
         :param ensemble_predicate: The predicate for the relationship to an ensemble
         :type ensemble_predicate: str
+        :param execution_options: execution options keyword to pass to sina store record_dao at creation time
+        :type execution_options: dict
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
@@ -198,6 +205,7 @@ class KoshStore(object):
                 if "://" in db_uri:
                     self.__sina_store = sina_connect(
                         db_uri, read_only=read_only)
+                    self.__sina_store._record_dao.session.connection(execution_options=execution_options)
                 else:
                     raise ValueError(
                         "Kosh store could not be found at: {}".format(db_uri))
@@ -207,6 +215,7 @@ class KoshStore(object):
                                                  read_only=read_only,
                                                  database_type=db,
                                                  allow_connection_pooling=allow_connection_pooling)
+                self.__sina_store._record_dao.session.connection(execution_options=execution_options)
                 self.unlock()
         elif db.lower().startswith('cass'):
             self.__sina_store = sina_connect(
