@@ -1566,7 +1566,7 @@ def SerialClustering(data, options):
     return [out, labels, loss]
 
 
-def ParallelClustering(data, global_ind, comm, options):
+def ParallelClustering(data, comm, global_ind, options):
 
     # Parse the input arguments
     flatten = options.get("flatten", False)
@@ -1583,8 +1583,8 @@ def ParallelClustering(data, global_ind, comm, options):
     # format = options.get("format", "numpy")
 
     [local_data, loss] = makeBatchClusterParallel(data,
-                                                  global_ind,
                                                   comm,
+                                                  global_ind,
                                                   flatten=flatten,
                                                   batch_size=batch_size,
                                                   convergence_num=convergence_num,
