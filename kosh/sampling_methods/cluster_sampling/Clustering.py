@@ -1367,28 +1367,8 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     # 2) Compute max loss @ epsMax
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
-    distance_function = options.get("distance_function", "euclidean")
-
-    if isinstance(distance_function, type('')):
-        # For string option
-        if distance_function == 'euclidean':
-            # Calculate distance between sample values
-            dd = sch.distance.pdist(data, 'euclidean')
-        elif distance_function == 'seuclidean':
-
-            dd = sch.distance.pdist(data, 'seuclidean')
-        elif distance_function == 'sqeuclidean':
-            dd = sch.distance.pdist(data, 'sqeuclidean')
-        else:
-            print('Error: no valid distance string option given')
-            exit()
-    else:
-        dd = distance_function(data)
-
-    ave_dist = np.mean(dd)
-
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    epsGuess = ave_dist
+    epsGuess = eps
     bounds = [1e-15, epsMax]
 
     if rank == primary:
@@ -1408,7 +1388,6 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     reduce_step_size = False
 
     guesses = []
-    losses = []
     while (abs((non_dim_loss - target_loss)/target_loss) > .05):
 
         if epsLoss > target_loss*maxLoss:
@@ -1447,7 +1426,6 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
             print("Loss proportion: " + str(non_dim_loss))
 
         guesses.append(epsGuess)
-        losses.append(non_dim_loss)
         if len(guesses) == 14:
             min_index = np.argmin(non_dim_loss)
             epsGuess = guesses[min_index]
