@@ -227,7 +227,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
                                             gather_to,
                                             verbose)
 
-    [local_data, loss] = ParallelClustering(data, comm,  global_ind, options)
+    [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
 
     return [local_data, loss]
 

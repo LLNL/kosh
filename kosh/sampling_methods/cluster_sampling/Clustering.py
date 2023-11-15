@@ -454,18 +454,17 @@ class Cluster(object):
         msg += f"float between 0. and 1."
 
         convergence_int = False
-        if isinstance(convergence_num, int) or np.issubdtype(convergence_num, np.integer):
+        if (convergence_num > 1.0):
             convergence_int = True
             assert convergence_num >= 2, msg
-        elif isinstance(convergence_num, float):
-            assert convergence_num > 0. and convergence_num < 1., msg
+            convergence_num = int(convergence_num)
         else:
-            raise TypeError("convergence_num should be an int or float")
+            assert convergence_num > 0. and convergence_num < 1., msg
 
         if convergence_int:
             data_size = [new_n] * convergence_num
         else:
-            data_size = [new_n] * 2
+            data_size = [new_n]
         # This batching loop will continue until sample size is small enough to
         # cluster all together or sample size has converged.
         total_loss = 0
@@ -969,7 +968,7 @@ class Cluster(object):
             return [val_range, total_dist, sample_size]
 
 
-def makeBatchClusterParallel(data, comm,  global_ind=None, flatten=False,
+def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
                              batch_size=3000, convergence_num=2,
                              distance_function="euclidean",
                              scaling_function='', core_sample=True,
@@ -1011,10 +1010,6 @@ def makeBatchClusterParallel(data, comm,  global_ind=None, flatten=False,
 
     nfeatures = data.shape[1]
 
-    # Make global indices if not provided
-    if not global_ind:
-        global_ind = np.arange(data.shape[0])
-
     # Add global indices to data
     data = np.concatenate((data, global_ind.reshape(-1, 1)), axis=1)
 
@@ -1047,13 +1042,14 @@ def makeBatchClusterParallel(data, comm,  global_ind=None, flatten=False,
     convergence_int = False
 
     # Check convergence_num type
-    if isinstance(convergence_num, int) or np.issubdtype(convergence_num, np.integer):
+    if convergence_num >= 1.0:
         convergence_int = True
+        convergence_num = int(convergence_num)
 
     if convergence_int:
         data_size = [total_data_size] * convergence_num
     else:
-        data_size = [total_data_size] * 2
+        data_size = [total_data_size]
     total_loss = 0
     while not is_converged:
 
@@ -1086,7 +1082,7 @@ def makeBatchClusterParallel(data, comm,  global_ind=None, flatten=False,
             last_n = data_size[-convergence_num:]
             is_converged = len(set(last_n)) == 1
         else:
-            is_converged = abs(data_size[-1]-data_size[-2]) < data_size[0] * convergence_num
+            is_converged = abs(data_size[-1]-data_size[-2]) < (data_size[0] * convergence_num)
 
         if (is_converged):
             retained = data[np.array(subset_indices), :]
@@ -1357,7 +1353,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         if not parallel:
             [local_data, labels, loss] = SerialClustering(data, options)
         else:
-            [local_data, loss] = ParallelClustering(data, indices, comm, options)
+            [local_data, loss] = ParallelClustering(data, comm, indices, options)
 
         # - Get/return loss
         return [local_data, loss]
