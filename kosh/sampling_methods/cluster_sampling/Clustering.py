@@ -1336,6 +1336,8 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
 
     rank = comm.Get_rank()
     primary = options.get("gather_to", 0)
+    verbose = options.get("verbose", False)
+    pverbose = rank == primary and verbose
 
     def DO_CLUSTER(eps):
 
@@ -1367,16 +1369,41 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     # 2) Compute max loss @ epsMax
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
+    distance_function = options.get("distance_function", "euclidean")
+
+    # Get subset of data
+    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
+    sub_idx.sort()
+    sub_data = data[sub_idx,:]
+
+    if isinstance(distance_function, type('')):
+        # For string option
+        if distance_function == 'euclidean':
+            # Calculate distance between sample values
+            dd = sch.distance.pdist(data, 'euclidean')
+        elif distance_function == 'seuclidean':
+
+            dd = sch.distance.pdist(data, 'seuclidean')
+        elif distance_function == 'sqeuclidean':
+            dd = sch.distance.pdist(data, 'sqeuclidean')
+        else:
+            print('Error: no valid distance string option given')
+            exit()
+    else:
+        dd = distance_function(data)
+
+    ave_dist = np.mean(dd)
+
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    epsGuess = eps
+    epsGuess = ave_dist
     bounds = [1e-15, epsMax]
 
-    if rank == primary:
+    if pverbose:
         print("epsGuess: " + str(epsGuess))
 
     [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
     non_dim_loss = epsLoss / maxLoss
-    if rank == primary:
+    if pverbose:
         print("Loss proportion: " + str(non_dim_loss))
     if epsLoss > target_loss*maxLoss:
         guess_above = True
@@ -1421,7 +1448,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
             step_size /= 2
             reduce_step_size = False
 
-        if rank == primary:
+        if pverbose:
             print("epsGuess: " + str(epsGuess))
             print("Loss proportion: " + str(non_dim_loss))
 
@@ -1430,7 +1457,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
             min_index = np.argmin(non_dim_loss)
             epsGuess = guesses[min_index]
             break
-    if rank == primary:
+    if pverbose:
         print("epsFinal: " + str(epsGuess))
         print("Final Loss proportion: " + str(non_dim_loss))
 
