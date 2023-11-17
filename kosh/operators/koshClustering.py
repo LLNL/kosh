@@ -46,8 +46,13 @@ class KoshCluster(KoshOperator):
         :param core_sample: Whether to retain a sample from the center of
         the cluster (core sample), or a randomly chosen sample.
         :type core_sample: bool
-        :param eps: The distance around a sample that defines its neighbors.
+        :param eps: The distance around a sample that defines its neighbors. 
         :type eps: float
+        :param auto_eps: Use the algorithm to find the epsilon distance for 
+        clustering based on the desired information loss.
+        :type auto_eps: bool
+        :param eps_0: The initial epsilon guess for the auto eps algorithm.
+        :type eps_0: float
         :param min_samples: The minimum number of samples to form a cluster.
         :type min_samples: int
         :param target_loss: The proportion of information loss allowed from removing
@@ -111,7 +116,7 @@ class KoshCluster(KoshOperator):
         # Check for automatic loss-based subsampling
         eps = self.options.get('eps', .05)
         self.target_loss = self.options.get('target_loss', .01)
-        self.autoEPS = (eps < 0)
+        self.autoEPS = self.options.get('auto_eps', False)
 
     def operate(self, *inputs, **kargs):
         """

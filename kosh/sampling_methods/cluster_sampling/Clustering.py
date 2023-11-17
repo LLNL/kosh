@@ -1338,6 +1338,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     primary = options.get("gather_to", 0)
     verbose = options.get("verbose", False)
     pverbose = rank == primary and verbose
+    eps_0 = options.get("eps_0", None)
 
     def DO_CLUSTER(eps):
 
@@ -1369,33 +1370,39 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     # 2) Compute max loss @ epsMax
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
-    distance_function = options.get("distance_function", "euclidean")
+    if eps_0 is None:
 
-    # Get subset of data
-    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
-    sub_idx.sort()
-    sub_data = data[sub_idx,:]
+        distance_function = options.get("distance_function", "euclidean")
 
-    if isinstance(distance_function, type('')):
-        # For string option
-        if distance_function == 'euclidean':
-            # Calculate distance between sample values
-            dd = sch.distance.pdist(data, 'euclidean')
-        elif distance_function == 'seuclidean':
+        # Get subset of data
+        sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
+        sub_idx.sort()
+        sub_data = data[sub_idx,:]
 
-            dd = sch.distance.pdist(data, 'seuclidean')
-        elif distance_function == 'sqeuclidean':
-            dd = sch.distance.pdist(data, 'sqeuclidean')
+        if isinstance(distance_function, type('')):
+            # For string option
+            if distance_function == 'euclidean':
+                # Calculate distance between sample values
+                dd = sch.distance.pdist(data, 'euclidean')
+            elif distance_function == 'seuclidean':
+
+                dd = sch.distance.pdist(data, 'seuclidean')
+            elif distance_function == 'sqeuclidean':
+                dd = sch.distance.pdist(data, 'sqeuclidean')
+            else:
+                print('Error: no valid distance string option given')
+                exit()
         else:
-            print('Error: no valid distance string option given')
-            exit()
-    else:
-        dd = distance_function(data)
+            dd = distance_function(data)
 
-    ave_dist = np.mean(dd)
+        ave_dist = np.mean(dd)
+
+        epsGuess = ave_dist
+    else:
+        epsGuess = eps_0
 
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    epsGuess = ave_dist
+    
     bounds = [1e-15, epsMax]
 
     if pverbose:
