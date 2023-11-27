@@ -640,13 +640,13 @@ class Cluster(object):
                 # compute loss between sample_indices and removed samples
                 if clust_data.shape[0] == 2:
                     dist = self.computeDistance(clust_data, distance_function)
-                    tot_dist.append(dist.astype(float))
+                    tot_dist.append(float(dist))
                 elif clust_data.shape[0] > 2:
                     dist = self.computeDistance(clust_data, distance_function)
                     sq_dist = scipy.spatial.distance.squareform(dist)
                     local_index = np.where(
                         clust_data.index == sample_indices[0])[0][0]
-                    tot_dist.append(sum(sq_dist[local_index]))
+                    tot_dist.append(float(sum(sq_dist[local_index])))
                 else:
                     tot_dist.append(0.0)
 
@@ -1338,6 +1338,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     primary = options.get("gather_to", 0)
     verbose = options.get("verbose", False)
     pverbose = rank == primary and verbose
+    scaling_function = options.get("scaling_function", '')
     eps_0 = options.get("eps_0", None)
 
     def DO_CLUSTER(eps):
@@ -1361,43 +1362,33 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         # - Get/return loss
         return [local_data, loss]
 
-    # 1) Get M features and min/max
-    Mfeatures = data.shape[1]
-    fmax = 1.0
-    fmin = 0.0
-    epsMax = np.sqrt((fmax-fmin)*Mfeatures)
+    # Make temporary cluster object of subset of data
+
+    # Get subset of data
+    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
+    sub_idx.sort()
+    sub_data = data[sub_idx,:]
+
+    distance_function = options.get("distance_function", "euclidean")
+
+    temp_cluster_object = Cluster(
+        sub_data,
+        scaling_function=scaling_function)
+
+    distances = temp_cluster_object.computeDistance(sub_data,
+                            distance_function=distance_function)
 
     # 2) Compute max loss @ epsMax
+    epsMax = np.max(distances)
+    if parallel:
+        epsMax = comm.allreduce(epsMax, MPI.MAX)
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
+    # Use ave distance of subsample if no eps guess is given
     if eps_0 is None:
-
-        distance_function = options.get("distance_function", "euclidean")
-
-        # Get subset of data
-        sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
-        sub_idx.sort()
-        sub_data = data[sub_idx,:]
-
-        if isinstance(distance_function, type('')):
-            # For string option
-            if distance_function == 'euclidean':
-                # Calculate distance between sample values
-                dd = sch.distance.pdist(data, 'euclidean')
-            elif distance_function == 'seuclidean':
-
-                dd = sch.distance.pdist(data, 'seuclidean')
-            elif distance_function == 'sqeuclidean':
-                dd = sch.distance.pdist(data, 'sqeuclidean')
-            else:
-                print('Error: no valid distance string option given')
-                exit()
-        else:
-            dd = distance_function(data)
-
-        ave_dist = np.mean(dd)
-
-        epsGuess = ave_dist
+        epsGuess = np.mean(distances)
+        if parallel:
+            epsGuess = comm.allreduce(epsGuess, MPI.SUM)/comm.Get_size()
     else:
         epsGuess = eps_0
 
@@ -1422,6 +1413,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     reduce_step_size = False
 
     guesses = []
+    losses = []
     while (abs((non_dim_loss - target_loss)/target_loss) > .05):
 
         if epsLoss > target_loss*maxLoss:
@@ -1435,8 +1427,6 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
                 step_size = (bounds[1] - bounds[0])/4
                 reduce_step_size = False
 
-            [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
-            non_dim_loss = epsLoss / maxLoss
         else:
             bounds[0] = epsGuess
             if guess_above is True:
@@ -1448,8 +1438,10 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
                 step_size = (bounds[1] - bounds[0])/4
                 reduce_step_size = False
 
-            [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
-            non_dim_loss = epsLoss / maxLoss
+        [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
+        non_dim_loss = epsLoss / maxLoss
+        losses.append(non_dim_loss)
+        guesses.append(epsGuess)
 
         if reduce_step_size:
             step_size /= 2
@@ -1459,10 +1451,10 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
             print("epsGuess: " + str(epsGuess))
             print("Loss proportion: " + str(non_dim_loss))
 
-        guesses.append(epsGuess)
         if len(guesses) == 14:
-            min_index = np.argmin(non_dim_loss)
+            min_index = np.argmin(np.abs(np.array(losses)-target_loss))
             epsGuess = guesses[min_index]
+            non_dim_loss = losses[min_index]
             break
     if pverbose:
         print("epsFinal: " + str(epsGuess))
