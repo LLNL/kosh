@@ -562,6 +562,33 @@ def cleanup_sina_record_from_kosh_sync(record):
     return orjson.loads(record.to_json())
 
 
+def record_to_dataset(record):
+    """Converts a Sina record to a KoshDatset
+    :param record: The Sina Record to convert
+    :type record: sina.model.Record
+    :return: kosh version of the record
+    :rtype: kosh.KoshDatset"""
+    temp_store = kosh.connect(None)
+    temp_store.get_sina_records().insert(record)
+    return next(temp_store.find())
+
+
+def datasets_in_place_of_records(func):
+    """This decorator will convert all Record input or output to KoshDataset
+    This allows a user to use sina functions that expect Record with Kosh datasets instead"""
+    def wrapper(*args, **kwargs):
+        new_args = [x.get_record() if isinstance(x, kosh.KoshDataset) else x for x in args]
+        new_kwargs = {}
+        for k, v in kwargs.items():
+            new_kwargs[k] = v.get_record() if isinstance(v, kosh.KoshDataset) else v
+        out = func(*new_args, **new_kwargs)
+        if hasattr(out, "__iter__"):
+            return [record_to_dataset(v) if isinstance(v, Record) else v for v in out]
+        else:
+            return record_to_dataset(out) if isinstance(out, Record) else out
+    return wrapper
+
+
 def update_json_file_with_records_and_relationships(file, output_dict):
     if file is not None:
         if os.path.exists(file):
