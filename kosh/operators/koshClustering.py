@@ -221,7 +221,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     The surviving data are randomly mixed and reduced, and the process continues
     until convergence.
     """
-
+    rank = comm.Get_rank()
     gather_to = options.get("gather_to")
     verbose = options.get("verbose")
 
@@ -231,6 +231,9 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
                                             input_sizes,
                                             gather_to,
                                             verbose)
+
+    if verbose:
+        print(f"Rank {rank} data size: {data.shape}")
 
     [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
 

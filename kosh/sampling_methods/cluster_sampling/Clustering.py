@@ -1057,9 +1057,9 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
             print("Clustering data")
 
         # ranks cluster data and output smaller data/indices
-        my_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
+        rank_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
 
-        subset_indices = my_cluster.makeBatchCluster(batch_size=batch_size,
+        subset_indices = rank_cluster.makeBatchCluster(batch_size=batch_size,
                                                      convergence_num=convergence_num,
                                                      verbose=pverbose,
                                                      core_sample=core_sample,
@@ -1072,7 +1072,7 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
         n_subsamples = subset_indices.shape[0]
         total_subsamples = comm.allreduce(n_subsamples, op=MPI.SUM)
         data_size.append(total_subsamples)
-        total_loss += my_cluster.loss_estimate
+        total_loss += rank_cluster.loss_estimate
 
         if pverbose:
             print("Data size: %s" % total_subsamples)
@@ -1101,9 +1101,9 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
                 last_data = np.vstack(last_data)
 
                 # Batch solve
-                my_cluster = Cluster(last_data[:, :nfeatures], method='DBSCAN')
+                last_cluster = Cluster(last_data[:, :nfeatures], method='DBSCAN')
 
-                data_sub = my_cluster.makeBatchCluster(batch_size=batch_size,
+                data_sub = last_cluster.makeBatchCluster(batch_size=batch_size,
                                                        convergence_num=convergence_num,
                                                        verbose=pverbose,
                                                        core_sample=core_sample,
@@ -1113,7 +1113,7 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
                                                        output='indices')
 
                 retained = last_data[np.array(data_sub), :]
-                total_loss += my_cluster.loss_estimate
+                total_loss += last_cluster.loss_estimate
 
             break
         else:
