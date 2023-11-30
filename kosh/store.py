@@ -154,7 +154,7 @@ class KoshStore(object):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        if "://" in db_uri and use_lock_file:
+        if db_uri is not None and "://" in db_uri and use_lock_file:
             warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
             use_lock_file = False
         self.use_lock_file = use_lock_file
@@ -201,7 +201,7 @@ class KoshStore(object):
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
-            if not os.path.exists(db_uri):
+            if db_uri is not None and not os.path.exists(db_uri):
                 if "://" in db_uri:
                     self.__sina_store = sina_connect(
                         db_uri, read_only=read_only)
@@ -211,7 +211,11 @@ class KoshStore(object):
                         "Kosh store could not be found at: {}".format(db_uri))
             else:
                 self.lock()
-                self.__sina_store = sina_connect(database=os.path.abspath(db_uri),
+                if db_uri is not None:
+                    db_pth = os.path.abspath(db_uri)
+                else:
+                    db_pth = None
+                self.__sina_store = sina_connect(database=db_pth,
                                                  read_only=read_only,
                                                  database_type=db,
                                                  allow_connection_pooling=allow_connection_pooling)
@@ -1301,7 +1305,8 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
+                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[],
+                       ingest_funcs=None):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
@@ -1335,6 +1340,10 @@ class KoshStore(object):
         :type merge_handler_kargs: dict
         :param skip_sina_record_sections: When importing a sina record, skip over these sections
         :type skip_sina_record_sections: list
+        :param ingest_funcs: A function or list of functions to
+                             run against each Sina record before insertion.
+                             We queue them up to run here. They will be run in list order.
+        :type ingest_funcs: callable or list of callables
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1343,17 +1352,19 @@ class KoshStore(object):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
                                         merge_handler_kargs=merge_handler_kargs,
-                                        skip_sina_record_sections=skip_sina_record_sections)
+                                        skip_sina_record_sections=skip_sina_record_sections,
+                                        ingest_funcs=ingest_funcs)
         else:
             for dataset in datasets:
                 out.append(self._import_dataset(dataset, match_attributes=match_attributes,
                                                 merge_handler=merge_handler,
                                                 merge_handler_kargs=merge_handler_kargs,
-                                                skip_sina_record_sections=skip_sina_record_sections))
+                                                skip_sina_record_sections=skip_sina_record_sections,
+                                                ingest_funcs=ingest_funcs))
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
+            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[], ingest_funcs=None):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1376,6 +1387,10 @@ class KoshStore(object):
         :type merge_handler_kargs: dict
         :param skip_sina_record_sections: When importing a sina record, skip over these sections
         :type skip_sina_record_sections: list
+        :param ingest_funcs: A function or list of functions to
+                             run against each Sina record before insertion.
+                             We queue them up to run here. They will be run in list order.
+        :type ingest_funcs: callable or list of callables
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1396,6 +1411,17 @@ class KoshStore(object):
             raise ValueError(
                 "`datasets` must be a Kosh importable object or a file or dict containing json-ized datasets")
 
+        if ingest_funcs is not None:
+            temp_store = connect(None)
+            temp_store.get_sina_records().insert(
+                [sina.model.generate_record_from_json(record) for record in records_in])
+            temp_datasets = list(temp_store.find())
+            if isinstance(ingest_funcs, (list, tuple)):
+                for ingest_func in ingest_funcs:
+                    temp_datasets = [ingest_func(ds) for ds in temp_datasets]
+            else:
+                temp_datasets = [ingest_func(ds) for ds in temp_datasets]
+            records_in = [ds.export()["records"][0] for ds in temp_datasets]
         # setup merge handler
         ok_merge_handler_values = [
             None, "conservative", "preserve", "overwrite"]

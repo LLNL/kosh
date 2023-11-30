@@ -945,10 +945,12 @@ class KoshDataset(KoshSinaObject):
             rec_id = rec_id.split("__uri__")[0]
             yield rec_id if ids_only else self.__store__._load(rec_id)
 
-    def export(self, file=None):
+    def export(self, file=None, sina_record=False):
         """Exports this dataset
         :param file: export dataset to a file
         :type file: None or str
+        :param sina_record: export the dataset as a Sina record
+        :type sina_record: bool
         :return: dataset and its associated data
         :rtype: dict"""
         rec = self.get_record()
@@ -958,6 +960,9 @@ class KoshDataset(KoshSinaObject):
         jsns = [rec_json, ]
         # ok now same for associated data
         for associated_id in self._associated_data_:
+            if associated_id.startswith(f"{self.id}__uri__"):
+                # ok self referencing no need to add
+                continue
             rec = self.__store__._load(associated_id).get_record()
             rec_json = cleanup_sina_record_from_kosh_sync(rec)
             jsns.append(rec_json)
