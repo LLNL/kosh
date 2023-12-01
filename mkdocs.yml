@@ -113,5 +113,5 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/LLNL/kosh
-      name: kosh on GitHub
-copyright: Copyright &copy; 2023 | Charles Doutriaux, Jorge Moreno and the WEAVE Team;
+      name: Kosh on GitHub
+copyright: Copyright &copy; 2023 | Charles Doutriaux, Jorge Moreno, Renee Olson and the WEAVE Team;
