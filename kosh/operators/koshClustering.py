@@ -130,6 +130,7 @@ class KoshCluster(KoshOperator):
         # Get the sizes of each kosh dataset
         input_sizes = []
         desc = list(self.describe_entries())
+        breakpoint()
         for i in range(len(inputs)):
             input_sizes.append(desc[i]["size"][0])
 

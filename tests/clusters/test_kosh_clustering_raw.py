@@ -186,7 +186,7 @@ class ClusteringTest(TestCase):
         t1_start = time.time()
         my_cluster1 = Cluster(dataT, method='DBSCAN')
         data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=30)
-        self.assertLessEqual(datasub1.shape[0], dataT.shape[0])
+        self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
         t1_stop = time.time()
         t1 = t1_stop - t1_start
 
@@ -194,7 +194,7 @@ class ClusteringTest(TestCase):
         t2_start = time.time()
         my_cluster2 = Cluster(dataT, method='DBSCAN')
         data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
-        self.assertLessEqual(datasub2.shape[0], dataT.shape[0])
+        self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
         t2_stop = time.time()
         t2 = t2_stop - t2_start
 
@@ -227,8 +227,8 @@ class ClusteringTest(TestCase):
         global_ind = np.arange(nsamples) + nsamples * rank
 
         rdata = makeBatchClusterParallel(data,
-                                         global_ind,
                                          comm,
+                                         global_ind,
                                          batch_size=10000,
                                          convergence_num=3,
                                          scaling_function='min_max',

@@ -342,7 +342,8 @@ class KoshTestClusters(KoshTest):
         data_subsample = KoshCluster(
             dataset["dataset_1"],
             method="DBSCAN",
-            eps=-1,
+            auto_eps=True,
+            eps_0=.1,
             output="samples")[:]
 
         data = data_subsample[0]
