@@ -18,7 +18,7 @@ class FakeLoader(kosh.loaders.KoshLoader):
         return {"size": (5, 2)}
 
 
-def HermitMathVStackOperator(*args, **kargs):
+def MathVStackOperator(*args, **kargs):
     """
     Perform an hstack across feature inputs
     """
@@ -37,7 +37,7 @@ class VStackOperator(kosh.KoshOperator):
         Perform an vstack across feature inputs
         """
         local_kargs = {**self.kargs, **kargs}
-        return HermitMathVStackOperator(
+        return MathVStackOperator(
             *[_input[:] for _input in inputs], **local_kargs)
 
 
