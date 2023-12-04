@@ -71,9 +71,8 @@ class KoshCluster(KoshOperator):
 
         # Get the sizes of each kosh dataset
         input_sizes = []
-        desc = list(self.describe_entries())
-        for i in range(len(inputs)):
-            input_sizes.append(desc[i]["size"][0])
+        for input_ in inputs:
+            input_sizes.append(input_.shape[0])
 
         total_sample_size = sum(input_sizes)
 
