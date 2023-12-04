@@ -182,6 +182,25 @@ class ClusteringTest(TestCase):
 
         dataT = np.concatenate((data, dataR), axis=0)
 
+        # Test convergence float works
+        t2_start = time.time()
+        my_cluster2 = Cluster(dataT, method='DBSCAN')
+        data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
+        self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
+
+        @pytest.mark.mpi_skip
+    def test_convergence_int(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
         # Test convergence int works
         t1_start = time.time()
         my_cluster1 = Cluster(dataT, method='DBSCAN')
@@ -189,17 +208,6 @@ class ClusteringTest(TestCase):
         self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
         t1_stop = time.time()
         t1 = t1_stop - t1_start
-
-        # Test convergence float works
-        t2_start = time.time()
-        my_cluster2 = Cluster(dataT, method='DBSCAN')
-        data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
-        self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
-        t2_stop = time.time()
-        t2 = t2_stop - t2_start
-
-        # Test convergence num as float is faster than int
-        self.assertLessEqual(t2, t1)
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):

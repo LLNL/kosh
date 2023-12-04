@@ -132,7 +132,6 @@ class KoshCluster(KoshOperator):
         desc = list(self.describe_entries())
         for i in range(len(inputs)):
             input_sizes.append(desc[i]["size"][0])
-        print(f"Inputs: {input_sizes}")
         total_sample_size = sum(input_sizes)
 
         # Logical checks for batch and parallel clustering
@@ -231,9 +230,6 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
                                             input_sizes,
                                             gather_to,
                                             verbose)
-
-    if verbose:
-        print(f"Rank {rank} data size: {data.shape}")
 
     [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
 

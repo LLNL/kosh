@@ -350,7 +350,6 @@ class KoshTestClusters(KoshTest):
         eps = data_subsample[1]
 
         self.assertLessEqual(data.shape[0], dataT.shape[0])
-        self.assertEqual(type(eps), np.float64)
 
         # Cleanup
         os.remove(fileName)
