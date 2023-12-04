@@ -52,6 +52,7 @@ This release is minor release with a few bux fixes and new features. We encourag
 * `use_lock_file` caused hanging while using mariadb.
 * `mv` command now works with nested dirs
 * `mv` and `cp` now preserve ensemble membership.
+* KoshClustering `operate` uses inputs shape rather than original datasets sizes.
 
 ## 3.0.1 Release
 
