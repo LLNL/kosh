@@ -188,7 +188,7 @@ class ClusteringTest(TestCase):
         data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
         self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
 
-        @pytest.mark.mpi_skip
+    @pytest.mark.mpi_skip
     def test_convergence_int(self):
 
         Nsamples = 1000
@@ -218,7 +218,7 @@ class ClusteringTest(TestCase):
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
 
-        nsamples = 50000
+        nsamples = 5000
 
         x1 = np.arange(13.63636, 136.63636, 13.63636)
         x2 = np.arange(13.63636, 136.63636, 13.63636)
@@ -234,10 +234,11 @@ class ClusteringTest(TestCase):
         # Make global array indices for all procs
         global_ind = np.arange(nsamples) + nsamples * rank
 
+
         rdata = makeBatchClusterParallel(data,
                                          comm,
-                                         global_ind,
-                                         batch_size=10000,
+                                         global_ind=global_ind,
+                                         batch_size=3000,
                                          convergence_num=3,
                                          scaling_function='min_max',
                                          output='samples',

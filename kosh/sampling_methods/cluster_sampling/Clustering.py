@@ -1171,7 +1171,7 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
     # If data size < batch size, all data was sent to primary
     # rank and other ranks return None.
     else:
-        out = [None]
+        out = None
 
     # No labels since parallel is always batched
     return [out, global_loss]
