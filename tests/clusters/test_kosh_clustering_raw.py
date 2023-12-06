@@ -106,7 +106,9 @@ class ClusteringTest(TestCase):
 
         my_cluster.makeCluster(Nclusters=5)
 
-        self.assertTrue((my_cluster.original_clusters >= 4) & (my_cluster.original_clusters <= 6))
+        self.assertTrue(
+            (my_cluster.original_clusters >= 4) & (
+                my_cluster.original_clusters <= 6))
 
     @pytest.mark.mpi_skip
     def test_hopkins(self):
@@ -183,7 +185,8 @@ class ClusteringTest(TestCase):
 
         # Test convergence float works
         my_cluster2 = Cluster(dataT, method='DBSCAN')
-        data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
+        data_sub2 = my_cluster2.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=.01)
         self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
@@ -201,7 +204,8 @@ class ClusteringTest(TestCase):
 
         # Test convergence int works
         my_cluster1 = Cluster(dataT, method='DBSCAN')
-        data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=30)
+        data_sub1 = my_cluster1.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=30)
         self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
@@ -221,7 +225,8 @@ class ClusteringTest(TestCase):
         my_cluster1 = Cluster(dataT, method='DBSCAN')
 
         with pytest.raises(AssertionError):
-            data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=2.3)
+            my_cluster1.makeBatchCluster(
+                eps=0.001, batch_size=50, convergence_num=2.3)
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):

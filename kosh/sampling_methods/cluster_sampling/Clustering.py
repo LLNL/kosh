@@ -450,8 +450,7 @@ class Cluster(object):
         is_converged = False
 
         # Verify convergence_num
-        msg = f"convergence_num should be an int >= 2, or a"
-        msg += f"float between 0. and 1."
+        msg = "convergence_num should be an int >= 2, or a float between 0. and 1."
 
         convergence_int = False
         if (convergence_num > 1.0):
@@ -561,7 +560,7 @@ class Cluster(object):
             return np.array(final_result['global_ind']).astype(int)
 
     def subsample(self, distance_function='euclidean', output='samples',
-                core_sample=True, n_jobs=1):
+                  core_sample=True, n_jobs=1):
         """Takes a sample from each cluster to form subsample of
         the entire dataset
 
@@ -1061,13 +1060,13 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
         rank_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
 
         subset_indices = rank_cluster.makeBatchCluster(batch_size=batch_size,
-                                                        convergence_num=convergence_num,
-                                                        verbose=pverbose,
-                                                        core_sample=core_sample,
-                                                        eps=eps,
-                                                        min_samples=min_samples,
-                                                        distance_function=distance_function,
-                                                        output='indices')
+                                                       convergence_num=convergence_num,
+                                                       verbose=pverbose,
+                                                       core_sample=core_sample,
+                                                       eps=eps,
+                                                       min_samples=min_samples,
+                                                       distance_function=distance_function,
+                                                       output='indices')
 
         # everyone sends # of data to master, wait
         n_subsamples = subset_indices.shape[0]
@@ -1105,13 +1104,13 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
                 last_cluster = Cluster(last_data[:, :nfeatures], method='DBSCAN')
 
                 data_sub = last_cluster.makeBatchCluster(batch_size=batch_size,
-                                                       convergence_num=convergence_num,
-                                                       verbose=pverbose,
-                                                       core_sample=core_sample,
-                                                       eps=eps,
-                                                       min_samples=min_samples,
-                                                       distance_function=distance_function,
-                                                       output='indices')
+                                                         convergence_num=convergence_num,
+                                                         verbose=pverbose,
+                                                         core_sample=core_sample,
+                                                         eps=eps,
+                                                         min_samples=min_samples,
+                                                         distance_function=distance_function,
+                                                         output='indices')
 
                 retained = last_data[np.array(data_sub), :]
                 total_loss += last_cluster.loss_estimate
@@ -1368,7 +1367,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
     # Get subset of data
     sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
     sub_idx.sort()
-    sub_data = data[sub_idx,:]
+    sub_data = data[sub_idx, :]
 
     distance_function = options.get("distance_function", "euclidean")
 
@@ -1377,7 +1376,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         scaling_function=scaling_function)
 
     distances = temp_cluster_object.computeDistance(sub_data,
-                            distance_function=distance_function)
+                                                    distance_function=distance_function)
 
     # 2) Compute max loss @ epsMax
     epsMax = np.max(distances)

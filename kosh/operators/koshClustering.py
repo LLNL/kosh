@@ -114,7 +114,6 @@ class KoshCluster(KoshOperator):
         options['batch_size'] = self.batch_size
 
         # Check for automatic loss-based subsampling
-        eps = self.options.get('eps', .05)
         self.target_loss = self.options.get('target_loss', .01)
         self.autoEPS = self.options.get('auto_eps', False)
 
@@ -219,7 +218,6 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     The surviving data are randomly mixed and reduced, and the process continues
     until convergence.
     """
-    rank = comm.Get_rank()
     gather_to = options.get("gather_to")
     verbose = options.get("verbose")
 
