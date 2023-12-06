@@ -95,7 +95,7 @@ class KoshOperator(KoshExecutionGraph):
         :param inputs: result returned by loader or previous transformer
         :type inputs: tuple of features/execution graphs
         """
-        raise NotImplementedError("the transform function is not implemented")
+        raise NotImplementedError("the operate function is not implemented")
 
 
 def typed_operator_with_kwargs(types_dict=None):

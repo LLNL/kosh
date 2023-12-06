@@ -67,6 +67,7 @@ KOSH ENSEMBLE
 --- Ensemble Attributes ---
         --- Ensemble {} ---
                 root: foo
+--- Alias Feature Dictionary ---
 """.format(str(ds1.id), username, username, str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
         e1_str = str(e1).replace("\t", "        ")

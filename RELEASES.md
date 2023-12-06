@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.1](#31-release)
 * [3.0.1](#301-release)
 * [3.0](#30-release)
 * [2.2](#22-release)
@@ -11,6 +12,47 @@
 * [0.9](#09-release)
 * [0.8](#08-release)
 
+
+## 3.1 Release
+
+### Description
+
+This release is minor release with a few bux fixes and new features. We encourage users to upgrade.
+
+### New in this release
+
+* When searching for datasets from the store you can request to return them as Kosh Datasets (default no change in behaviour), Sina records or Python dictionaries, which enables faster returns in loops. `store.find([...],load_type='dictionary')`.
+* Kosh stores have an `alias_feature` attribute, that is used to allow users to extract features via an aliased name.
+* New Auto Epsilon Algorithm for Clustering: The algorithm will find the right epsilon value to use in clustering. The user can specify the amount of allowed information loss due to removing samples from the dataset.
+* Requires sina >=1.14
+* When opening a mariadb backend, in order to avoid sync error between ranks you should use: `store = kosh.connect(mariadb, execution_options={"isolation_level": "READ COMMITTED"})`
+* `mv` and `cp` from the command line now have `--merge_strategy` and `mk_dirs` options
+* `cp`, `mv` and `tar` are now accessible from Python at the store level: `store.cp()`, `store.mv()` and `store.tar()`
+* There is a [README](tests/README.md) for the Kosh test suite, including a dedicated one for [LC users](tests/LC_README.md)
+* Sina new ingest capabilities are available in Kosh via dataset, but with decoartor to allow the use of functions operating on Sina records.
+* Documentation switched to mkdocs.
+
+### Improvements
+
+* some internal cleanups (internal kosh attributes are being moved to their own section under the `user_defined`` section of the sina record).
+* clustering now has a verbose option.
+* when using MPI the clustering can be gathered to your prefered rank (rather than 0) with `gather_to`
+* Getting a warning when a loader cannot be loaded into the store.
+* Using bash rather than sh for the sbang
+* `latin1` encoding of loaders seems to create issues with mariadb, switching to `windows-1252`
+* Test suite gets mariadb from env variable.
+* Issue a warning if trying to set an ensemble attribute from a dataset and it matches the existing value. Still produces an error if the values differ.
+* Make KoshCluster more consistent in what it returns. It will always return a list now even if None is returned.
+
+### Bug fixes
+
+* Kosh parallel clustering used to hang when sample size was too small.
+* Kosh parallel clustering returned indices as a 1D array rather than a flat array.
+* On BlueOS `update_json_file_with_records_and_relationships` used to fail.
+* Reassociating a file linked to many dataset used to fail for other datasets if the reassociation was done at the dataset level.
+* `use_lock_file` caused hanging while using mariadb.
+* `mv` command now works with nested dirs
+* `mv` and `cp` now preserve ensemble membership.
 
 ## 3.0.1 Release
 

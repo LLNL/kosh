@@ -1,0 +1,9 @@
+mkdocs
+mkdocs-material
+mkdocs-mermaid2-plugin
+mkdocstrings-python 
+mkdocs-jupyter
+mkdocs-material-extensions
+mkdocs-literate-nav
+mkdocs-glightbox
+mkdocs-gen-files

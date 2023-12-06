@@ -1,0 +1,2 @@
+{"records": [{"id": "rec_1", "type": "test_rec", "data": {"volume": {"value": 12}}, "files": {"tests/baselines/sina/firstdir_link/seconddir/thirddir/summon_me_as_well.txt": {}}}]}
+

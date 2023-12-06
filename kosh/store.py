@@ -27,7 +27,7 @@ import kosh
 import six
 import types
 import sys
-from .kosh_command import KoshCmd
+from .kosh_command import KoshCmd, process_cmd
 
 try:
     from .loaders import HDF5Loader
@@ -154,7 +154,7 @@ class KoshStore(object):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
-        if "://" in db_uri and use_lock_file:
+        if db_uri is not None and "://" in db_uri and use_lock_file:
             warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
             use_lock_file = False
         self.use_lock_file = use_lock_file
@@ -201,7 +201,7 @@ class KoshStore(object):
         self._dataset_record_type = dataset_record_type
         self.db_uri = db_uri
         if db == "sql":
-            if not os.path.exists(db_uri):
+            if db_uri is not None and not os.path.exists(db_uri):
                 if "://" in db_uri:
                     self.__sina_store = sina_connect(
                         db_uri, read_only=read_only)
@@ -211,7 +211,11 @@ class KoshStore(object):
                         "Kosh store could not be found at: {}".format(db_uri))
             else:
                 self.lock()
-                self.__sina_store = sina_connect(database=os.path.abspath(db_uri),
+                if db_uri is not None:
+                    db_pth = os.path.abspath(db_uri)
+                else:
+                    db_pth = None
+                self.__sina_store = sina_connect(database=db_pth,
                                                  read_only=read_only,
                                                  database_type=db,
                                                  allow_connection_pooling=allow_connection_pooling)
@@ -519,6 +523,8 @@ class KoshStore(object):
         :type schema: KoshSchema
         :param sina_type: If you want to query the store for a specific sina record type, not just a dataset
         :type sina_type: str
+        :param alias_feature: Dictionary of feature aliases
+        :type alias_feature: dict, opt
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
         :raises RuntimeError: Dataset already exists
@@ -552,7 +558,10 @@ class KoshStore(object):
             metadata["name"] = name
         metadata["_associated_data_"] = None
         for k in metadata:
-            metadata[k] = {'value': metadata[k]}
+            if k == 'alias_feature':
+                metadata[k] = {'value':  kosh_pickler.dumps(metadata[k])}
+            else:
+                metadata[k] = {'value': metadata[k]}
         rec = Record(id=Id, type=sina_type, data=metadata, user_defined={'kosh_information': {}})
         if self.__sync__:
             self.lock()
@@ -1296,7 +1305,8 @@ class KoshStore(object):
                 return dataset.export(file)
 
     def import_dataset(self, datasets, match_attributes=[
-                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
+                       "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[],
+                       ingest_funcs=None):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
@@ -1330,6 +1340,10 @@ class KoshStore(object):
         :type merge_handler_kargs: dict
         :param skip_sina_record_sections: When importing a sina record, skip over these sections
         :type skip_sina_record_sections: list
+        :param ingest_funcs: A function or list of functions to
+                             run against each Sina record before insertion.
+                             We queue them up to run here. They will be run in list order.
+        :type ingest_funcs: callable or list of callables
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1338,17 +1352,19 @@ class KoshStore(object):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
                                         merge_handler_kargs=merge_handler_kargs,
-                                        skip_sina_record_sections=skip_sina_record_sections)
+                                        skip_sina_record_sections=skip_sina_record_sections,
+                                        ingest_funcs=ingest_funcs)
         else:
             for dataset in datasets:
                 out.append(self._import_dataset(dataset, match_attributes=match_attributes,
                                                 merge_handler=merge_handler,
                                                 merge_handler_kargs=merge_handler_kargs,
-                                                skip_sina_record_sections=skip_sina_record_sections))
+                                                skip_sina_record_sections=skip_sina_record_sections,
+                                                ingest_funcs=ingest_funcs))
         return out
 
     def _import_dataset(self, datasets, match_attributes=[
-            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[]):
+            "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[], ingest_funcs=None):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
         :type datasets: json file, json loaded object or kosh.KoshDataset
@@ -1371,6 +1387,10 @@ class KoshStore(object):
         :type merge_handler_kargs: dict
         :param skip_sina_record_sections: When importing a sina record, skip over these sections
         :type skip_sina_record_sections: list
+        :param ingest_funcs: A function or list of functions to
+                             run against each Sina record before insertion.
+                             We queue them up to run here. They will be run in list order.
+        :type ingest_funcs: callable or list of callables
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
@@ -1386,11 +1406,22 @@ class KoshStore(object):
         elif isinstance(datasets, (KoshDataset, KoshEnsemble)):
             from_file = datasets.export()
             records_in = from_file["records"]
-            relationships_in = []
+            relationships_in = from_file.get("relationships", [])
         else:
             raise ValueError(
                 "`datasets` must be a Kosh importable object or a file or dict containing json-ized datasets")
 
+        if ingest_funcs is not None:
+            temp_store = connect(None)
+            temp_store.get_sina_records().insert(
+                [sina.model.generate_record_from_json(record) for record in records_in])
+            temp_datasets = list(temp_store.find())
+            if isinstance(ingest_funcs, (list, tuple)):
+                for ingest_func in ingest_funcs:
+                    temp_datasets = [ingest_func(ds) for ds in temp_datasets]
+            else:
+                temp_datasets = [ingest_func(ds) for ds in temp_datasets]
+            records_in = [ds.export()["records"][0] for ds in temp_datasets]
         # setup merge handler
         ok_merge_handler_values = [
             None, "conservative", "preserve", "overwrite"]
@@ -1530,12 +1561,27 @@ class KoshStore(object):
 
         for relationship in relationships_in:
             try:
-                rel = Relationship(subject_id=relationship.subject,
+                rel = Relationship(subject_id=getattr(relationship, 'subject', relationship.subject_id),
                                    predicate=relationship.predicate,
-                                   object_id=relationship.object)
+                                   object_id=getattr(relationship, 'object', relationship.object_id))
                 self.get_sina_store().relationships.insert(rel)
             except Exception:  # sqlalchemy.exc.IntegrityError
                 pass
+
+            # Ensembles
+            if getattr(relationship, 'predicate', '') == 'is a member of ensemble':
+                try:
+                    self.create_ensemble(id=relationship.object_id)
+                except Exception:  # ensemble already in store
+                    pass
+
+                try:
+                    e = list(self.find(id=relationship.object_id))[0]
+                    ds = list(self.find(id=relationship.subject_id))[0]
+                    ds.join_ensemble(e)
+                except Exception:  # dataset already in ensemble
+                    pass
+
         # We need to make sure any merged (remapped) dataset is still properly
         # associated
         for id_ in matches:
@@ -1584,48 +1630,60 @@ class KoshStore(object):
             if source is not None and os.path.exists(source):
                 source = os.path.abspath(source)
 
-        # Now, did we pass a source for uri to replace?
-        if source is None:
-            source = compute_fast_sha(target)
+        if os.path.isdir(target):
+            target = os.path.join(target, "")
+            cmd = "rsync -v --dry-run -r" + " " + target + " ./"
+            p, o, e = process_cmd(cmd, use_shell=True)
+            rsync_dryrun_out_lines = o.decode().split("\n")
+            index = [idx for idx, s in enumerate(rsync_dryrun_out_lines) if 'sent ' in s][0]
+            targets_in_dir = rsync_dryrun_out_lines[1:index-1]
+            targets = [os.path.join(target, target_in_dir) for target_in_dir in targets_in_dir]
+        else:
+            targets = [target]
 
-        # Ok now let's get all associated uri that match
-        # Fist assuming it's a fast_sha search all "kosh files" that match this
-        matches = list(
-            self.find(
-                types=[
-                    self._sources_type,
-                ],
-                fast_sha=source,
-                ids_only=True))
-        # Now it could be simply a uri
-        matches += list(
-            self.find(
-                types=[
-                    self._sources_type,
-                ],
-                uri=source,
-                ids_only=True))
-        # And it's quite possible it's a long_sha too
-        matches += list(self.find(types=[self._sources_type, ],
-                                  long_sha=source, ids_only=True))
+        for target in targets:
+            # Now, did we pass a source for uri to replace?
+            if source is None:
+                source = compute_fast_sha(target)
 
-        # And now let's do the work
-        for match_id in matches:
-            try:
-                match = self._load(match_id)
-                for associated_id in match.associated:
-                    associated = self.open(associated_id)
-                    associated_record = associated.get_record()
-                    raw_associated_record = associated_record.raw
-                    raw_associated_record["files"][target] = raw_associated_record["files"][match.uri]
-                    del raw_associated_record["files"][match.uri]
-                    if self.sync:
-                        associated._update_record(associated_record)
-                    else:
-                        associated._update_record(associated_record, self._added_unsync_mem_store)
-                match.uri = target
-            except Exception:
-                pass
+            # Ok now let's get all associated uri that match
+            # Fist assuming it's a fast_sha search all "kosh files" that match this
+            matches = list(
+                self.find(
+                    types=[
+                        self._sources_type,
+                    ],
+                    fast_sha=source,
+                    ids_only=True))
+            # Now it could be simply a uri
+            matches += list(
+                self.find(
+                    types=[
+                        self._sources_type,
+                    ],
+                    uri=source,
+                    ids_only=True))
+            # And it's quite possible it's a long_sha too
+            matches += list(self.find(types=[self._sources_type, ],
+                                      long_sha=source, ids_only=True))
+
+            # And now let's do the work
+            for match_id in matches:
+                try:
+                    match = self._load(match_id)
+                    for associated_id in match.associated:
+                        associated = self.open(associated_id)
+                        associated_record = associated.get_record()
+                        raw_associated_record = associated_record.raw
+                        raw_associated_record["files"][target] = raw_associated_record["files"][match.uri]
+                        del raw_associated_record["files"][match.uri]
+                        if self.sync:
+                            associated._update_record(associated_record)
+                        else:
+                            associated._update_record(associated_record, self._added_unsync_mem_store)
+                    match.uri = target
+                except Exception:
+                    pass
 
     def cleanup_files(self, dry_run=False, interactive=False, clean_fastsha=False,
                       **dataset_search_keys):
@@ -1802,7 +1860,7 @@ class KoshStore(object):
 
     def _mv_cp(self, src, dst, mv_cp,
                stores, destination_stores, dataset_record_type,
-               dataset_matching_attributes, version, merge_strategy):
+               dataset_matching_attributes, version, merge_strategy, mk_dirs):
         """Creates the cmmd for mv and cp passed to kosh_command.py
 
         :param src: The source of files or directories to mv or cp
@@ -1811,9 +1869,9 @@ class KoshStore(object):
         :type dst: str
         :param mv_cp: Move or copy files or directories
         :type mv_cp: str
-        :param stores: Kosh stores to associate the mv or cp???
+        :param stores: Kosh stores to associate the mv or cp
         :type stores: Union[kosh.dataset.KoshDataset, list]
-        :param destination_stores: Kosh stores to associate the mv or cp???
+        :param destination_stores: Kosh stores to associate the mv or cp
         :type destination_stores: Union[kosh.dataset.KoshDataset, list]
         :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset
         :type dataset_record_type: str
@@ -1823,6 +1881,8 @@ class KoshStore(object):
         :type version: bool
         :param merge_strategy: When importing dataset, how do we handle conflict
         :type merge_strategy: str
+        :param mk_dirs: Make destination directories if they don't exist
+        :type mk_dirs: bool
         """
 
         # --stores
@@ -1846,7 +1906,7 @@ class KoshStore(object):
             cmmd = self._cli_list_creator("--destination_stores", destination_stores, cmmd, os.getcwd())
 
         # --sources
-        cmmd = self._cli_list_creator("--sources", src, cmmd, os.getcwd())
+        cmmd = self._cli_list_creator("--sources", src, cmmd)
 
         # --dataset_record_type
         cmmd.extend(["--dataset_record_type", dataset_record_type])
@@ -1864,20 +1924,24 @@ class KoshStore(object):
         # --merge_strategy
         cmmd.extend(["--merge_strategy", merge_strategy])
 
+        # --mk_dirs
+        if mk_dirs:
+            cmmd.extend(["--mk_dirs"])
+
         KoshCmd._mv_cp_(self, mv_cp, store_args=cmmd)
 
     def mv(self, src, dst, stores=[],
            destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
-           version=False, merge_strategy="conservative"):
+           version=False, merge_strategy="conservative", mk_dirs=False):
         """Moves files or directories
 
         :param src: The source of files or directories to mv or cp
         :type src: Union[str, list]
         :param dst: The destination of files or directories to mv or cp
         :type dst: str
-        :param stores: Kosh stores to associate the mv or cp???, defaults to []
+        :param stores: Kosh stores to associate the mv or cp, defaults to []
         :type stores: Union[kosh.dataset.KoshDataset, list], optional
-        :param destination_stores: Kosh stores to associate the mv or cp???, defaults to []
+        :param destination_stores: Kosh stores to associate the mv or cp, defaults to []
         :type destination_stores: Union[kosh.dataset.KoshDataset, list], optional
         :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset, defaults to "dataset"
         :type dataset_record_type: str, optional
@@ -1888,23 +1952,25 @@ class KoshStore(object):
         :type version: bool, optional
         :param merge_strategy: When importing dataset, how do we handle conflict, defaults to "conservative"
         :type merge_strategy: str, optional
+        :param mk_dirs: Make destination directories if they don't exist
+        :type mk_dirs: bool, optional
         """
 
         self._mv_cp(src, dst, "mv", stores, destination_stores, dataset_record_type,
-                    dataset_matching_attributes, version, merge_strategy)
+                    dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
     def cp(self, src, dst, stores=[],
            destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
-           version=False, merge_strategy="conservative"):
+           version=False, merge_strategy="conservative", mk_dirs=False):
         """Copies files or directories
 
         :param src: The source of files or directories to mv or cp
         :type src: Union[str, list]
         :param dst: The destination of files or directories to mv or cp
         :type dst: str
-        :param stores: Kosh stores to associate the mv or cp???, defaults to []
+        :param stores: Kosh stores to associate the mv or cp, defaults to []
         :type stores: Union[kosh.dataset.KoshDataset, list], optional
-        :param destination_stores: Kosh stores to associate the mv or cp???, defaults to []
+        :param destination_stores: Kosh stores to associate the mv or cp, defaults to []
         :type destination_stores: Union[kosh.dataset.KoshDataset, list], optional
         :param dataset_record_type: Type used by sina db that Kosh will recognize as dataset, defaults to "dataset"
         :type dataset_record_type: str, optional
@@ -1915,10 +1981,12 @@ class KoshStore(object):
         :type version: bool, optional
         :param merge_strategy: When importing dataset, how do we handle conflict, defaults to "conservative"
         :type merge_strategy: str, optional
+        :param mk_dirs: Make destination directories if they don't exist
+        :type mk_dirs: bool, optional
         """
 
         self._mv_cp(src, dst, "cp", stores, destination_stores, dataset_record_type,
-                    dataset_matching_attributes, version, merge_strategy)
+                    dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
     def tar(self, tar_file, tar_opts, src="", tar_type="tar",
             stores=[], dataset_record_type="dataset", no_absolute_path=False,
