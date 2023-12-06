@@ -21,12 +21,13 @@ This release is minor release with a few bux fixes and new features. We encourag
 
 ### New in this release
 
-* When searching for datasets from the store you can request to return them as Kosh Datasets (default no change in behaviour), Sina records or Python dictionaries. `store.find([...],load_type='dictionary')`.
+* When searching for datasets from the store you can request to return them as Kosh Datasets (default no change in behaviour), Sina records or Python dictionaries, which enables faster returns in loops. `store.find([...],load_type='dictionary')`.
 * Kosh stores have an `alias_feature` attribute, that is used to allow users to extract features via an aliased name.
 * New Auto Epsilon Algorithm for Clustering: The algorithm will find the right epsilon value to use in clustering. The user can specify the amount of allowed information loss due to removing samples from the dataset.
 * Requires sina >=1.14
 * When opening a mariadb backend, in order to avoid sync error between ranks you should use: `store = kosh.connect(mariadb, execution_options={"isolation_level": "READ COMMITTED"})`
 * `mv` and `cp` from the command line now have `--merge_strategy` and `mk_dirs` options
+* `cp`, `mv` and `tar` are now accessible from Python at the store level: `store.cp()`, `store.mv()` and `store.tar()`
 * There is a [README](tests/README.md) for the Kosh test suite, including a dedicated one for [LC users](tests/LC_README.md)
 * Sina new ingest capabilities are available in Kosh via dataset, but with decoartor to allow the use of functions operating on Sina records.
 * Documentation switched to mkdocs.
