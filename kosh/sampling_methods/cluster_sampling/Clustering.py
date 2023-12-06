@@ -456,7 +456,7 @@ class Cluster(object):
         if (convergence_num > 1.0):
             convergence_int = True
             assert convergence_num >= 2, msg
-            assert (not isinstance(convergence_num, float)), msg
+            assert(numpy.allclose(int(convergence_num), convergence_num)), msg
             convergence_num = int(convergence_num)
         else:
             assert convergence_num > 0. and convergence_num < 1., msg

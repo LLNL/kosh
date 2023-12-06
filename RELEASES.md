@@ -49,8 +49,6 @@ This release is a minor release with a few bux fixes and new features. We encour
 
 * Kosh parallel clustering used to hang when sample size was too small.
 * Kosh parallel clustering returned indices as a 1D array rather than a flat array.
-* Kosh parallel clustering now uses input shape instead of the original input feature descriptions to
-determine how data are distributed.
 * On BlueOS `update_json_file_with_records_and_relationships` used to fail.
 * Reassociating a file linked to many datasets used to fail for other datasets if the reassociation was done at the dataset level.
 * `use_lock_file` caused hanging while using mariadb.
