@@ -228,6 +228,11 @@ class ClusteringTest(TestCase):
             my_cluster1.makeBatchCluster(
                 eps=0.001, batch_size=50, convergence_num=2.3)
 
+        cv = np.array(2, dtype=int)
+        with pytest.raises(AssertionError):
+            my_cluster1.makeBatchCluster(
+                eps=0.001, batch_size=50, convergence_num=cv)
+
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
         import numpy as np
