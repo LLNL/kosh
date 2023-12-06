@@ -1,7 +1,6 @@
 from kosh.sampling_methods.cluster_sampling import Cluster
 from kosh.sampling_methods.cluster_sampling.Clustering import makeBatchClusterParallel
 import numpy as np
-import time
 import pytest
 from unittest import TestCase
 
@@ -183,7 +182,6 @@ class ClusteringTest(TestCase):
         dataT = np.concatenate((data, dataR), axis=0)
 
         # Test convergence float works
-        t2_start = time.time()
         my_cluster2 = Cluster(dataT, method='DBSCAN')
         data_sub2 = my_cluster2.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=.01)
         self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
@@ -202,12 +200,28 @@ class ClusteringTest(TestCase):
         dataT = np.concatenate((data, dataR), axis=0)
 
         # Test convergence int works
-        t1_start = time.time()
         my_cluster1 = Cluster(dataT, method='DBSCAN')
         data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=30)
         self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
-        t1_stop = time.time()
-        t1 = t1_stop - t1_start
+
+    @pytest.mark.mpi_skip
+    def test_wrong_convergence_input(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        # Test convergence int works
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+
+        with pytest.raises(AssertionError):
+            data_sub1 = my_cluster1.makeBatchCluster(eps=0.001, batch_size=50, convergence_num=2.3)
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
@@ -233,7 +247,6 @@ class ClusteringTest(TestCase):
 
         # Make global array indices for all procs
         global_ind = np.arange(nsamples) + nsamples * rank
-
 
         rdata = makeBatchClusterParallel(data,
                                          comm,

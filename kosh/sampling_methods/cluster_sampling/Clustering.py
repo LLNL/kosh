@@ -286,14 +286,14 @@ class Cluster(object):
                          HAC_distance_scaling=1.0, HAC_distance_value=-1,
                          Nclusters=-1):
         """Clusters samples with scipy's hierarchical agglomerative
-        clustering and the Ward variance minimizing algorithm. The flat 
-        clusters are created by a specified distance. Default distance is 
-        the maximum distance between any two samples in the dataset 
-        (self.default_distance), and you can adjust the default distance 
-        with HAC_scaling_distance. Alternatively you can define the distance 
-        yourself (HAC_distance_value), or define the number of clusters 
-        (Nclusters). The cluster labels are saved as the last column in a 
-        dataframe of the original data. This algorithm is not consistent when 
+        clustering and the Ward variance minimizing algorithm. The flat
+        clusters are created by a specified distance. Default distance is
+        the maximum distance between any two samples in the dataset
+        (self.default_distance), and you can adjust the default distance
+        with HAC_scaling_distance. Alternatively you can define the distance
+        yourself (HAC_distance_value), or define the number of clusters
+        (Nclusters). The cluster labels are saved as the last column in a
+        dataframe of the original data. This algorithm is not consistent when
         clustering the same data more than once, or clustering in batches.
 
         :param distance_function: distance metric 'euclidean',
@@ -457,6 +457,7 @@ class Cluster(object):
         if (convergence_num > 1.0):
             convergence_int = True
             assert convergence_num >= 2, msg
+            assert (not isinstance(convergence_num, float)), msg
             convergence_num = int(convergence_num)
         else:
             assert convergence_num > 0. and convergence_num < 1., msg
@@ -559,8 +560,8 @@ class Cluster(object):
         else:
             return np.array(final_result['global_ind']).astype(int)
 
-    def subsample(self, distance_function='euclidean', output='samples', 
-                    core_sample=True, n_jobs=1):
+    def subsample(self, distance_function='euclidean', output='samples',
+                core_sample=True, n_jobs=1):
         """Takes a sample from each cluster to form subsample of
         the entire dataset
 
@@ -611,7 +612,7 @@ class Cluster(object):
                         neighbors_model = NearestNeighbors(
                             radius=eps_c, algorithm='auto')
                         neighbors_model.fit(clust_data)
-                        # for each point, get an array of the points within eps_c 
+                        # for each point, get an array of the points within eps_c
                         neighborhoods = neighbors_model.radius_neighbors(
                             clust_data, return_distance=False)
                         n_neighbors = np.array(
@@ -977,13 +978,13 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
     """
     Clusters data with DBSCAN and returns a list containing:
     1. The reduced dataset or indices of the reduced data
-    2. The information loss estimate or the epsilon value found if the 
+    2. The information loss estimate or the epsilon value found if the
         auto eps algorithm was triggered because eps=-1
 
     :param data: A Numpy array or Pandas dataframe of shape
     (n_samples, n_features)
     :type data: array
-    :param comm: 
+    :param comm:
     :param scaling_function: function for scaling the features
     :type scaling_function: String or callable
     :param flatten: Flattens data to two dimensions.
@@ -1060,13 +1061,13 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
         rank_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
 
         subset_indices = rank_cluster.makeBatchCluster(batch_size=batch_size,
-                                                     convergence_num=convergence_num,
-                                                     verbose=pverbose,
-                                                     core_sample=core_sample,
-                                                     eps=eps,
-                                                     min_samples=min_samples,
-                                                     distance_function=distance_function,
-                                                     output='indices')
+                                                        convergence_num=convergence_num,
+                                                        verbose=pverbose,
+                                                        core_sample=core_sample,
+                                                        eps=eps,
+                                                        min_samples=min_samples,
+                                                        distance_function=distance_function,
+                                                        output='indices')
 
         # everyone sends # of data to master, wait
         n_subsamples = subset_indices.shape[0]
@@ -1393,7 +1394,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         epsGuess = eps_0
 
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    
+
     bounds = [1e-15, epsMax]
 
     if pverbose:

@@ -46,9 +46,9 @@ class KoshCluster(KoshOperator):
         :param core_sample: Whether to retain a sample from the center of
         the cluster (core sample), or a randomly chosen sample.
         :type core_sample: bool
-        :param eps: The distance around a sample that defines its neighbors. 
+        :param eps: The distance around a sample that defines its neighbors.
         :type eps: float
-        :param auto_eps: Use the algorithm to find the epsilon distance for 
+        :param auto_eps: Use the algorithm to find the epsilon distance for
         clustering based on the desired information loss.
         :type auto_eps: bool
         :param eps_0: The initial epsilon guess for the auto eps algorithm.
@@ -185,7 +185,7 @@ class KoshCluster(KoshOperator):
 
 def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
     """
-    Finds the appropriate epsilon value for clustering based on the target_loss. 
+    Finds the appropriate epsilon value for clustering based on the target_loss.
     """
 
     gather_to = options.get("gather_to", 0)
@@ -215,7 +215,7 @@ def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
 
 def _koshParallelClustering_(inputs, options, comm, input_sizes):
     """
-    Data are randomly distributed to processors and reduced with batch clustering. 
+    Data are randomly distributed to processors and reduced with batch clustering.
     The surviving data are randomly mixed and reduced, and the process continues
     until convergence.
     """
@@ -237,7 +237,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
 
 def _koshParallelReader_(inputs, comm, input_sizes, gather_to, verbose):
     """
-    Based on input sizes of the datasets, processors read in the data they 
+    Based on input sizes of the datasets, processors read in the data they
     have been assigned. The data will be evenly distributed.
     """
 
