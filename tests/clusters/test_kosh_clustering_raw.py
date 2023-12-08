@@ -221,17 +221,34 @@ class ClusteringTest(TestCase):
 
         dataT = np.concatenate((data, dataR), axis=0)
 
-        # Test convergence int works
+        
         my_cluster1 = Cluster(dataT, method='DBSCAN')
 
+        # Test 2.3 input raises error
         with pytest.raises(AssertionError):
             my_cluster1.makeBatchCluster(
                 eps=0.001, batch_size=50, convergence_num=2.3)
 
+    @pytest.mark.mpi_skip
+    def test_numpy_convergence_input(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+
+        # Test numpy array will work
         cv = np.array(2, dtype=int)
-        with pytest.raises(AssertionError):
-            my_cluster1.makeBatchCluster(
-                eps=0.001, batch_size=50, convergence_num=cv)
+        data_sub1 = my_cluster1.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=cv)
+        self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
