@@ -59,7 +59,7 @@ class TestKoshOperators(koshbase.KoshTest):
         clust_op = kosh.operators.KoshCluster(
             payload,
             method="DBSCAN",
-            eps=-1,
+            eps=1,
             output='indices',
             batch=False,
             verbose=False,
