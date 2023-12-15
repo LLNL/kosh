@@ -221,7 +221,6 @@ class ClusteringTest(TestCase):
 
         dataT = np.concatenate((data, dataR), axis=0)
 
-        
         my_cluster1 = Cluster(dataT, method='DBSCAN')
 
         # Test 2.3 input raises error
