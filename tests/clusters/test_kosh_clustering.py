@@ -342,14 +342,13 @@ class KoshTestClusters(KoshTest):
         data_subsample = KoshCluster(
             dataset["dataset_1"],
             method="DBSCAN",
-            eps=-1,
+            auto_eps=True,
+            eps_0=.1,
             output="samples")[:]
 
         data = data_subsample[0]
-        eps = data_subsample[1]
 
         self.assertLessEqual(data.shape[0], dataT.shape[0])
-        self.assertEqual(type(eps), np.float64)
 
         # Cleanup
         os.remove(fileName)

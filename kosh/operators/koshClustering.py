@@ -8,16 +8,70 @@ from .core import KoshOperator
 
 
 class KoshCluster(KoshOperator):
+    """Clusters together similar samples from a dataset, and then
+    returns cluster representatives to form a non-redundant
+    subsample of the original dataset. The datasets need to be of
+    shape (n_samples, n_features). All datasets must have the same
+    number of features. If the datasets are more than two dimensions
+    there is an option to flatten them.
+    """
     types = {"numpy": ["numpy", "pandas"]}
 
     def __init__(self, *args, **options):
-        """Clusters together similar samples from a dataset, and then
-        returns cluster representatives to form a non-redundant
-        subsample of the original dataset. The datasets need to be of
-        shape (n_samples, n_features). All datasets must have the same
-        number of features. If the datasets are more than two dimensions
-        there is an option to flatten them.
         """
+        :param inputs: One or more arrays of size (n_samples, n_features).
+        datasets must have same number of n_features.
+        :type inputs: kosh datasets
+        :param flatten: Flattens data to two dimensions.
+        (n_samples, n_features_1*n_features_2* ... *n_features_m)
+        :type flatten: bool
+        :param distance_function: distance metric 'euclidean', 'seuclidean',
+        'sqeuclidean', 'beuclidean', or user defined function. Defaults to
+        'euclidean'
+        :type distance_function: string or user defined function
+        :param scaling_function: Scaling function to use on data before it
+        is clustered.
+        :type scaling_function: string or user defined function
+        :param batch: Whether to cluster data in batches
+        :type batch: bool
+        :param batch_size: Size of the batches
+        :type batch_size: int
+        :param gather_to: Which process to gather data to if samples are
+        smaller than number of processes or batch size.
+        type gather_to: int
+        :param convergence_num: If int, converged after the data size is the same for
+        'num' iterations. The default is 2. If float, converged after the change in data
+        size is less than convergence_num*100 percent of the original data size.
+        :type convergence_num: int or float between 0 and 1
+        :param core_sample: Whether to retain a sample from the center of
+        the cluster (core sample), or a randomly chosen sample.
+        :type core_sample: bool
+        :param eps: The distance around a sample that defines its neighbors.
+        :type eps: float
+        :param auto_eps: Use the algorithm to find the epsilon distance for
+        clustering based on the desired information loss.
+        :type auto_eps: bool
+        :param eps_0: The initial epsilon guess for the auto eps algorithm.
+        :type eps_0: float
+        :param min_samples: The minimum number of samples to form a cluster.
+        :type min_samples: int
+        :param target_loss: The proportion of information loss allowed from removing
+        samples from the original dataset. The default is .01 or 1% loss.
+        :type target_loss: float
+        :param verbose: Verbose message
+        :type verbose: bool
+        :param output: The retained data or the indices to get the retained
+        data from the original dataset.
+        :type output: string
+        :param format: Returns the indices as numpy array ('numpy') or
+        defaults to pandas dataframe.
+        :type format: string
+        :returns: A list containing: 1. The reduced dataset or indices to reduce the original
+        dataset. 2. The estimated information loss or if using the auto eps algorithm (eps=-1)
+        the second item in the list will be the epsilon value found with auto eps.
+        :rtype: list with elements in the list being either numpy array or pandas dataframe
+        """
+
         super(KoshCluster, self).__init__(*args, **options)
 
         self.options = options
@@ -60,21 +114,22 @@ class KoshCluster(KoshOperator):
         options['batch_size'] = self.batch_size
 
         # Check for automatic loss-based subsampling
-        eps = self.options.get('eps', .05)
         self.target_loss = self.options.get('target_loss', .01)
-        self.autoEPS = (eps < 0)
+        self.autoEPS = self.options.get('auto_eps', False)
 
     def operate(self, *inputs, **kargs):
+        """
+        Checks for serial or parallel clustering and calls
+        those functions
+        """
 
         if self.pverbose:
             print("Reading in %s datasets." % len(inputs))
 
         # Get the sizes of each kosh dataset
         input_sizes = []
-        desc = list(self.describe_entries())
-        for i in range(len(inputs)):
-            input_sizes.append(desc[i]["size"][0])
-
+        for input_ in inputs:
+            input_sizes.append(input_.shape[0])
         total_sample_size = sum(input_sizes)
 
         # Logical checks for batch and parallel clustering
@@ -128,6 +183,9 @@ class KoshCluster(KoshOperator):
 
 
 def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
+    """
+    Finds the appropriate epsilon value for clustering based on the target_loss.
+    """
 
     gather_to = options.get("gather_to", 0)
     verbose = options.get("verbose", False)
@@ -156,49 +214,10 @@ def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
 
 def _koshParallelClustering_(inputs, options, comm, input_sizes):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features).
-    datasets must have same number of n_features.
-    :type inputs: kosh datasets
-    :param flatten: Flattens data to two dimensions.
-    (n_samples, n_features_1*n_features_2* ... *n_features_m)
-    :type flatten: bool
-    :param distance_function: distance metric 'euclidean', 'seuclidean',
-    'sqeuclidean', 'beuclidean', or user defined function. Defaults to
-    'euclidean'
-    :type distance_function: string or user defined function
-    :param scaling_function: Scaling function to use on data before it
-    is clustered.
-    :type scaling_function: string or user defined function
-    :param batch: Whether to cluster data in batches
-    :type batch: bool
-    :param batch_size: Size of the batches
-    :type batch_size: int
-    :param gather_to: Which process to gather data to if samples are
-    smaller than number of processes or batch size.
-    type gather_to: int
-    :param convergence_num: Converged if the data size is the same for
-    'num' iterations. The default is 2.
-    :type convergence_num: int
-    :param core_sample: Whether to retain a sample from the center of
-    the cluster (core sample), or a randomly chosen sample.
-    :type core_sample: bool
-    :param eps: The distance around a sample that defines its neighbors.
-    :type eps: float
-    :param min_samples: The minimum number of samples to form a cluster.
-    :type min_samples: int
-    :param verbose: Verbose message
-    :type verbose: bool
-    :param output: The retained data or the indices to get the retained
-    data from the original dataset.
-    :type output: string
-    :param format: Returns the indices as numpy array ('numpy') or
-    defaults to pandas dataframe.
-    :type format: string
-    :returns: clustered subsample of original dataset, or indices of
-    subsample
-    :rtype: numpy array or pandas dataframe
+    Data are randomly distributed to processors and reduced with batch clustering.
+    The surviving data are randomly mixed and reduced, and the process continues
+    until convergence.
     """
-
     gather_to = options.get("gather_to")
     verbose = options.get("verbose")
 
@@ -209,12 +228,16 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
                                             gather_to,
                                             verbose)
 
-    [local_data, loss] = ParallelClustering(data, global_ind, comm, options)
+    [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
 
     return [local_data, loss]
 
 
 def _koshParallelReader_(inputs, comm, input_sizes, gather_to, verbose):
+    """
+    Based on input sizes of the datasets, processors read in the data they
+    have been assigned. The data will be evenly distributed.
+    """
 
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
@@ -276,66 +299,7 @@ def _koshParallelReader_(inputs, comm, input_sizes, gather_to, verbose):
 
 def _koshSerialClustering_(inputs, options):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features).
-    Datasets must have same number of n_features.
-    :type inputs: kosh datasets
-    :param method: DBSCAN or HAC (Hierarchical Agglomerative Clustering)
-    :type method: str
-    :param scaling_function: function for scaling the features
-    :type scaling_function: String or callable
-    :param flatten: Flattens data to two dimensions.
-    (n_samples, n_features_1*n_features_2* ... *n_features_m)
-    :type flatten: bool
-    :param distance_function: distance metric 'euclidean',
-    'seuclidean', 'sqeuclidean', 'beuclidean', or user defined function.
-    Defaults to 'euclidean'
-    :type distance_function: string or user defined function
-    :param batch: Whether to cluster data in batches
-    :type batch: bool
-    :param batch_size: Size of the batches
-    :type batch_size: int
-    :param convergence_num: Converged if the data size is the same
-    for 'num' iterations. The default is 2.
-    :type convergence_num: int
-    :param eps: The distance around a sample that defines its
-    neighbors. (Only for DBSCAN)
-    :type eps: float
-    :param min_samples: The minimum number of samples to form a
-    cluster. (Only for DBSCAN)
-    :type min_samples: int
-    :param verbose: Verbose message
-    :type verbose: bool
-    :param min_cluster_size: The smallest size grouping to be
-    considered a cluster
-    :type min_cluster_size: int
-    :param HAC_distance_scaling: Scales the default distance
-    (self.default_distance), Must be greater than zero
-    :type HAC_distance_scaling: float
-    :param HAC_distance_value: User defines cut-off distance for
-    clustering
-    :type HAC_distance_value: float
-    :param Nclusters: Number of clusters to find
-    (Instead of using a distance for clustering)
-    :type Nclusters: int
-    :param core_sample: Whether to retain a sample from the center
-    of the cluster (core sample), or a randomly chosen sample.
-    :type core_sample: bool
-    :param n_jobs: The number of parallel jobs to run. -1 means
-    using all processors.
-    :type n_jobs: int
-    :param return_labels: Returns list of retained samples/indices
-    and labels. If using HDBSCAN, labels will be cluster labels and
-    probabilities.
-    :type return_labels: bool
-    :param format: Returns the indices as numpy array ('numpy') or
-    defaults to pandas dataframe.
-    :type format: string
-    :param output: The retained data or the indices to get the
-    retained data from the original dataset.
-    :type output: string
-    :returns: clustered subsample of original dataset, or indices
-    of subsample
-    :rtype: numpy array or pandas dataframe
+    Reads in all the datasets and reduces data with cluster sampling.
     """
 
     data = inputs[0][:]
