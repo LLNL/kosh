@@ -58,6 +58,9 @@ class Cluster(object):
             self.scaleData()
 
     def scaleData(self):
+        """
+        Scale or normalize data, or provide custom scaling function.
+        """
 
         if isinstance(self.scaling_function, type('')):
             if self.scaling_function == "standard":
@@ -283,16 +286,15 @@ class Cluster(object):
                          HAC_distance_scaling=1.0, HAC_distance_value=-1,
                          Nclusters=-1):
         """Clusters samples with scipy's hierarchical agglomerative
-        clustering and the Ward variance minimizing algorithm. The
-        flat clusters are created by a specified distance. Default
-        distance is the maximum distance between any two samples in
-        the dataset (self.default_distance), and you can adjust the
-        default distance with HAC_scaling_distance. Alternatively
-        you can define the distance yourself (HAC_distance_value),
-        or define the number of clusters (Nclusters). The cluster
-        labels are saved as the last column in a dataframe of the
-        original data. *This algorithm is not good for clustering
-        the same data more than once, or clustering in batches.
+        clustering and the Ward variance minimizing algorithm. The flat
+        clusters are created by a specified distance. Default distance is
+        the maximum distance between any two samples in the dataset
+        (self.default_distance), and you can adjust the default distance
+        with HAC_scaling_distance. Alternatively you can define the distance
+        yourself (HAC_distance_value), or define the number of clusters
+        (Nclusters). The cluster labels are saved as the last column in a
+        dataframe of the original data. This algorithm is not consistent when
+        clustering the same data more than once, or clustering in batches.
 
         :param distance_function: distance metric 'euclidean',
         'seuclidean', 'sqeuclidean', 'beuclidean', or user defined
@@ -404,9 +406,11 @@ class Cluster(object):
         :param batch_size: Number of samples for each batch. It
         will be adjusted to produce evenly sized batches.
         :type batch_size: int
-        :param convergence_num: Converged if the data size is the
-        same for 'num' iterations. The default is 2.
-        :type convergence_num: int
+        :param convergence_num: If int, converged after the data size is the
+        same for 'num' iterations. The default is 2. If float, it's converged
+        after the change in data size is less than convergence_num*100 percent
+        of the original data size.
+        :type convergence_num: int >= 2 or float between 0. and 1.
         :param output: Returns the subsamples as pandas dataframe
         ('samples') or as 'indices' in numpy array.
         :type format: string
@@ -445,7 +449,22 @@ class Cluster(object):
         new_n = batch_data.shape[0]
         is_converged = False
 
-        data_size = [new_n] * convergence_num
+        # Verify convergence_num
+        msg = "convergence_num should be an int >= 2, or a float between 0. and 1."
+
+        convergence_int = False
+        if (convergence_num > 1.0):
+            convergence_int = True
+            assert convergence_num >= 2, msg
+            assert (np.allclose(int(convergence_num), convergence_num)), msg
+            convergence_num = int(convergence_num)
+        else:
+            assert convergence_num > 0. and convergence_num < 1., msg
+
+        if convergence_int:
+            data_size = [new_n] * convergence_num
+        else:
+            data_size = [new_n]
         # This batching loop will continue until sample size is small enough to
         # cluster all together or sample size has converged.
         total_loss = 0
@@ -520,8 +539,11 @@ class Cluster(object):
 
             # Check convergence
             data_size.append(len(clusteredDataArrs))
-            last_num = list(data_size[-convergence_num:])
-            is_converged = len(set(last_num)) == 1
+            if convergence_int:
+                last_num = list(data_size[-convergence_num:])
+                is_converged = len(set(last_num)) == 1
+            else:
+                is_converged = abs(data_size[-1]-data_size[-2]) < data_size[0] * convergence_num
 
         final_result = data_pd
         self.loss_estimate = total_loss
@@ -537,8 +559,8 @@ class Cluster(object):
         else:
             return np.array(final_result['global_ind']).astype(int)
 
-    def subsample(self, distance_function='euclidean',
-                  output='samples', core_sample=True, n_jobs=1):
+    def subsample(self, distance_function='euclidean', output='samples',
+                  core_sample=True, n_jobs=1):
         """Takes a sample from each cluster to form subsample of
         the entire dataset
 
@@ -564,7 +586,7 @@ class Cluster(object):
 
             if self.method == 'DBSCAN':
                 eps = self.eps
-            elif self.method == 'HAC':
+            if self.method == 'HAC':
                 eps = self.cutoff_distance
 
             # Counts for each cluster
@@ -589,13 +611,16 @@ class Cluster(object):
                         neighbors_model = NearestNeighbors(
                             radius=eps_c, algorithm='auto')
                         neighbors_model.fit(clust_data)
+                        # for each point, get an array of the points within eps_c
                         neighborhoods = neighbors_model.radius_neighbors(
                             clust_data, return_distance=False)
                         n_neighbors = np.array(
                             [len(neighbors) for neighbors in neighborhoods])
-                        core_sample = n_neighbors.max()
+                        most_neighbors = n_neighbors.max()
+                        # the indices of all points with a neighborhood of size <most_neighbors>
                         core_sample_indices = np.where(
-                            n_neighbors == core_sample)[0]
+                            n_neighbors == most_neighbors)[0]
+                        # get the dataframe indices for the selected points
                         cs_global_index = clust_data.index[core_sample_indices]
                         max_neighbor_indices = np.append(
                             max_neighbor_indices, cs_global_index)
@@ -615,13 +640,13 @@ class Cluster(object):
                 # compute loss between sample_indices and removed samples
                 if clust_data.shape[0] == 2:
                     dist = self.computeDistance(clust_data, distance_function)
-                    tot_dist.append(dist.astype(float))
+                    tot_dist.append(float(dist))
                 elif clust_data.shape[0] > 2:
                     dist = self.computeDistance(clust_data, distance_function)
                     sq_dist = scipy.spatial.distance.squareform(dist)
                     local_index = np.where(
                         clust_data.index == sample_indices[0])[0][0]
-                    tot_dist.append(sum(sq_dist[local_index]))
+                    tot_dist.append(float(sum(sq_dist[local_index])))
                 else:
                     tot_dist.append(0.0)
 
@@ -943,20 +968,28 @@ class Cluster(object):
             return [val_range, total_dist, sample_size]
 
 
-def makeBatchClusterParallel(data,
-                             global_ind,
-                             comm,
-                             flatten=False,
-                             batch_size=3000,
-                             convergence_num=2,
+def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
+                             batch_size=3000, convergence_num=2,
                              distance_function="euclidean",
-                             scaling_function='',
-                             core_sample=True,
-                             gather_to=0,
-                             output='samples',
-                             verbose=False,
-                             eps=.05,
-                             min_samples=2):
+                             scaling_function='', core_sample=True,
+                             gather_to=0, output='samples',
+                             verbose=False, eps=.05, min_samples=2):
+    """
+    Clusters data with DBSCAN and returns a list containing:
+    1. The reduced dataset or indices of the reduced data
+    2. The information loss estimate or the epsilon value found if the
+        auto eps algorithm was triggered because eps=-1
+
+    :param data: A Numpy array or Pandas dataframe of shape
+    (n_samples, n_features)
+    :type data: array
+    :param comm:
+    :param scaling_function: function for scaling the features
+    :type scaling_function: String or callable
+    :param flatten: Flattens data to two dimensions.
+    (n_samples, n_features_1*n_features_2* ... *n_features_m)
+    :type flatten: bool
+    """
 
     from mpi4py import MPI
     rank = comm.Get_rank()
@@ -1006,8 +1039,17 @@ def makeBatchClusterParallel(data,
               "'standard' or define your own scaling function.")
 
     is_converged = False
+    convergence_int = False
 
-    data_size = [total_data_size]
+    # Check convergence_num type
+    if convergence_num >= 1.0:
+        convergence_int = True
+        convergence_num = int(convergence_num)
+
+    if convergence_int:
+        data_size = [total_data_size] * convergence_num
+    else:
+        data_size = [total_data_size]
     total_loss = 0
     while not is_converged:
 
@@ -1015,29 +1057,32 @@ def makeBatchClusterParallel(data,
             print("Clustering data")
 
         # ranks cluster data and output smaller data/indices
-        my_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
+        rank_cluster = Cluster(data[:, :nfeatures], method='DBSCAN')
 
-        subset_indices = my_cluster.makeBatchCluster(batch_size=batch_size,
-                                                     convergence_num=convergence_num,
-                                                     verbose=pverbose,
-                                                     core_sample=core_sample,
-                                                     eps=eps,
-                                                     min_samples=min_samples,
-                                                     distance_function=distance_function,
-                                                     output='indices')
+        subset_indices = rank_cluster.makeBatchCluster(batch_size=batch_size,
+                                                       convergence_num=convergence_num,
+                                                       verbose=pverbose,
+                                                       core_sample=core_sample,
+                                                       eps=eps,
+                                                       min_samples=min_samples,
+                                                       distance_function=distance_function,
+                                                       output='indices')
 
         # everyone sends # of data to master, wait
         n_subsamples = subset_indices.shape[0]
         total_subsamples = comm.allreduce(n_subsamples, op=MPI.SUM)
         data_size.append(total_subsamples)
-        total_loss += my_cluster.loss_estimate
+        total_loss += rank_cluster.loss_estimate
 
         if pverbose:
             print("Data size: %s" % total_subsamples)
 
         # Check convergence
-        last_n = data_size[-convergence_num:]
-        is_converged = len(set(last_n)) == 1
+        if convergence_int:
+            last_n = data_size[-convergence_num:]
+            is_converged = len(set(last_n)) == 1
+        else:
+            is_converged = abs(data_size[-1]-data_size[-2]) < (data_size[0] * convergence_num)
 
         if (is_converged):
             retained = data[np.array(subset_indices), :]
@@ -1056,19 +1101,19 @@ def makeBatchClusterParallel(data,
                 last_data = np.vstack(last_data)
 
                 # Batch solve
-                my_cluster = Cluster(last_data[:, :nfeatures], method='DBSCAN')
+                last_cluster = Cluster(last_data[:, :nfeatures], method='DBSCAN')
 
-                data_sub = my_cluster.makeBatchCluster(batch_size=batch_size,
-                                                       convergence_num=convergence_num,
-                                                       verbose=pverbose,
-                                                       core_sample=core_sample,
-                                                       eps=eps,
-                                                       min_samples=min_samples,
-                                                       distance_function=distance_function,
-                                                       output='indices')
+                data_sub = last_cluster.makeBatchCluster(batch_size=batch_size,
+                                                         convergence_num=convergence_num,
+                                                         verbose=pverbose,
+                                                         core_sample=core_sample,
+                                                         eps=eps,
+                                                         min_samples=min_samples,
+                                                         distance_function=distance_function,
+                                                         output='indices')
 
                 retained = last_data[np.array(data_sub), :]
-                total_loss += my_cluster.loss_estimate
+                total_loss += last_cluster.loss_estimate
 
             break
         else:
@@ -1155,6 +1200,12 @@ def numpyParallelReader(inputs, input_sizes, comm):
     counter = 0
     data = []
 
+    # Get global indices
+    start = sum(data_to_procs[0:rank])
+    end = start + data_to_procs[rank]
+    global_ind = np.arange(start, end)
+    global_ind = global_ind.reshape(-1, 1)
+
     for i in range(len(input_sizes)):
 
         readData = True
@@ -1181,7 +1232,7 @@ def numpyParallelReader(inputs, input_sizes, comm):
                 readData = False
 
     data = np.concatenate(data)
-    return data
+    return data, global_ind
 
 
 def scaleDataParallel(data, comm, scaling_function,
@@ -1285,6 +1336,10 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
 
     rank = comm.Get_rank()
     primary = options.get("gather_to", 0)
+    verbose = options.get("verbose", False)
+    pverbose = rank == primary and verbose
+    scaling_function = options.get("scaling_function", '')
+    eps_0 = options.get("eps_0", None)
 
     def DO_CLUSTER(eps):
 
@@ -1302,48 +1357,51 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         if not parallel:
             [local_data, labels, loss] = SerialClustering(data, options)
         else:
-            [local_data, loss] = ParallelClustering(data, indices, comm, options)
+            [local_data, loss] = ParallelClustering(data, comm, indices, options)
 
         # - Get/return loss
         return [local_data, loss]
 
-    # 1) Get M features and min/max
-    Mfeatures = data.shape[1]
-    fmax = 1.0
-    fmin = 0.0
-    epsMax = np.sqrt((fmax-fmin)*Mfeatures)
+    # Make temporary cluster object of subset of data
+
+    # Get subset of data
+    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
+    sub_idx.sort()
+    sub_data = data[sub_idx, :]
+
+    distance_function = options.get("distance_function", "euclidean")
+
+    temp_cluster_object = Cluster(
+        sub_data,
+        scaling_function=scaling_function)
+
+    distances = temp_cluster_object.computeDistance(sub_data,
+                                                    distance_function=distance_function)
 
     # 2) Compute max loss @ epsMax
+    epsMax = np.max(distances)
+    if parallel:
+        epsMax = comm.allreduce(epsMax, MPI.MAX)
     [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
 
-    scaling_function = options.get("scaling_function", "")
-    flatten = options.get("flatten", False)
-
-    # To do: make this work in parallel
-    temp_cluster_object = Cluster(
-        data,
-        scaling_function=scaling_function,
-        flatten=flatten)
-
-    h_estimate = temp_cluster_object.hopkins()
-    h_estimate = MPI.COMM_WORLD.allreduce(h_estimate, MPI.SUM) / MPI.COMM_WORLD.size
-    if h_estimate < 0.8:
-        denom = 10
+    # Use ave distance of subsample if no eps guess is given
+    if eps_0 is None:
+        epsGuess = np.mean(distances)
+        if parallel:
+            epsGuess = comm.allreduce(epsGuess, MPI.SUM)/comm.Get_size()
     else:
-        denom = 100
-    if rank == primary:
-        print("Hopkins estimate: " + str(h_estimate))
+        epsGuess = eps_0
 
     # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-    epsGuess = epsMax / denom
-    bounds = [1e-8, epsMax]
 
-    if rank == primary:
+    bounds = [1e-15, epsMax]
+
+    if pverbose:
         print("epsGuess: " + str(epsGuess))
 
     [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
     non_dim_loss = epsLoss / maxLoss
-    if rank == primary:
+    if pverbose:
         print("Loss proportion: " + str(non_dim_loss))
     if epsLoss > target_loss*maxLoss:
         guess_above = True
@@ -1369,8 +1427,6 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
                 step_size = (bounds[1] - bounds[0])/4
                 reduce_step_size = False
 
-            [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
-            non_dim_loss = epsLoss / maxLoss
         else:
             bounds[0] = epsGuess
             if guess_above is True:
@@ -1382,24 +1438,25 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
                 step_size = (bounds[1] - bounds[0])/4
                 reduce_step_size = False
 
-            [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
-            non_dim_loss = epsLoss / maxLoss
+        [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
+        non_dim_loss = epsLoss / maxLoss
+        losses.append(non_dim_loss)
+        guesses.append(epsGuess)
 
         if reduce_step_size:
             step_size /= 2
             reduce_step_size = False
 
-        if rank == primary:
+        if pverbose:
             print("epsGuess: " + str(epsGuess))
             print("Loss proportion: " + str(non_dim_loss))
 
-        guesses.append(epsGuess)
-        losses.append(non_dim_loss)
         if len(guesses) == 14:
-            min_index = np.argmin(non_dim_loss)
+            min_index = np.argmin(np.abs(np.array(losses)-target_loss))
             epsGuess = guesses[min_index]
+            non_dim_loss = losses[min_index]
             break
-    if rank == primary:
+    if pverbose:
         print("epsFinal: " + str(epsGuess))
         print("Final Loss proportion: " + str(non_dim_loss))
 
@@ -1509,7 +1566,7 @@ def SerialClustering(data, options):
     return [out, labels, loss]
 
 
-def ParallelClustering(data, global_ind, comm, options):
+def ParallelClustering(data, comm, global_ind, options):
 
     # Parse the input arguments
     flatten = options.get("flatten", False)
@@ -1526,8 +1583,8 @@ def ParallelClustering(data, global_ind, comm, options):
     # format = options.get("format", "numpy")
 
     [local_data, loss] = makeBatchClusterParallel(data,
-                                                  global_ind,
                                                   comm,
+                                                  global_ind,
                                                   flatten=flatten,
                                                   batch_size=batch_size,
                                                   convergence_num=convergence_num,

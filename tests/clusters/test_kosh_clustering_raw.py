@@ -11,7 +11,7 @@ class ClusteringTest(TestCase):
         self.assertTrue(callable(Cluster))
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d(self):
+    def test_subsample_HAC(self):
 
         Nsamples = 100
         Ndims = 2
@@ -30,7 +30,7 @@ class ClusteringTest(TestCase):
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_DBSCAN(self):
+    def test_subsample_DBSCAN(self):
 
         Nsamples = 100
         Ndims = 2
@@ -49,7 +49,7 @@ class ClusteringTest(TestCase):
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 
     @pytest.mark.mpi_skip
-    def test_subsample_rank3_DBSCAN(self):
+    def test_subsample_flatten_DBSCAN(self):
 
         Nsamples = 100
         Ndimsx = 2
@@ -70,7 +70,7 @@ class ClusteringTest(TestCase):
         self.assertEqual(data_sub.shape[1], total_features)
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_NHAC(self):
+    def test_subsample_NHAC(self):
 
         Nsamples = 100
         Ndims = 2
@@ -90,7 +90,7 @@ class ClusteringTest(TestCase):
         self.assertTrue((data_sub.shape[0] >= 28) & (data_sub.shape[0] <= 32))
 
     @pytest.mark.mpi_skip
-    def test_subsample_2d_NDBSCAN(self):
+    def test_subsample_NDBSCAN(self):
 
         Nsamples = 100
         Ndims = 2
@@ -106,7 +106,9 @@ class ClusteringTest(TestCase):
 
         my_cluster.makeCluster(Nclusters=5)
 
-        self.assertTrue((my_cluster.original_clusters >= 4) & (my_cluster.original_clusters <= 6))
+        self.assertTrue(
+            (my_cluster.original_clusters >= 4) & (
+                my_cluster.original_clusters <= 6))
 
     @pytest.mark.mpi_skip
     def test_hopkins(self):
@@ -147,7 +149,7 @@ class ClusteringTest(TestCase):
         self.assertEqual(len(results[0]), len(results[1]))
 
     @pytest.mark.mpi_skip
-    def test_batch_subsample_2d(self):
+    def test_batch_subsample(self):
 
         Nsamples = 2200
         Ndims = 2
@@ -168,6 +170,85 @@ class ClusteringTest(TestCase):
 
         self.assertLessEqual(data_sub.shape[0], dataT.shape[0])
 
+    @pytest.mark.mpi_skip
+    def test_convergence_float(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        # Test convergence float works
+        my_cluster2 = Cluster(dataT, method='DBSCAN')
+        data_sub2 = my_cluster2.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=.01)
+        self.assertLessEqual(data_sub2.shape[0], dataT.shape[0])
+
+    @pytest.mark.mpi_skip
+    def test_convergence_int(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        # Test convergence int works
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+        data_sub1 = my_cluster1.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=30)
+        self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
+
+    @pytest.mark.mpi_skip
+    def test_wrong_convergence_input(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+
+        # Test 2.3 input raises error
+        with pytest.raises(AssertionError):
+            my_cluster1.makeBatchCluster(
+                eps=0.001, batch_size=50, convergence_num=2.3)
+
+    @pytest.mark.mpi_skip
+    def test_numpy_convergence_input(self):
+
+        Nsamples = 1000
+        Ndims = 2
+
+        data = np.random.random((Nsamples, Ndims))
+        dataR = np.zeros((Nsamples, Ndims))
+
+        dataR[:, :] = data[0, :]
+
+        dataT = np.concatenate((data, dataR), axis=0)
+
+        my_cluster1 = Cluster(dataT, method='DBSCAN')
+
+        # Test numpy array will work
+        cv = np.array(2, dtype=int)
+        data_sub1 = my_cluster1.makeBatchCluster(
+            eps=0.001, batch_size=50, convergence_num=cv)
+        self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
+
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
         import numpy as np
@@ -177,7 +258,7 @@ class ClusteringTest(TestCase):
         comm = MPI.COMM_WORLD
         rank = comm.Get_rank()
 
-        nsamples = 50000
+        nsamples = 5000
 
         x1 = np.arange(13.63636, 136.63636, 13.63636)
         x2 = np.arange(13.63636, 136.63636, 13.63636)
@@ -194,9 +275,9 @@ class ClusteringTest(TestCase):
         global_ind = np.arange(nsamples) + nsamples * rank
 
         rdata = makeBatchClusterParallel(data,
-                                         global_ind,
                                          comm,
-                                         batch_size=10000,
+                                         global_ind=global_ind,
+                                         batch_size=3000,
                                          convergence_num=3,
                                          scaling_function='min_max',
                                          output='samples',
