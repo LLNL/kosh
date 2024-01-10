@@ -60,7 +60,6 @@ class TestKoshOperators(koshbase.KoshTest):
             payload,
             method="DBSCAN",
             eps=1,
-            eps=-1,
             output='indices',
             batch=False,
             verbose=False,
