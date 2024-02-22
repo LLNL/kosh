@@ -7,6 +7,10 @@ from koshbase import KoshTest
 
 
 class KoshTestStore(KoshTest):
+    def test_disable_lock_file(self):
+        with self.assertWarns(ResourceWarning):
+            kosh.connect(self.mariadb, use_lock_file=True)
+
     def test_connect_base_function(self):
         s, kosh_test_sql_file = self.connect()
         s.close()

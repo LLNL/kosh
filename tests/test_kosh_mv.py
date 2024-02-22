@@ -6,6 +6,7 @@ import os
 import random
 import shutil
 import sys
+import numpy
 
 
 def create_file(filename):
@@ -13,17 +14,19 @@ def create_file(filename):
         print("whatever", file=f)
 
 
-def run_mv(sources, dest, store_sources, store_destinations=None, verbose=False):
-    cmd = "python scripts/kosh_command.py mv --dataset_record_type=blah "
+def run_mv(sources, dest, store_sources, store_destinations=None, verbose=False, cmd_extra=''):
+    cmd = "python kosh/kosh_command.py mv --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
     if store_destinations is not None:
         for store in store_destinations:
             cmd += " --destination-store {}".format(store)
     cmd += " --sources {} --destination {}".format(" ".join(sources), dest)
-
+    cmd += cmd_extra
     if not sys.platform.startswith("win"):
         cmd = shlex.split(cmd)
+    if verbose:
+        print("CMD:", cmd)
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)
     o, e = p.communicate()
     out = o, e
@@ -335,7 +338,7 @@ class KoshTestMv(KoshTest):
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
 
-        file_src_orig = ["file_to_dir_1.py", "file_to_dir_2.py"]
+        file_src_orig = ["file_to_dir_1a.py", "file_to_dir_2a.py"]
         file_src_orig_associate = [os.path.abspath(x) for x in file_src_orig]
         for x in file_src_orig:
             create_file(x)
@@ -369,13 +372,42 @@ class KoshTestMv(KoshTest):
         store1.close()
         os.remove(db1)
 
+    def test_move_to_no_exist_with_mkdirs(self):
+        if sys.platform.startswith("win"):
+            # no mv on win
+            return
+        rand = str(random.randint(0, 1000000))
+        store1, db1 = self.connect()
+
+        file_src_orig = ["file_to_dir_1b.py", "file_to_dir_2b.py"]
+        file_src_orig_associate = [os.path.abspath(x) for x in file_src_orig]
+        for x in file_src_orig:
+            create_file(x)
+        ds1 = store1.create()
+        ds1.associate(file_src_orig_associate, mime_type="py")
+        dest_name_orig = rand + "_new_dir"
+        # Make sure dest dir does not exists
+        try:
+            os.removedirs(dest_name_orig)
+        except BaseException:
+            pass
+
+        p, _ = run_mv(file_src_orig_associate, dest_name_orig, [db1, ], verbose=True, cmd_extra=' --mk_dirs')
+
+        # Make sure it passed
+        self.assertEqual(p.returncode, 0)
+
+        # cleanup stores
+        store1.close()
+        os.remove(db1)
+
     def testWinFail(self):
         if not sys.platform.startswith("win"):
             return
         rand = str(random.randint(0, 1000000))
         store1, db1 = self.connect()
 
-        file_src_orig = ["file_to_dir_1.py", "file_to_dir_2.py"]
+        file_src_orig = ["file_to_dir_1c.py", "file_to_dir_2c.py"]
         file_src_orig_associate = [os.path.abspath(x) for x in file_src_orig]
         for x in file_src_orig:
             create_file(x)
@@ -390,6 +422,358 @@ class KoshTestMv(KoshTest):
 
         p, _ = run_mv(file_src_orig_associate, dest_name_orig, [db1, ])
         self.assertEqual(p.returncode, 1)
+
+    def test_triple_subdir(self):
+        store, uri = self.connect()
+        os.makedirs('a/b/c', exist_ok=True)
+        os.makedirs('a/b/c2', exist_ok=True)
+        os.makedirs('new_a/new_b/new_c', exist_ok=True)
+
+        numpy.savetxt('a/b/c/a.txt', [1, 2, 3], )
+        numpy.savetxt('a/b/c/b.txt', [10, 20, 30], )
+        numpy.savetxt('new_a/new_b/new_c/c.txt', [100, 200, 300], )
+        numpy.savetxt('new_a/new_b/d.txt', [1000, 2000, 3000], )
+        numpy.savetxt('new_a/e.txt', [10000, 20000, 30000], )
+
+        dataset = store.create('foo', metadata={'date': 123, 'dir': 'foodir'})
+        dataset.associate('a/b/c/a.txt', mime_type='numpy/txt',
+                          metadata={'date': 123.123, 'my_type': 'a', })
+        dataset.associate('a/b/c/b.txt', mime_type='numpy/txt',
+                          metadata={'date': 123.546, 'my_type': 'b'})
+        dataset.associate('new_a/new_b/new_c/c.txt', mime_type='numpy/txt',
+                          metadata={'date': 123.123, 'my_type': 'c', })
+        dataset.associate('new_a/new_b/d.txt', mime_type='numpy/txt',
+                          metadata={'date': 123.546, 'my_type': 'd'})
+        dataset.associate('new_a/e.txt', mime_type='numpy/txt',
+                          metadata={'date': 123.546, 'my_type': 'e'})
+
+        def check_dataset_and_files(store):
+            lst = list(store.find())
+            self.assertEqual(len(lst), 1)
+            ds = lst[0]
+            lst = list(ds.find())
+            self.assertEqual(len(lst), 5)
+            for associated in lst:
+                print(associated.uri)
+                self.assertTrue(os.path.exists, associated.uri)
+                self.assertEqual(associated.mime_type, "numpy/txt")
+                data = ds.get("features", Id=associated.id)
+                if os.path.basename(associated.uri) == "a.txt":
+                    self.assertTrue(numpy.allclose(data, [1, 2, 3]))
+                    self.assertEqual(associated.my_type, "a")
+                elif os.path.basename(associated.uri) == "b.txt":
+                    self.assertTrue(numpy.allclose(data, [10, 20, 30]))
+                    self.assertEqual(associated.my_type, "b")
+                elif os.path.basename(associated.uri) == "c.txt":
+                    self.assertTrue(numpy.allclose(data, [100, 200, 300]))
+                    self.assertEqual(associated.my_type, "c")
+                elif os.path.basename(associated.uri) == "d.txt":
+                    self.assertTrue(numpy.allclose(data, [1000, 2000, 3000]))
+                    self.assertEqual(associated.my_type, "d")
+                elif os.path.basename(associated.uri) == "e.txt":
+                    self.assertTrue(numpy.allclose(data, [10000, 20000, 30000]))
+                    self.assertEqual(associated.my_type, "e")
+
+        check_dataset_and_files(store)
+
+        # manually move a file
+        shutil.move("a/b/c/a.txt", "a/b/c2/a.txt")
+
+        # reassociate it
+        dataset.reassociate("a/b/c2/a.txt")
+        check_dataset_and_files(store)
+
+        # use kosh to mv the file back
+        store.mv("a/b/c2/a.txt", "a/b/c/a.txt")
+        check_dataset_and_files(store)
+        store.mv("a/b/c/", "archive_a/b/", mk_dirs=True)
+        # run_mv(["a/b/c/",], "archive_a/b/", [store.db_uri,], verbose=True, cmd_extra=' --mk_dirs')
+        check_dataset_and_files(store)
+
+        # mk_dirs with only a file
+        store.mv("archive_a/b/c/a.txt", "archive_a2/b2/c2/a.txt", mk_dirs=True)
+        check_dataset_and_files(store)
+
+        # mk_dirs keeping directory structure
+        store.mv("new_a/", "new_archive/", mk_dirs=True)
+        check_dataset_and_files(store)
+
+    def test_linked_folders(self):
+        import sina
+        store, uri = self.connect()
+        dest_dir = 'fifthdir'
+        files_to_move = []
+        sina_jsons = ['tests/baselines/sina/firstdir/seconddir/thirddir/sina_rec_1_sina.json',
+                      'tests/baselines/sina/firstdir/seconddir/thirddir/fourthdir/sina_rec_2_sina.json']
+
+        open('tests/baselines/sina/firstdir_link/seconddir/thirddir/summon_me_as_well.txt', 'a').close()
+        open('tests/baselines/sina/firstdir_link/seconddir/thirddir/fourthdir/summon1.txt', 'a').close()
+
+        for sina_json in sina_jsons:
+            files_to_move.append(sina_json)
+            recs, rels = sina.utils.load_document(sina_json)
+            dataset = store.import_dataset(sina_json, match_attributes=["name", "id"])
+            for rec in recs:
+                for key in rec.files.keys():
+                    files_to_move.append(key)
+
+        # CP Files to Dir
+        store.cp(files_to_move, dest_dir, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        # Confirm dataset['files'] has been updated
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # MV Files to Dir
+        for f in files_to_move:
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        dest_dir2 = 'sixth_dir'
+        store.mv(files_to_move, dest_dir2, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir2, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir2,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # MV Dir Link Files to Dir
+        for f in files_to_move:
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        dest_dir3 = 'sixth_dir_link'
+        os.symlink(dest_dir2, dest_dir3)
+
+        dest_dir4 = 'seventh_dir'
+        store.mv(dest_dir3+'/*', dest_dir4, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir4, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir4,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # MV Dir Link to Dir
+        for f in files_to_move:
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        dest_dir5 = 'seventh_dir_link'
+        os.symlink(dest_dir4, dest_dir5)
+
+        dest_dir6 = 'eight_dir'
+        store.mv(dest_dir5, dest_dir6, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir6, dest_dir4, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir6, dest_dir4,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # MV Dir Link to Dir Link
+        for f in files_to_move:
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        dest_dir7 = 'eigth_dir_link'
+        os.symlink(dest_dir6, dest_dir7)
+
+        dest_dir8 = 'ninth_dir'
+        dest_dir9 = 'ninth_dir_link'
+        os.symlink(dest_dir8, dest_dir9)
+
+        store.mv(dest_dir7, dest_dir9, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir9, dest_dir6, dest_dir4, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir8, dest_dir6, dest_dir4,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # MV Files Link to Dir
+        for i, f in enumerate(files_to_move):
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        for i, f in enumerate(files_to_move):
+            files_to_move[i] = f.replace('ninth_dir', 'ninth_dir_link')
+
+        dest_dir10 = 'tenth_dir'
+        store.mv(files_to_move, dest_dir10, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir10, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir10,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # CP Dir Link Files to Dir
+        for f in files_to_move:
+            if 'fifthdir' in f:
+                files_to_move.remove(f)
+
+        dest_dir11 = 'tenth_dir_link'
+        os.symlink(dest_dir10, dest_dir11)
+
+        dest_dir12 = 'eleventh_dir'
+        store.cp(dest_dir11+'/*', dest_dir12, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir12, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir12,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[-1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # CP Dir Link to Dir
+        for f in files_to_move[::-1]:
+            if 'fifthdir' in f or 'tenth_dir' in f:
+                files_to_move.remove(f)
+
+        dest_dir13 = 'eleventh_dir_link'
+        os.symlink(dest_dir12, dest_dir13)
+
+        dest_dir14 = 'twelfth_dir'
+
+        store.cp(dest_dir13, dest_dir14, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir14, dest_dir12, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir14, dest_dir12,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[-1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # CP Dir Link to Dir Link
+        for f in files_to_move[::-1]:
+            if 'fifthdir' in f or 'tenth_dir' in f or 'kosh/eleventh_dir' in f:
+                files_to_move.remove(f)
+
+        dest_dir15 = 'twelfth_dir_link'
+        os.symlink(dest_dir14, dest_dir15)
+
+        dest_dir16 = 'thirteenth_dir'
+        dest_dir17 = 'thirteenth_dir_link'
+        os.symlink(dest_dir16, dest_dir17)
+
+        store.cp(dest_dir15, dest_dir17, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir17, dest_dir14, dest_dir12, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir16, dest_dir14, dest_dir12,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[-1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # CP Files Link to Dir
+        for f in files_to_move[::-1]:
+            if 'fifthdir' in f or 'tenth_dir' in f or 'kosh/eleventh_dir' in f or 'kosh/twelfth_dir' in f:
+                files_to_move.remove(f)
+
+        for i, f in enumerate(files_to_move):
+            files_to_move[i] = f.replace('thirteenth_dir', 'thirteenth_dir_link')
+
+        dest_dir18 = 'fourteenth_dir'
+        store.cp(files_to_move, dest_dir18, mk_dirs=True)
+
+        for file in files_to_move:
+            updated_file = os.path.join(dest_dir18, os.path.basename(file))
+            self.assertTrue(os.path.exists(updated_file))
+
+        files_to_move = []
+        for dataset in store.find(load_type='dictionary'):
+            self.assertEqual(os.path.abspath(
+                os.path.join(
+                    dest_dir18,
+                    os.path.basename(list(dataset['files'].keys())[0]))),
+                             list(dataset['files'].keys())[-1])
+            files_to_move.extend(dataset['files'].keys())
+
+        # cleanup stores
+        store.close()
+        shutil.rmtree(dest_dir)
+        shutil.rmtree(dest_dir2)
+        os.remove(dest_dir3)
+        shutil.rmtree(dest_dir4)
+        os.remove(dest_dir5)
+        shutil.rmtree(dest_dir6)
+        os.remove(dest_dir7)
+        shutil.rmtree(dest_dir8)
+        os.remove(dest_dir9)
+        shutil.rmtree(dest_dir10)
+        os.remove(dest_dir11)
+        shutil.rmtree(dest_dir12)
+        os.remove(dest_dir13)
+        shutil.rmtree(dest_dir14)
+        os.remove(dest_dir15)
+        shutil.rmtree(dest_dir16)
+        os.remove(dest_dir17)
+        shutil.rmtree(dest_dir18)
 
 
 if __name__ == "__main__":

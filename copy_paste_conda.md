@@ -58,7 +58,8 @@ python -m ipykernel install --user --name kosh --display-name "Kosh Environment"
 This will let you build the documentation
 
 ```bash
-conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets nb_conda nb_conda_kernels scikit-learn llnl-sina
+conda create -n kosh -c conda-forge h5py numpy "python>3" sqlalchemy six ipython pip networkx pytest-xdist pytest-cov pyflame jupyterlab flake8 autopep8 pillow coverage tqdm ipywidgets nb_conda nb_conda_kernels scikit-learn llnl-sina mkdocs mkdocstrings-python  mkdocs-jupyter mkdocs-material-extensions mkdocs-material mkdocs-literate-nav mkdocs-gen-files mkdocs-material
+pip install mkdocs-glightbox mkdocs-mermaid2-plugin
 conda activate kosh
 git clone https://github.com/LLNL/kosh
 cd kosh

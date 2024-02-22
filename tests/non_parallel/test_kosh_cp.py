@@ -20,7 +20,7 @@ def create_file(filename):
 
 
 def run_cp(sources, dest, store_sources, store_destinations=None):
-    cmd = "python scripts/kosh_command.py cp --dataset_record_type=blah "
+    cmd = "python kosh/kosh_command.py cp --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
     if store_destinations is not None:
@@ -92,10 +92,12 @@ class KoshTestCp(KoshTest):
         ds1 = next(store1.find(name="test"))
         ds_store2 = list(store2.find(name="test"))
         self.assertEqual(len(ds_store2), 1)
-        associated = next(ds_store2[0].find(mime_type="py"))
-        self.assertEqual(associated.uri, dest_name_orig)
-        associated = next(ds1.find(mime_type="py"))
-        self.assertEqual(associated.uri, file_src_orig)
+        associated = list(ds_store2[0].find(mime_type="py"))
+        list_of_files = [os.path.basename(x.uri) for x in associated]
+        self.assertCountEqual(list_of_files, [os.path.basename(file_src_orig), os.path.basename(dest_name_orig)])
+        associated = list(ds1.find(mime_type="py"))
+        list_of_files = [os.path.basename(x.uri) for x in associated]
+        self.assertCountEqual(list_of_files, [os.path.basename(file_src_orig), os.path.basename(dest_name_orig)])
 
         # cleanup file(s)
         os.remove(dest_name_orig)
@@ -161,8 +163,12 @@ class KoshTestCp(KoshTest):
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.find(mime_type="py")
+        list_of_files = []
+        list_of_files.extend(file_src_orig_associate)
+        list_of_files.extend([os.path.join(dest_name, os.path.basename(x)) for x in file_src_orig_associate])
+        list_of_files = [f.split(':')[-1] for f in list_of_files]  # Remove the 'USER@HPC:'
         for associated in associated_uris:
-            self.assertTrue(associated.uri in file_src_orig_associate)
+            self.assertTrue(associated.uri in list_of_files)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
         ds_store2 = list(store2.find(name="test"))
@@ -170,7 +176,7 @@ class KoshTestCp(KoshTest):
         ds2 = ds_store2[0]
         associated_uris = ds2.find(mime_type="py")
         for associated in associated_uris:
-            self.assertTrue(associated.uri in new_paths)
+            self.assertTrue(associated.uri in list_of_files)
 
         # Cleanup files
         shutil.rmtree(rand + "_f2d")
@@ -239,8 +245,12 @@ class KoshTestCp(KoshTest):
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.find(mime_type="py")
+        list_of_files = []
+        list_of_files.extend(file_src_orig_associate)
+        list_of_files.extend(new_paths)
+        list_of_files = [f.split(':')[-1] for f in list_of_files]  # Remove the 'USER@HPC:'
         for associated in associated_uris:
-            self.assertTrue(associated.uri in file_src_orig_associate)
+            self.assertTrue(associated.uri in list_of_files)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
         ds_store2 = list(store2.find(name="test"))
@@ -248,7 +258,7 @@ class KoshTestCp(KoshTest):
         ds2 = ds_store2[0]
         associated_uris = ds2.find(mime_type="py")
         for associated in associated_uris:
-            self.assertTrue(associated.uri in new_paths)
+            self.assertTrue(associated.uri in list_of_files)
 
         # Cleanup files
         shutil.rmtree(rand + "_d2d")
@@ -325,8 +335,12 @@ class KoshTestCp(KoshTest):
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.find(mime_type="testme")
+        list_of_files = []
+        list_of_files.extend(file_src_orig_associate)
+        list_of_files.extend(new_paths)
+        list_of_files = [f.split(':')[-1] for f in list_of_files]  # Remove the 'USER@HPC:'
         for associated in associated_uris:
-            self.assertTrue(associated.uri in file_src_orig_associate)
+            self.assertTrue(associated.uri in list_of_files)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
         ds_store2 = list(store2.find(name="test"))
@@ -334,7 +348,7 @@ class KoshTestCp(KoshTest):
         ds2 = ds_store2[0]
         associated_uris = ds2.find(mime_type="py")
         for associated in associated_uris:
-            self.assertTrue(associated.uri in new_paths)
+            self.assertTrue(associated.uri in list_of_files)
 
         # Cleanup files
         shutil.rmtree("dir1")
@@ -430,8 +444,12 @@ class KoshTestCp(KoshTest):
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.find(mime_type="testme")
+        list_of_files = []
+        list_of_files.extend(file_src_absolute)
+        list_of_files.extend(new_paths)
+        list_of_files = [f.split(':')[-1] for f in list_of_files]  # Remove the 'USER@HPC:'
         for associated in associated_uris:
-            self.assertTrue(associated.uri in file_src_absolute)
+            self.assertTrue(associated.uri in list_of_files)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
         ds_store2 = list(store2.find(name="test"))
@@ -439,7 +457,7 @@ class KoshTestCp(KoshTest):
         ds2 = ds_store2[0]
         associated_uris = ds2.find(mime_type="py")
         for associated in associated_uris:
-            self.assertTrue(associated.uri in new_paths)
+            self.assertTrue(associated.uri in list_of_files)
 
         # Cleanup files
         shutil.rmtree(rand + "_df2d")
@@ -492,8 +510,12 @@ class KoshTestCp(KoshTest):
         self.assertEqual(len(ds_store1), 1)
         ds1 = ds_store1[0]
         associated_uris = ds1.find(mime_type="testme")
+        list_of_files = []
+        list_of_files.extend([file_src_orig])
+        list_of_files.extend([dest_name])
+        list_of_files = [f.split(':')[-1] for f in list_of_files]  # Remove the 'USER@HPC:'
         for associated in associated_uris:
-            self.assertEqual(associated.uri, file_src_orig)
+            self.assertTrue(associated.uri in list_of_files)
 
         store2 = kosh.KoshStore(db_uri=db2, dataset_record_type="blah")
         ds_store2 = list(store2.find(name="test"))
@@ -501,7 +523,7 @@ class KoshTestCp(KoshTest):
         ds2 = ds_store2[0]
         associated_uris = ds2.find(mime_type="py")
         for associated in associated_uris:
-            self.assertEqual(associated.uri, dest_name_orig)
+            self.assertTrue(associated.uri in list_of_files)
 
         # Cleanup files
         os.remove(file_src_orig)

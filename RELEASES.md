@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.1](#31-release)
 * [3.0.1](#301-release)
 * [3.0](#30-release)
 * [2.2](#22-release)
@@ -12,6 +13,49 @@
 * [0.8](#08-release)
 
 
+## 3.1 Release
+
+### Description
+
+This release is a minor release with a few bux fixes and new features. We encourage users to upgrade.
+
+### New in this release
+
+* When searching for datasets from the store you can request to return them as Kosh Datasets (default no change in behaviour), Sina records, or Python dictionaries, which enables faster returns in loops. `store.find([...],load_type='dictionary')`.
+* Kosh stores have an `alias_feature` attribute, that is used to allow users to extract features via an aliased name.
+* New Auto Epsilon Algorithm for Clustering: The algorithm will find the right epsilon value to use in clustering. The user can specify the amount of allowed information loss due to removing samples from the dataset.
+* Requires sina >=1.14
+* When opening a mariadb backend, in order to avoid sync error between ranks you should use: `store = kosh.connect(mariadb, execution_options={"isolation_level": "READ COMMITTED"})`
+* `mv` and `cp` from the command line now have `--merge_strategy` and `mk_dirs` options
+* `cp`, `mv` and `tar` are now accessible from Python at the store level: `store.cp()`, `store.mv()` and `store.tar()`
+* There is a [README](tests/README.md) for the Kosh test suite, including a dedicated one for [LC users](tests/LC_README.md)
+* Sina new ingest capabilities are available in Kosh via dataset, but with decoartor to allow the use of functions operating on Sina records.
+* Documentation switched to mkdocs.
+
+### Improvements
+
+* Some internal cleanups (internal kosh attributes are being moved to their own section under the `user_defined`` section of the sina record).
+* Clustering now has a verbose option.
+* When using MPI the clustering can be gathered to your prefered rank (rather than 0) with `gather_to`
+* Batch clustering has a more lenient convergence option resulting in faster clustering sampling.
+* Getting a warning when a loader cannot be loaded into the store.
+* Using bash rather than sh for the sbang
+* `latin1` encoding of loaders seems to create issues with mariadb, switching to `windows-1252`
+* Test suite gets mariadb from env variable.
+* Issue a warning if trying to set an ensemble attribute from a dataset and it matches the existing value. It still produces an error if the values differ.
+* KoshCluster is more consistent in what it returns. It will always return a list now even if None is returned.
+
+### Bug fixes
+
+* Kosh parallel clustering used to hang when sample size was too small.
+* Kosh parallel clustering returned indices as a 1D array rather than a flat array.
+* On BlueOS `update_json_file_with_records_and_relationships` used to fail.
+* Reassociating a file linked to many datasets used to fail for other datasets if the reassociation was done at the dataset level.
+* `use_lock_file` caused hanging while using mariadb.
+* `mv` command now works with nested dirs
+* `mv` and `cp` now preserve ensemble membership.
+* KoshClustering `operate` uses inputs shape rather than original datasets sizes.
+
 ## 3.0.1 Release
 
 ### Description
@@ -20,7 +64,7 @@ This release is a patch release.
 
 ### New in this release
 
-* store can open a dataset based on a Sina record (`store.open(sina_record)`).
+* Store can open a dataset based on a Sina record (`store.open(sina_record)`).
 
 ### Improvements
 
@@ -41,7 +85,7 @@ This release introduces clustering capabilities into Kosh. It also drops support
 
 * Support for Clustering (via operators).
 * Dropped Python 2 support.
-* loaders can access the dataset requesting the data
+* Loaders can access the dataset requesting the data
 * Operators now have a `describe_entries` function to help them understand what's coming to them.
 
 ### Improvements
@@ -50,7 +94,7 @@ This release introduces clustering capabilities into Kosh. It also drops support
 * The store can now be used within a context manager
 * Curves can be added/removed to a dataset
 * Ensembles can be created from the command line
-* passing `type=None` when searching the store will return Kosh specific objects as well as regular datasets (e.g associated files objects)
+* Passing `type=None` when searching the store will return Kosh specific objects as well as regular datasets (e.g associated files objects)
 * Added a `verbose` mode to `dataset.list_features()` to let users know when a loader failed to load a uri. Mostly useful for debugging
 
 
@@ -113,20 +157,20 @@ Sina curve and file section can now be recognized and taken advantage by Kosh.
 
 * Sina alignment:
   * Sina is only supported backend, no more code to potentially support other backends
-  * curves appear as associated
-  * files with `mimetype` appear as virtual associated files
+  * Curves appear as associated
+  * Files with `mimetype` appear as virtual associated files
   * Kosh exported json files are sina-compatible and Kosh can ingest Sina's json files
   * Stores are now opened via: `kosh.connect(...)`
   * `search(...)` is now  `find(...)`
-  * any non Kosh-reserved record type is considered a dataset
+  * Any non Kosh-reserved record type is considered a dataset
 * `find` functions return generators (used to be lists)
 * Support for ensembles
 * Kosh stores can be associated with other Kosh stores.
 * `kosh` command line:
-  * can create stores
-  * can add datasets
-  * can use htar to tar up data
-* datasets can be cloned
+  * Can create stores
+  * Can add datasets
+  * Can use htar to tar up data
+* Datasets can be cloned
 * While importing a dataset into a store, there are now options to handle conflicts.
 * Loader for file saved by numpy (`.npy`)
 * Store can fix changed/updated fast_sha
@@ -134,17 +178,17 @@ Sina curve and file section can now be recognized and taken advantage by Kosh.
 ### Improvements
 
 * Do not try to import external Python packages until needed -> some loader might appear as valid even though python packages are missing.
-* versioning is now pip compatible
+* Versioning is now pip compatible
 * `import_dataset(...)` can import list of datasets
 * Added `verbose` argument to transformers and operators -> this will let the user know when retrieving data from cache
-* set user name to "default" if can't get it from USER env var
+* Set user name to "default" if can't get it from USER env var
 
 ### Bug fixes
 
 * `matplotlib` import would crash if no DISPLAY environment variable
 * hdf5 leading / fix
 * No more error if a known mime type points to missing file (`list_features` will not show it)
-* dissociate files from store after moving them
+* Dissociate files from store after moving them
 
 
 ## 1.2 Release
@@ -223,13 +267,13 @@ A new object to help you drive existing scripts from searches in Kosh has been i
 
 Bug fix and optimization release
 
-* possibility to "update" multiple attributes of a dataset at once, faster and less db access
-* possibility to associate many files at once, faster, less db access
-* creating a new store, returns an handle to that store
-* switched to pytest rather than nosetests
+* Possibility to "update" multiple attributes of a dataset at once, faster and less db access
+* Possibility to associate many files at once, faster, less db access
+* Creating a new store, returns a handle to that store
+* Switched to pytest rather than nosetests
 * Added Ultra files loader
-* loaders can be saved in store.
-* when many uri were associated with a dataset and many metrics had the same name, it was not necessarily returning the desired metric even when asking for one by it's full path.
+* Loaders can be saved in store.
+* When many uri were associated with a dataset and many metrics had the same name, it was not necessarily returning the desired metric even when asking for one by its full path.
 
 ## 0.8 Release
 
@@ -240,5 +284,5 @@ Bug fix and optimization release
 * Version obtained via git
 * Associated uri objects accept arguments to `open` function
 * User id no longer required when opening the store (defaults to UNIX username)
-* sina type for *datasets* does not need to be `dataset` any longer.
+* Sina type for *datasets* does not need to be `dataset` any longer.
 * Can open any sina db, not necessarily Kosh generated one.

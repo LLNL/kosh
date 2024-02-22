@@ -65,7 +65,7 @@ export KOSH_PATH=kosh
 pip install virtualenv  # just in case
 python3 -m virtualenv $KOSH_PATH   # `kosh` can be any name/directory you want
 source ${KOSH_PATH}/bin/activate
-pip install h5py numpy sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov sphinx-autoapi pyflame jupyterlab flake8 autopep8 pillow coverage nbsphinx recommonmark tqdm ipywidgets scikit-learn llnl-sina
+pip install h5py numpy sqlalchemy six ipython pip networkx sphinx pytest-xdist pytest-cov pyflame jupyterlab flake8 autopep8 pillow coverage tqdm ipywidgets scikit-learn llnl-sina mkdocs mkdocstrings-python  mkdocs-jupyter mkdocs-material-extensions mkdocs-material mkdocs-literate-nav mkdocs-glightbox mkdocs-mermaid2-plugin mkdocs-gen-files mkdocs-material 
 git clone https://github.com/LLNL/kosh
 cd kosh
 pip install .

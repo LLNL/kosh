@@ -52,8 +52,7 @@ for svg in svgs:
     with open(svg_name, "w") as f:
         f.write(content)
     png_name = svg_name.replace("svg", "png")
-    cmd = "inkscape --file {} --export-png {} --export-width=1035".format(
-        svg_name, png_name)
+    cmd = "cairosvg  {} -o {} -W=1035 -H 403".format(svg_name, png_name)
     if not sys.platform.startswith("win"):
         cmd = shlex.split(cmd)
     p = Popen(cmd, stdout=PIPE, stderr=PIPE)

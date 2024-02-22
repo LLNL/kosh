@@ -126,7 +126,10 @@ class KoshDataset(KoshSinaObject):
                     continue
                 if self.is_ensemble_attribute(a, ensemble):
                     st += "\t\t{}: {}\n".format(a, atts[a])
-
+        if self.alias_feature is not {}:
+            st += '--- Alias Feature Dictionary ---'
+            for key, val in self.alias_feature.items():
+                st += f"\n\t{key}: {val}"
         return st
 
     def _repr_pretty_(self, p, cycle):
@@ -349,27 +352,49 @@ class KoshDataset(KoshSinaObject):
         possibles = {}
         inter = None
         union = set()
+
+        alias_feature = self.alias_feature
+        alias_feature_flattened = [[]] * len(alias_feature)
+        for i, (key, val) in enumerate(alias_feature.items()):
+            alias_feature_flattened[i] = [key]
+            if isinstance(val, list):
+                alias_feature_flattened[i].extend(val)
+            elif isinstance(val, str):
+                alias_feature_flattened[i].extend([val])
+
+        def find_features(self, a):
+
+            a_original = a
+
+            if "__uri__" in a:
+                # Ok this is a pure sina file with mime_type
+                a, _ = a.split("__uri__")
+            a_obj = self.__store__._load(a)
+            if loader is None:
+                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
+                if ld is None:  # unknown mimetype probably
+                    return _, None, _, _
+            else:
+                if a_obj.mime_type in loader.types:
+                    ld = loader(a_obj, requestorId=self.id)
+                else:
+                    return _, None, _, _
+
+            # Dataset with curve have themselves as uri
+            obj_uri = getattr(ld.obj, "uri", "self")
+            ld_features = ld._list_features()
+
+            return a_original, ld, obj_uri, ld_features
+
         for index, feature_ in enumerate(features):
             possible_ids = []
             if Id is None:
                 for a in self._associated_data_:
-                    a_original = a
-                    if "__uri__" in a:
-                        # Ok this is a pure sina file with mime_type
-                        a, _ = a.split("__uri__")
-                    a_obj = self.__store__._load(a)
-                    if loader is None:
-                        ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
-                        if ld is None:  # unknown mimetype probably
-                            continue
-                    else:
-                        if a_obj.mime_type in loader.types:
-                            ld = loader(a_obj, requestorId=self.id)
-                        else:
-                            continue
-                    # Dataset with curve have themselves as uri
-                    obj_uri = getattr(ld.obj, "uri", "self")
-                    ld_features = ld._list_features()
+
+                    a_original, ld, obj_uri, ld_features = find_features(self, a)
+                    if ld is None:  # No features
+                        continue
+
                     if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
                         # ok we have to be careful list_features can be returned two ways
                         if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
@@ -390,8 +415,40 @@ class KoshDataset(KoshSinaObject):
                              feature_[-len(obj_uri):] == obj_uri):
                         possible_ids.append(a_original)
                 if possible_ids == []:  # All failed but could be something about the feature
-                    raise ValueError(
-                        "Cannot find feature {} in dataset".format(feature_))
+                    found = False
+                    if alias_feature_flattened:
+                        feature_original = feature_
+                        af = []
+                        for af_list in alias_feature_flattened:
+                            if feature_.split("/")[-1] in af_list:
+                                af = af_list
+                                if feature_ in af_list:
+                                    af.remove(feature_)
+                                break
+
+                        poss = []
+                        for a in self._associated_data_:
+
+                            a_original, ld, obj_uri, ld_features = find_features(self, a)
+                            if ld is None:  # No features
+                                continue
+
+                            for ld in ld_features:
+
+                                if ld.split('/')[-1] in af or ld in af:
+
+                                    found = True
+                                    feature_ = ld
+                                    features[index] = ld
+                                    possible_ids.append(a_original)
+                                    poss.append(ld)
+
+                        if len(poss) > 1:
+                            raise ValueError("Cannot uniquely pinpoint {}, could be one of {}"
+                                             .format(feature_original, poss))
+                    if not found:
+                        raise ValueError("Cannot find feature {} in dataset"
+                                         .format(feature_))
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
@@ -556,30 +613,7 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
-        # First let's convert to abs path if necessary
-        if absolute_path:
-            if os.path.exists(target):
-                target = os.path.abspath(target)
-            if source is not None and os.path.exists(source):
-                source = os.path.abspath(source)
-
-        # Now, did we pass a source for uri to replace?
-        if source is None:
-            source = compute_fast_sha(target)
-
-        # Ok now let's get all associated uri that match
-        # Fist assuming it's a fast_sha
-        matches = list(self.find(fast_sha=source, ids_only=True))
-        # Now it could be simply a uri
-        matches += list(self.find(uri=source, ids_only=True))
-
-        # And it's quite possible it's a long_sha too
-        matches += list(self.find(long_sha=source, ids_only=True))
-
-        # And now let's do the work
-        for match_id in matches:
-            match = self.__store__._load(match_id)
-            match.uri = target
+        self.__store__.reassociate(target, source=source, absolute_path=absolute_path)
 
     def validate(self):
         """If dataset has a schema then make sure all attributes pass the schema"""
@@ -646,7 +680,7 @@ class KoshDataset(KoshSinaObject):
         kosh_id = str(rec["files"][uri]["kosh_id"])
         del rec["files"][uri]
         now = time.time()
-        rec["user_defined"]["{uri}___associated_last_modified".format(
+        rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
             uri=uri)] = now
         if self.__store__.__sync__:
             self._update_record(rec)
@@ -726,7 +760,7 @@ class KoshDataset(KoshSinaObject):
                         uri = os.path.abspath(uri)
                     if not os.path.isdir(uri) and "fast_sha" not in meta:
                         meta["fast_sha"] = compute_fast_sha(uri)
-                rec["user_defined"]["{uri}___associated_last_modified".format(
+                rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
                     uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
                 tmp_uris = list(self.__store__.find(
@@ -734,7 +768,7 @@ class KoshDataset(KoshSinaObject):
 
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
-                    rec_obj = Record(id=Id, type=self.__store__._sources_type)
+                    rec_obj = Record(id=Id, type=self.__store__._sources_type, user_defined={'kosh_information': {}})
                     new_recs.append(rec_obj)
                 else:
                     rec_obj = self.__store__.get_record(tmp_uris[0])
@@ -760,9 +794,9 @@ class KoshDataset(KoshSinaObject):
                     else:
                         rec_obj["data"][key]["value"] = meta[key]
                     last_modif_att = "{name}_last_modified".format(name=key)
-                    rec_obj["user_defined"][last_modif_att] = time.time()
+                    rec_obj["user_defined"]['kosh_information'][last_modif_att] = time.time()
                 if not self.__store__.__sync__:
-                    rec_obj["user_defined"]["last_update_from_db"] = time.time()
+                    rec_obj["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
                     self.__store__.__sync__dict__[Id] = rec_obj
             except TypeError as err:
                 raise err
@@ -911,18 +945,24 @@ class KoshDataset(KoshSinaObject):
             rec_id = rec_id.split("__uri__")[0]
             yield rec_id if ids_only else self.__store__._load(rec_id)
 
-    def export(self, file=None):
+    def export(self, file=None, sina_record=False):
         """Exports this dataset
         :param file: export dataset to a file
         :type file: None or str
+        :param sina_record: export the dataset as a Sina record
+        :type sina_record: bool
         :return: dataset and its associated data
         :rtype: dict"""
         rec = self.get_record()
+        relationships = self.get_sina_store().relationships.find(self.id)
         # cleanup the record
         rec_json = cleanup_sina_record_from_kosh_sync(rec)
         jsns = [rec_json, ]
         # ok now same for associated data
         for associated_id in self._associated_data_:
+            if associated_id.startswith(f"{self.id}__uri__"):
+                # ok self referencing no need to add
+                continue
             rec = self.__store__._load(associated_id).get_record()
             rec_json = cleanup_sina_record_from_kosh_sync(rec)
             jsns.append(rec_json)
@@ -932,7 +972,8 @@ class KoshDataset(KoshSinaObject):
             "minimum_kosh_version": None,
             "kosh_version": kosh.version(comparable=True),
             "sources_type": self.__store__._sources_type,
-            "records": jsns
+            "records": jsns,
+            "relationships": relationships
         }
 
         update_json_file_with_records_and_relationships(file, output_dict)

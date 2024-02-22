@@ -2,8 +2,9 @@ from __future__ import print_function
 import os
 import json
 from koshbase import KoshTest
-import sina
+import sina.postprocessing
 import numpy
+from kosh.utils import datasets_in_place_of_records
 
 
 class KoshTestImportExport(KoshTest):
@@ -276,6 +277,33 @@ class KoshTestImportExport(KoshTest):
         self.assertEqual(dataset_t.foo, "bar2")
         self.assertEqual(dataset_t.foosome, "foo2")
         self.assertEqual(len(dataset_t._associated_data_), 1)
+
+        source_store.close()
+        target_store.close()
+        os.remove(db_source)
+        os.remove(db_target)
+
+    def test_ingest_funcs(self):
+        source_store, db_source = self.connect()
+        target_store, db_target = self.connect()
+
+        # Now custom dataset
+        dataset = source_store.create(name="example")
+        dataset.bar = "foo"
+        dataset.foo = "bar2"
+
+        dataset_t = source_store.create(name="example")
+        dataset_t.bar = "foo"
+        dataset_t.foosome = "foo2"
+
+        keep = datasets_in_place_of_records(
+            sina.postprocessing.filter_keep(
+                dataset.get_record()))
+        target_store.import_dataset(dataset_t, ingest_funcs=[keep, ])
+        dataset_t = next(target_store.find())
+        self.assertEqual(dataset_t.bar, "foo")
+        self.assertFalse(hasattr(dataset_t, "foo"))
+        self.assertFalse(hasattr(dataset_t, "foosome"))
 
         source_store.close()
         target_store.close()

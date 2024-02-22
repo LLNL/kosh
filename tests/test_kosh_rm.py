@@ -12,7 +12,7 @@ def create_file(filename):
 
 
 def run_rm(sources, store_sources, verbose=False):
-    cmd = "python scripts/kosh_command.py rm --dataset_record_type=blah "
+    cmd = "python kosh/kosh_command.py rm --dataset_record_type=blah "
     for store in store_sources:
         cmd += " --store {}".format(store)
     cmd += " --sources {} ".format(" ".join(sources))

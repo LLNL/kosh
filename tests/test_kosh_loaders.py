@@ -8,6 +8,15 @@ import numpy
 import sys
 
 
+class FooLoader(kosh.KoshLoader):
+
+    def extract(self):
+        return []
+
+    def list_features(self):
+        return []
+
+
 def unix_to_win_compatible(pth):
     """converts unix path to windows"""
     if sys.platform.startswith("win"):
@@ -437,6 +446,14 @@ class KoshTestLoaders(KoshTest):
             z = numpy.average(z)
             self.assertTrue(z < i + 1)
             self.assertTrue(z > i)
+
+    def test_loaders_mariadb(self):
+        store, db_uri = self.connect(self.mariadb, delete_all_contents=True)
+        store.add_loader(FooLoader, save=True)
+        store.close()
+        store = kosh.connect(db_uri)
+        store.delete_loader(FooLoader)
+        store.close()
 
     def test_loaders_added_once_only(self):
         store, db_uri = self.connect()

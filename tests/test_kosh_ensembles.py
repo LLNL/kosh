@@ -4,6 +4,22 @@ from koshbase import KoshTest
 
 
 class KoshTestEnsembles(KoshTest):
+    def test_create_dataset_with_ensemble_attributes(self):
+        store, db = self.connect()
+        e = store.create_ensemble()
+        e.root = "foo"
+        with self.assertRaises(ValueError):
+            e.create(metadata={"root": "foo2"})
+        with self.assertWarns(UserWarning):
+            ds = e.create(metadata={"root": "foo"})
+        self.assertEqual(ds.root, "foo")
+        with self.assertRaises(KeyError):
+            ds.root = "bar"
+        self.assertEqual(ds.root, "foo")
+        with self.assertWarns(UserWarning):
+            ds.root = "foo"
+        self.assertEqual(ds.root, "foo")
+
     def test_create_and_print(self):
         store, db = self.connect()
         e1 = store.create_ensemble()
@@ -51,6 +67,7 @@ KOSH ENSEMBLE
 --- Ensemble Attributes ---
         --- Ensemble {} ---
                 root: foo
+--- Alias Feature Dictionary ---
 """.format(str(ds1.id), username, username, str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
         e1_str = str(e1).replace("\t", "        ")

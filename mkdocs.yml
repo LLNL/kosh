@@ -1,0 +1,117 @@
+site_name: ''
+use_directory_urls: false
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.details
+  - md_in_html
+  - pymdownx.snippets:
+      base_path: ['.']
+  - pymdownx.emoji:
+      emoji_index: !!python/name:materialx.emoji.twemoji
+      emoji_generator: !!python/name:materialx.emoji.to_svg
+  - pymdownx.superfences:
+      # make exceptions to highlighting of code:
+      # custom_fences:
+      #   - name: mermaid
+      #     class: mermaid
+      #     format: !!python/name:pymdownx.superfences.fence_div_format #mermaid2.fence_mermaid
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format #mermaid.fence_mermaid 
+        # - name: mermaid_center
+        #   class: mermaid
+        #   format: !!python/name:mermaid2.fence_mermaid_custom
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+    - mkdocs-jupyter
+    - search
+    - mkdocstrings:
+        handlers:
+          python:
+            paths: [../kosh]
+            options:
+              docstring_style: sphinx
+
+    - gen-files:
+        scripts:
+          - docs/gen_api_docs.py
+    - literate-nav:
+        nav_file: SUMMARY.md
+    - glightbox
+    # - section-index
+    # - mermaid2:
+    #     arguments:
+    #       securityLevel: 'loose'
+    #       theme: 'default'
+    #         darkMode: True
+    #       theme: |
+    #         ^(JSON.parse(__md_get("__palette").index == 1)) ? 'dark' : 'light'
+extra_javascript:
+    - https://unpkg.com/mermaid@9.4.3/dist/mermaid.min.js
+
+# extra_css:
+#   - custom.css
+  
+theme:
+  name: material
+  logo: share/icons/png/Kosh_Logo_Blue.png
+  features:
+    - header.autohide
+    - navigation.tabs.sticky
+    - navigation.tabs
+    # - navigation.expand
+    - navigation.instant
+    - navigation.indexes
+    # - toc.integrate
+    - content.code.annotate
+  palette:
+    - scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+     
+  # custom_dir: docs/overrides
+nav:
+    - User Guide: 'source/users/index.md'
+    - Frequently Asked Questions: 'source/faqs/index.md'
+    - Examples: 
+        - Example 00 Opening a Store: 'source/jupyter/Example_00_Open_Store_And_Add_Datasets.ipynb'
+        - Example 01 Adding Data: 'source/jupyter/Example_01_Add_Data_To_Datasets.ipynb'
+        - Example 02 Reading data: 'source/jupyter/Example_02_Read_Data.ipynb'
+        - Example 03 Working with Datasets: 'source/jupyter/Example_03_Working_with_Datasets.ipynb'
+        - Example 04 Schemas: 'source/jupyter/Example_04_Schemas.ipynb'
+        - Example 05a Transformers: 'source/jupyter/Example_05a_Transformers.ipynb'
+        - Example 05b SKL Transformers: 'source/jupyter/Example_05b_Transformers-SKL.ipynb'
+        - Example 06 Opertors: 'source/jupyter/Example_06_Operators.ipynb'
+        - Example 07 Transferring Datasets: 'source/jupyter/Example_07_Transferring_Datasets.ipynb'
+        - Example 08 Advanced Data Slicing: 'source/jupyter/Example_Advanced_Data_Slicing.ipynb'
+        - Kosh and Sina Interoperability: 'source/jupyter/Kosh_and_Sina_Interoperability.ipynb'
+        - Column-based Text Files: 'source/jupyter/Example_column_based_text_files.ipynb'
+        - Command Line: 'source/jupyter/Example_Command_Line_Kosh.ipynb'
+        - Moving Datasets: 'source/jupyter/Example_Moving_Datasets.ipynb'
+        - Custom Loaders: 'source/jupyter/Example_Custom_Loader.ipynb'
+        - Clustering Data: 'source/jupyter/Example_Cluster_Sampling.ipynb'
+        - Torch MNIST Example: 'source/jupyter/Example_MNIST.ipynb'
+        - Sidre: 'source/jupyter/Example_Sidre.ipynb'
+    - Developers: 'source/dev/index.md'
+    - API Reference: source/reference_guide/
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/LLNL/kosh
+      name: Kosh on GitHub
+copyright: Copyright &copy; 2023 | Charles Doutriaux, Jorge Moreno, Renee Olson and the WEAVE Team;

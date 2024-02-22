@@ -124,9 +124,16 @@ These datasets will inherit attributes and associated sources from the ensemble.
         attributes = self.list_attributes()
         for key in metadata:
             if key in attributes:
-                raise ValueError(
-                    "'{}' is an attribute of this ensemble and "
-                    "therefore cannot be an attribute of its descendants".format(key))
+                if metadata[key] != getattr(self, key):
+                    raise ValueError(
+                        "'{}' is an attribute of this ensemble and "
+                        "therefore cannot be an attribute of its descendants".format(key))
+                else:
+                    warnings.warn(
+                        "'{}' is an attribute of this ensemble and "
+                        "therefore cannot be an attribute of its descendants"
+                        ". Values match so we will accept it here.".format(key), UserWarning)
+
         ds = self.__store__.create(
             name=name,
             id=id,
