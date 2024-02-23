@@ -66,6 +66,28 @@ ds.store.create(metadata={"name":"My name", "attr1":1, "attr2":"two"})
 # batch update/creation
 ds.update({"new_attr":"new", "attr1":"one", "attr2": 2})
 ```
+## Can I gather features with different names from different datasets with aliases?
+
+Yes, using the `alias_feature` parameter. It can be set at the creation of the dataset or later on.
+
+```python
+features = dataset.list_features()
+print(features)
+# ['cycles', 'direction', 'elements', 'node', 'node/metrics_0', 'node/metrics_1', 'node/metrics_10', 'node/metrics_11', 'node/metrics_12', 'node/metrics_2', 'node/metrics_3', 'node/metrics_4', 'node/metrics_5', 'node/metrics_6', 'node/metrics_7', 'node/metrics_8', 'node/metrics_9', 'zone', 'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2', 'zone/metrics_3', 'zone/metrics_4']
+
+alias_dict = {'param5': 'node/metrics_5',
+              'P6': ['node/metrics_6'],
+              'P0': 'metrics_0'}
+dataset.alias_feature = alias_dict
+# This can also be passed in at the creation of the dataset
+# dataset = store.create(metadata={'alias_feature': alias_dict})
+
+print(dataset['param5'][:])
+# <HDF5 dataset "metrics_5": shape (2, 18), type "<f4">
+print(dataset['P6'][:])
+# <HDF5 dataset "metrics_6": shape (2, 18), type "<f4">
+# print(dataset['P0'][:])  # Cannot uniquely pinpoint P0, could be one of ['node/metrics_0', 'zone/metrics_0']
+```
 
 ## Can I move files after I associated them with datasets in Kosh?
 
@@ -133,7 +155,7 @@ Currently Kosh comes with the following loaders
      - conduit
 ```
 
-# What transformers come with Kosh by default?
+## What transformers come with Kosh by default?
 
 Currently Kosh provides the following transformers
 
@@ -212,7 +234,7 @@ Currently Kosh provides the following transformers
 ```
 
 
-# Cache vs Association?
+## Cache vs Association?
 
 Is it better to cache results from transformers or should I associate the results with the store?
 
@@ -245,3 +267,24 @@ export OMP_NUM_THREADS=1
 
 
 source: https://github.com/autogluon/autogluon/issues/1020
+
+## I am using MPI should I do anything special?
+
+In general we recommend making write operations on rank 0 only, especially when using sqlite as a backend.
+
+## What about MPI and mariadb?
+
+When opening a mariadb backend, in order to avoid sync error between ranks you should use:
+
+```python
+store = kosh.connect(mariadb, execution_options={"isolation_level": "READ COMMITTED"})
+```
+
+## I am using a mariadb backend and I want my attributes to be case sensitive
+
+You will need to fix your dtabase collate:
+
+```python
+store = kosh.connect(mariadb)
+store.get_sina_store()._dao_factory.session.execute("SET NAMES latin1 COLLATE latin1_general_ci")
+```

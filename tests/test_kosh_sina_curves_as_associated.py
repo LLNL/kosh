@@ -55,6 +55,7 @@ class KoshTestSinaCurves(KoshTest):
 --- Ensembles (0)---
 \t[]
 --- Ensemble Attributes ---
+--- Alias Feature Dictionary ---
 """.format(dataset.param5)  # noqa
 
         self.assertEqual(str(dataset).strip(), print_str.strip())

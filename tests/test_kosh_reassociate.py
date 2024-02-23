@@ -25,7 +25,7 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
         python_pth = os.path.join(sys.prefix, "python")
     else:
         python_pth = os.path.join(sys.prefix, "bin", "python")
-    cmd_pth = os.path.join("scripts", "kosh_command.py")
+    cmd_pth = os.path.join("kosh", "kosh_command.py")
     cmd = "{} {} reassociate --dataset_record_type=blah ".format(
         python_pth, cmd_pth)
     for store in store_sources:
@@ -43,6 +43,83 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
 
 
 class KoshTestReassociate(KoshTest):
+    def test_reassociate_multiple_files(self):
+        store, db_uri = self.connect()
+        filename = f"some_file_reassociation_test_{random.randint(0,100000)}.txt"
+        create_file(filename)
+        ds1 = store.create()
+        ds2 = store.create()
+        ds1.associate(filename, "txt")
+        ds2.associate(filename, "txt")
+
+        # Now move the file
+        new_filename = "new_"+filename
+        move_file(filename, new_filename)
+
+        # Now reassociate from the store
+        store.reassociate(new_filename)
+
+        for ds in [ds1, ds2]:
+            r = ds.get_record().raw
+            self.assertTrue(os.path.abspath(new_filename) in r["files"])
+            self.assertFalse(os.path.abspath(filename) in r["files"])
+
+        newer_filename = "newer_"+new_filename
+        # Reassociate from a dataset
+        move_file(new_filename, newer_filename)
+        ds1.reassociate(newer_filename)
+        for ds in [ds1, ds2]:
+            r = ds.get_record().raw
+            self.assertTrue(os.path.abspath(newer_filename) in r["files"])
+            self.assertFalse(os.path.abspath(new_filename) in r["files"])
+
+        # make sure we can still reassociate even if already done
+        ds2.reassociate(newer_filename)
+
+        os.remove(newer_filename)
+        store.close()
+        os.remove(db_uri)
+
+    def test_reassociate_multiple_files_with_dir(self):
+        store, db_uri = self.connect()
+        filename = f"some_file_reassociation_test_{random.randint(0,100000)}.txt"
+        create_file(filename)
+        ds1 = store.create()
+        ds2 = store.create()
+        ds1.associate(filename, "txt")
+        ds2.associate(filename, "txt")
+        new_dir = 'reassociate_dir'
+        os.makedirs(new_dir, exist_ok=True)
+        # Now move the file
+        new_filename = os.path.join(new_dir, filename)
+        move_file(filename, new_filename)
+
+        # Now reassociate from the store
+        store.reassociate(new_dir)
+
+        for ds in [ds1, ds2]:
+            r = ds.get_record().raw
+            self.assertTrue(os.path.abspath(new_filename) in r["files"])
+            self.assertFalse(os.path.abspath(filename) in r["files"])
+
+        newer_dir = 'newer_reassociate_dir'
+        os.makedirs(newer_dir, exist_ok=True)
+        newer_filename = os.path.join(newer_dir, filename)
+        # Reassociate from a dataset
+        move_file(new_filename, newer_filename)
+        ds1.reassociate(newer_dir)
+        for ds in [ds1, ds2]:
+            r = ds.get_record().raw
+            self.assertTrue(os.path.abspath(newer_filename) in r["files"])
+            self.assertFalse(os.path.abspath(new_filename) in r["files"])
+
+        # make sure we can still reassociate even if already done
+        ds2.reassociate(newer_dir)
+
+        os.remove(newer_filename)
+        store.close()
+        os.remove(db_uri)
+
     def test_dataset_reassociate(self):
         store, db_uri = self.connect()
         ds = store.create()

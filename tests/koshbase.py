@@ -13,17 +13,23 @@ for name in ["sina.datastores.sql", "sina.model", "sina.utils", "sina.dao",
 
 
 class KoshTest(unittest.TestCase):
+    dbname = os.environ.get("KOSH_TEST_MARIADB", "cz-kosh-testkoshdb.apps.czapps.llnl.gov:30637")
+    dbcnf = os.environ.get("KOSH_TEST_MARIACNF", '~/.my.kosh.testdb.cnf')
+    dbcnf = os.path.expanduser(dbcnf)
+    mariadb = f"mysql+mysqlconnector://{dbname}/?read_default_file={dbcnf}"
+
     def connect(self, db_uri=None, sync=True,
-                dataset_record_type="blah"):
+                dataset_record_type="blah",
+                delete_all_contents=False, **kwargs):
         if db_uri is None:
             kosh_db = "kosh_test_{}.sql".format(uuid.uuid1().hex)
         else:
             kosh_db = db_uri
         # os.getlogin does not work on my WSL
-        store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False)
-        if db_uri is None:
+        store = connect(database=kosh_db, sync=sync, dataset_record_type=dataset_record_type, verbose=False, **kwargs)
+        if db_uri is None or delete_all_contents:
             store.delete_all_contents(force="SKIP PROMPT")
-        return store, os.path.abspath(kosh_db)
+        return store, os.path.abspath(kosh_db) if "://" not in kosh_db else kosh_db
 
     def cleanup_store(self, store):
         store.close()

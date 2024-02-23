@@ -41,7 +41,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 if os.path.exists("scripts/kosh"):
     os.remove("scripts/kosh")
-shutil.copyfile("scripts/kosh_command.py", "scripts/kosh")
+shutil.copyfile("kosh/kosh_command.py", "scripts/kosh")
 setup(name="kosh",
       version=version,
       description=description,
@@ -58,7 +58,7 @@ setup(name="kosh",
                ],
       zip_safe=False,
       install_requires=[
-          'llnl-sina >=1.11.0', 
+          'llnl-sina >=1.14', 
           'networkx>=2.6',
           'numpy>=1.20',
           'scipy',

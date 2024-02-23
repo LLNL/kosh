@@ -6,7 +6,9 @@ import h5py
 import pytest
 from os.path import exists
 import os
-from koshbase import KoshTest
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  # noqa
+from koshbase import KoshTest  # noqa
 
 # size of random string
 rand_n = 7
@@ -58,8 +60,9 @@ class KoshTestClusters(KoshTest):
         data_subsample = KoshCluster(dataset["dataset_1"], dataset["dataset_2"],
                                      method="HAC", HAC_distance_scaling=.01,
                                      output="samples")[:]
+        samp = data_subsample[0]
 
-        self.assertLessEqual(data_subsample.shape[0], Nsamples * 2)
+        self.assertLessEqual(samp.shape[0], Nsamples * 2)
 
         # Cleanup
         store.close()
@@ -101,9 +104,10 @@ class KoshTestClusters(KoshTest):
             dataset["dataset_1"],
             method="DBSCAN",
             eps=.1,
-            output="samples")
+            output="samples")[:]
+        samp = data_subsample[0]
 
-        self.assertLessEqual(data_subsample[:].shape[0], Nsamples)
+        self.assertLessEqual(samp.shape[0], Nsamples)
 
         # Cleanup
         os.remove(fileName)
@@ -140,9 +144,10 @@ class KoshTestClusters(KoshTest):
 
         # use Kosh operator to subsample data based off of clustering
         data_subsample = KoshCluster(dataset["dataset_1"], method="HDBSCAN",
-                                     min_cluster_size=2, output="samples")
+                                     min_cluster_size=2, output="samples")[:]
+        samp = data_subsample[0]
 
-        assert (data_subsample[:].shape[0] <= Nsamples)
+        self.assertLessEqual(samp.shape[0], Nsamples)
 
         # Cleanup
         os.remove(fileName)
@@ -294,13 +299,59 @@ class KoshTestClusters(KoshTest):
         # Test DBSCAN batching
         data_subsample2 = KoshCluster(dataset["dataset_1"], dataset["dataset_2"],
                                       method="DBSCAN", eps=.001, output="indices",
-                                      batch=True, batch_size=250, convergence_num=2)
+                                      batch=True, batch_size=250, convergence_num=2)[:]
+        samp = data_subsample2[0]
 
-        self.assertLessEqual(data_subsample2[:].shape[0], Nsamples * 2 * 1.01)
+        self.assertLessEqual(samp.shape[0], dataT.shape[0]*2)
 
         # Cleanup
         os.remove(fileName)
         os.remove(fileName2)
+        store.close()
+        os.remove(uri)
+
+    @pytest.mark.mpi_skip
+    def test_auto_eps_kosh(self):
+        Nsamples = 100
+        Ndims = 2
+
+        # generate random strings
+        res = ''.join(random.choices(string.ascii_uppercase +
+                                     string.digits, k=rand_n))
+        fileName = 'data_' + str(res) + '.h5'
+
+        dataL = np.random.random((Nsamples, Ndims)) * .1
+        dataR = np.random.random((Nsamples, Ndims)) * .1
+        dataR[:, 0] += 1.0
+        dataR[:, 1] += 1.0
+        dataT = np.concatenate((dataL, dataR), axis=0)
+
+        h5f = h5py.File(fileName, 'w')
+        h5f.create_dataset('dataset_1', data=dataT)
+        h5f.close()
+
+        # Create a new store (erase if exists)
+        store, uri = self.connect()
+
+        # Add "dataT" to store...
+
+        dataset = store.create("kosh_example1")
+        dataset.associate(fileName, "hdf5")
+
+        # use Kosh operator to subsample data based off of clustering
+        data_subsample = KoshCluster(
+            dataset["dataset_1"],
+            method="DBSCAN",
+            auto_eps=True,
+            eps_0=.1,
+            output="samples")[:]
+
+        data = data_subsample[0]
+
+        self.assertLessEqual(data.shape[0], dataT.shape[0])
+
+        # Cleanup
+        os.remove(fileName)
         store.close()
         os.remove(uri)
 
@@ -340,19 +391,78 @@ class KoshTestClusters(KoshTest):
 
         # Add "dataT" to store...
         dataset = store.create("kosh_example1")
+
         dataset.associate(fileName, "hdf5")
 
         # Test parallel DBSCAN
         data_subsample = KoshCluster(dataset["dataset_1"], method="DBSCAN",
                                      eps=.04, output="samples", scaling_function='min_max',
                                      batch=True, batch_size=500, convergence_num=5)[:]
+        samp = data_subsample[0]
 
         if rank == 0:
-            self.assertEqual(data_subsample.shape[0], 100)
+            self.assertEqual(samp.shape[0], 100)
         else:
-            self.assertIsNone(data_subsample)
+            self.assertIsNone(samp)
 
-        # Cleanup
-        os.remove(fileName)
+        comm.Barrier()
+        if rank == 0:
+            # Cleanup
+            os.remove(fileName)
         store.close()
-        os.remove(uri)
+        if rank == 0:
+            os.remove(uri)
+
+    @pytest.mark.mpi(min_size=4)
+    def test_gather_to_rank1(self):
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+
+        fileName = ""
+
+        if rank == 0:
+            data = np.random.rand(2, 2)
+
+            # size of random string
+            rand_n = 7
+
+            # generate random strings
+            fileName = ""
+
+            res = ''.join(random.choices(string.ascii_uppercase +
+                                         string.digits, k=rand_n))
+            fileName = 'data_' + str(res) + '.h5'
+
+            h5f_1 = h5py.File(fileName, 'w')
+            h5f_1.create_dataset('dataset_1', data=data)
+            h5f_1.close()
+
+        fileName = comm.bcast(fileName, root=0)
+
+        # Create a new store (erase if exists)
+        store, uri = self.connect()
+
+        # Add "dataT" to store...
+        dataset = store.create("kosh_example1")
+        dataset.associate(fileName, "hdf5")
+
+        # Test parallel DBSCAN
+        data_subsample = KoshCluster(dataset["dataset_1"], method="DBSCAN",
+                                     eps=.04, output="samples", gather_to=1,
+                                     scaling_function='min_max',
+                                     batch=True, batch_size=3000)[:]
+
+        if rank == 1:
+            self.assertIsInstance(data_subsample[0], np.ndarray)
+        else:
+            self.assertIsNone(data_subsample[0], None)
+
+        comm.Barrier()
+        # Cleanup
+        if rank == 0:
+            os.remove(fileName)
+        store.close()
+        if rank == 0:
+            os.remove(uri)

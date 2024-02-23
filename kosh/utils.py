@@ -10,6 +10,7 @@ from .wrapper import KoshScriptWrapper  # noqa
 import warnings
 from sina.model import Record
 from kosh.exec_graphs import find_network_ends, populate
+import pickle
 try:
     import orjson
 except ImportError:
@@ -20,6 +21,40 @@ try:
     default_nx_layout = nx.planar_layout
 except AttributeError:  # planar is available from nx version 2.5
     default_nx_layout = nx.circular_layout
+
+
+class KoshPickler(object):
+    def __init__(self, encode_types=["windows-1252", "latin1"]):
+        self.encode_types = encode_types
+
+    def dumps(self, data):
+        success = False
+        for encode_type in self.encode_types:
+            try:
+                encoded = pickle.dumps(data).decode(encode_type)
+                self.loads(encoded)
+                success = True
+                break
+            except Exception:
+                pass
+        if success:
+            return encoded
+        else:
+            raise RuntimeError("Could not pickle")
+
+    def loads(self, data):
+        success = False
+        for encode_type in self.encode_types:
+            try:
+                loaded = pickle.loads(data.encode(encode_type))
+                success = True
+                break
+            except Exception:
+                pass
+        if success:
+            return loaded
+        else:
+            raise RuntimeError("Could not load pickled")
 
 
 def find_curveset_and_curve_name(name, rec):
@@ -314,7 +349,7 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         # ok it's the old type or a new store, let's try to upgrade it for next time
         # and add the store info
         # Because of mpi ranks issues let's fix the id
-        rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__")
+        rec = Record(id="__kosh_store_info__", type="__kosh_storeinfo__", user_defined={'kosh_information': {}})
         if hasattr(records, "insert"):  # Readonly can't insert
             # It's possible many ranks will try to create this record
             # They are all identical, let's allow the error
@@ -398,7 +433,7 @@ def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), 
             types=[user_type, ], data={"username": user}))
         if len(new_user) == 0:
             uid = hashlib.md5(user.encode()).hexdigest()
-            user_record = Record(id=uid, type=user_type)
+            user_record = Record(id=uid, type=user_type, user_defined={'kosh_information': {}})
             user_record.add_data("username", user)
             record_handler.insert(user_record)
 
@@ -520,11 +555,38 @@ def cleanup_sina_record_from_kosh_sync(record):
     :return: json loaded representation of the record
     :rtype: dict"""
     # cleanup the record
-    record["user_defined"].pop("last_update_from_db", None)
-    for key in list(record["user_defined"].keys()):
+    record["user_defined"]['kosh_information'].pop("last_update_from_db", None)
+    for key in list(record["user_defined"]['kosh_information'].keys()):
         if key.endswith("last_modified"):
-            record["user_defined"].pop(key)
+            record["user_defined"]['kosh_information'].pop(key)
     return orjson.loads(record.to_json())
+
+
+def record_to_dataset(record):
+    """Converts a Sina record to a KoshDatset
+    :param record: The Sina Record to convert
+    :type record: sina.model.Record
+    :return: kosh version of the record
+    :rtype: kosh.KoshDatset"""
+    temp_store = kosh.connect(None)
+    temp_store.get_sina_records().insert(record)
+    return next(temp_store.find())
+
+
+def datasets_in_place_of_records(func):
+    """This decorator will convert all Record input or output to KoshDataset
+    This allows a user to use sina functions that expect Record with Kosh datasets instead"""
+    def wrapper(*args, **kwargs):
+        new_args = [x.get_record() if isinstance(x, kosh.KoshDataset) else x for x in args]
+        new_kwargs = {}
+        for k, v in kwargs.items():
+            new_kwargs[k] = v.get_record() if isinstance(v, kosh.KoshDataset) else v
+        out = func(*new_args, **new_kwargs)
+        if hasattr(out, "__iter__"):
+            return [record_to_dataset(v) if isinstance(v, Record) else v for v in out]
+        else:
+            return record_to_dataset(out) if isinstance(out, Record) else out
+    return wrapper
 
 
 def update_json_file_with_records_and_relationships(file, output_dict):
@@ -546,5 +608,8 @@ def update_json_file_with_records_and_relationships(file, output_dict):
             file_dict = output_dict
 
         with open(file, "w") as f:
-            f.write(orjson.dumps(file_dict).decode())
+            try:
+                f.write(orjson.dumps(file_dict).decode())
+            except AttributeError:
+                f.write(orjson.dumps(file_dict))
     return output_dict

@@ -1,20 +1,79 @@
 import numpy as np
 import pandas as pd
 from ..sampling_methods.cluster_sampling import Cluster
-from ..sampling_methods.cluster_sampling import makeBatchClusterParallel
+from ..sampling_methods.cluster_sampling import SubsampleWithLoss
+from ..sampling_methods.cluster_sampling import ParallelClustering
+from ..sampling_methods.cluster_sampling import SerialClustering
 from .core import KoshOperator
 
 
 class KoshCluster(KoshOperator):
+    """Clusters together similar samples from a dataset, and then
+    returns cluster representatives to form a non-redundant
+    subsample of the original dataset. The datasets need to be of
+    shape (n_samples, n_features). All datasets must have the same
+    number of features. If the datasets are more than two dimensions
+    there is an option to flatten them.
+    """
     types = {"numpy": ["numpy", "pandas"]}
 
     def __init__(self, *args, **options):
-        """Clusters together similar samples from a dataset, and then returns cluster representatives
-        to form a non-redundant subsample of the original dataset. The datasets need to be of shape
-        (n_samples, n_features). All datasets must have the same number of features. If the datasets
-        are more than two dimensions there is an option to flatten them.
         """
+        :param inputs: One or more arrays of size (n_samples, n_features).
+        datasets must have same number of n_features.
+        :type inputs: kosh datasets
+        :param flatten: Flattens data to two dimensions.
+        (n_samples, n_features_1*n_features_2* ... *n_features_m)
+        :type flatten: bool
+        :param distance_function: distance metric 'euclidean', 'seuclidean',
+        'sqeuclidean', 'beuclidean', or user defined function. Defaults to
+        'euclidean'
+        :type distance_function: string or user defined function
+        :param scaling_function: Scaling function to use on data before it
+        is clustered.
+        :type scaling_function: string or user defined function
+        :param batch: Whether to cluster data in batches
+        :type batch: bool
+        :param batch_size: Size of the batches
+        :type batch_size: int
+        :param gather_to: Which process to gather data to if samples are
+        smaller than number of processes or batch size.
+        type gather_to: int
+        :param convergence_num: If int, converged after the data size is the same for
+        'num' iterations. The default is 2. If float, converged after the change in data
+        size is less than convergence_num*100 percent of the original data size.
+        :type convergence_num: int or float between 0 and 1
+        :param core_sample: Whether to retain a sample from the center of
+        the cluster (core sample), or a randomly chosen sample.
+        :type core_sample: bool
+        :param eps: The distance around a sample that defines its neighbors.
+        :type eps: float
+        :param auto_eps: Use the algorithm to find the epsilon distance for
+        clustering based on the desired information loss.
+        :type auto_eps: bool
+        :param eps_0: The initial epsilon guess for the auto eps algorithm.
+        :type eps_0: float
+        :param min_samples: The minimum number of samples to form a cluster.
+        :type min_samples: int
+        :param target_loss: The proportion of information loss allowed from removing
+        samples from the original dataset. The default is .01 or 1% loss.
+        :type target_loss: float
+        :param verbose: Verbose message
+        :type verbose: bool
+        :param output: The retained data or the indices to get the retained
+        data from the original dataset.
+        :type output: string
+        :param format: Returns the indices as numpy array ('numpy') or
+        defaults to pandas dataframe.
+        :type format: string
+        :returns: A list containing: 1. The reduced dataset or indices to reduce the original
+        dataset. 2. The estimated information loss or if using the auto eps algorithm (eps=-1)
+        the second item in the list will be the epsilon value found with auto eps.
+        :rtype: list with elements in the list being either numpy array or pandas dataframe
+        """
+
         super(KoshCluster, self).__init__(*args, **options)
+
         self.options = options
 
         # In case they don't have mpi4py
@@ -36,98 +95,166 @@ class KoshCluster(KoshOperator):
         self.rank = self.comm.Get_rank()
         self.nprocs = self.comm.Get_size()
         self.do_parallel = (self.nprocs > 1)
-        if self.rank == 0:
+
+        # Verbose options
+        self.verbose = self.options.get("verbose", False)
+        options['verbose'] = self.verbose
+        # Define primary rank
+        self.primary = self.options.get("gather_to", 0)
+        options['gather_to'] = self.primary
+        self.pverbose = (self.rank == self.primary) and self.verbose
+
+        if self.pverbose:
             print("Number of ranks: %s" % self.nprocs)
+
         # Check batching options
         self.batching = self.options.get("batch", False)
+        self.batch_size = options.get("batch_size", 3000)
+        # Guarantees value exists in options
+        options['batch_size'] = self.batch_size
+
+        # Check for automatic loss-based subsampling
+        self.target_loss = self.options.get('target_loss', .01)
+        self.autoEPS = self.options.get('auto_eps', False)
 
     def operate(self, *inputs, **kargs):
+        """
+        Checks for serial or parallel clustering and calls
+        those functions
+        """
 
-        if self.rank == 0:
+        if self.pverbose:
             print("Reading in %s datasets." % len(inputs))
 
         # Get the sizes of each kosh dataset
         input_sizes = []
-        desc = list(self.describe_entries())
-        for i in range(len(inputs)):
-            input_sizes.append(desc[i]["size"][0])
+        for input_ in inputs:
+            input_sizes.append(input_.shape[0])
 
-        if self.batching and self.do_parallel:
-            r_data = _koshParallelClustering_(
-                inputs, self.options, self.comm, input_sizes)
+        total_sample_size = sum(input_sizes)
+
+        # Logical checks for batch and parallel clustering
+        if (total_sample_size <= self.batch_size):
+            self.batching = False
+            if self.pverbose:
+                print("Total sample size is less than batch size.")
+
+        # Case where user has multiple processes but no batching
+        if (not self.batching and self.do_parallel):
+            self.batching = True
+            if self.pverbose:
+                print("Parallel requires batch=True;")
+                print("Switching to batch clustering.")
+
+        # Case where data size is smaller than number of processes
+        if total_sample_size <= self.nprocs:
+            self.do_parallel = False
+            if self.pverbose:
+                print("Total sample size is less than number of processors.")
+                print("Switching to serial clustering.")
+                print("Idling all non-primary processors.")
+            if self.rank != self.primary:
+                return [None, ]
+
+        if not self.autoEPS:
+            # Standard calls to operator just calls either option
+            if self.batching and self.do_parallel:
+                r_data = _koshParallelClustering_(inputs,
+                                                  self.options,
+                                                  self.comm,
+                                                  input_sizes)
+            else:
+                r_data = _koshSerialClustering_(inputs, self.options)
+
         else:
-            r_data = _koshSerialClustering_(inputs, self.options)
+            # AutoEPS will compute needed EPS for the desired loss
+            #   and return a list with the data and found EPS value
+            [data, epsActual] = _koshAutoEPS_(inputs,
+                                              self.options,
+                                              self.target_loss,
+                                              input_sizes,
+                                              self.comm,
+                                              self.do_parallel)
+            r_data = [data, epsActual]
+            # When data is None return None instead of list
+            if data is None:
+                return [None, ]
 
         return r_data
 
 
+def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
+    """
+    Finds the appropriate epsilon value for clustering based on the target_loss.
+    """
+
+    gather_to = options.get("gather_to", 0)
+    verbose = options.get("verbose", False)
+
+    if parallel:
+        data, global_ind = _koshParallelReader_(inputs,
+                                                comm,
+                                                input_sizes,
+                                                gather_to,
+                                                verbose)
+    else:
+        global_ind = None
+        data = inputs[0][:]
+        for input_ in inputs[1:]:
+            data = np.append(data, input_[:], axis=0)
+
+    [data, epsActual] = SubsampleWithLoss(data,
+                                          target_loss,
+                                          options,
+                                          parallel=parallel,
+                                          comm=comm,
+                                          indices=global_ind)
+
+    return [data, epsActual]
+
+
 def _koshParallelClustering_(inputs, options, comm, input_sizes):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features). datasets must have same number of n_features.
-    :type inputs: kosh datasets
-    :param flatten: Flattens data to two dimensions. (n_samples, n_features_1*n_features_2* ... *n_features_m)
-    :type flatten: bool
-    :param distance_function: distance metric 'euclidean', 'seuclidean', 'sqeuclidean',
-                              'beuclidean', or user defined function. Defaults to 'euclidean'
-    :type distance_function: string or user defined function
-    :param scaling_function: Scaling function to use on data before it is clustered.
-    :type scaling_function: string or user defined function
-    :param batch_size: Size of the batches
-    :type batch_size: int
-    :param convergence_num: Converged if the data size is the same for 'num' iterations. The default is 2.
-    :type convergence_num: int
-    :param core_sample: Whether to retain a sample from the center of the cluster (core sample),
-                        or a randomly chosen sample.
-    :type core_sample: bool
-    :param eps: The distance around a sample that defines its neighbors.
-    :type eps: float
-    :param min_samples: The minimum number of samples to form a cluster.
-    :type min_samples: int
-    :param output: The retained data or the indices to get the retained data from the original dataset.
-    :type output: string
-    :param format: Returns the indices as numpy array ('numpy') or defaults to pandas dataframe.
-    :type format: string
-    :returns: clustered subsample of original dataset, or indices of subsample
-    :rtype: numpy array or pandas dataframe
+    Data are randomly distributed to processors and reduced with batch clustering.
+    The surviving data are randomly mixed and reduced, and the process continues
+    until convergence.
     """
+    gather_to = options.get("gather_to")
+    verbose = options.get("verbose")
 
     # Read in the data in parallel; each processor has its own data
-    data, global_ind = _koshParallelReader_(inputs, comm, input_sizes)
+    data, global_ind = _koshParallelReader_(inputs,
+                                            comm,
+                                            input_sizes,
+                                            gather_to,
+                                            verbose)
 
-    # Parse the input arguments
-    flatten = options.get("flatten", False)
-    batch_size = options.get("batch_size", 10000)
-    convergence_num = options.get("convergence_num", 2)
-    distance_function = options.get("distance_function", "euclidean")
-    scaling_function = options.get("scaling_function", "")
-    core_sample = options.get("core_sample", True)
-    output = options.get("output", "samples")
-    eps = options.get('eps', .5)
-    min_samples = options.get("min_samples", 2)
-    # format = options.get("format", "numpy")
+    [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
 
-    local_data = makeBatchClusterParallel(data, global_ind, comm, flatten=flatten,
-                                          batch_size=batch_size, convergence_num=convergence_num,
-                                          distance_function=distance_function,
-                                          scaling_function=scaling_function, core_sample=core_sample,
-                                          output=output, eps=eps, min_samples=min_samples)
-
-    return local_data
+    return [local_data, loss]
 
 
-def _koshParallelReader_(inputs, comm, input_sizes):
+def _koshParallelReader_(inputs, comm, input_sizes, gather_to, verbose):
+    """
+    Based on input sizes of the datasets, processors read in the data they
+    have been assigned. The data will be evenly distributed.
+    """
 
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
 
     total_data_size = sum(input_sizes)
 
-    if rank == 0:
+    pverbose = (rank == gather_to) and verbose
+
+    if pverbose:
         print("Total data size: %s" % total_data_size)
 
     # Divide all data as evenly as possible between ranks
-    size_div = total_data_size // nprocs         # Some will have this much data
-    procs_to_add_one = total_data_size % nprocs  # Others will need to +1
+    # Some will have this much data
+    size_div = total_data_size // nprocs
+    # Others will need to +1
+    procs_to_add_one = total_data_size % nprocs
 
     # Create a list of all the data sizes needed
     data_to_procs = np.repeat(size_div, nprocs - procs_to_add_one)
@@ -163,11 +290,7 @@ def _koshParallelReader_(inputs, comm, input_sizes):
                     ndata = 0
 
                 end_local = min(input_sizes[i], iEnd - iStart + d - ndata)
-                # input_ind = np.repeat(i, (end_local-start_local)).reshape(-1,1)
-                # local_ind = np.arange(start_local, end_local).reshape(-1,1)
-                # this_data = np.concatenate((this_data, global_ind), axis=1)
                 data.append(inputs[i][start_local: end_local])
-
                 readData = False
 
     data = np.concatenate(data)
@@ -177,157 +300,36 @@ def _koshParallelReader_(inputs, comm, input_sizes):
 
 def _koshSerialClustering_(inputs, options):
     """
-    :param inputs: One or more arrays of size (n_samples, n_features). datasets must have same number of n_features.
-    :type inputs: kosh datasets
-    :param method: DBSCAN or HAC (Hierarchical Agglomerative Clustering)
-    :type method: str
-    :param scaling_function: function for scaling the features
-    :type scaling_function: String or callable
-    :param flatten: Flattens data to two dimensions. (n_samples, n_features_1*n_features_2* ... *n_features_m)
-    :type flatten: bool
-    :param distance_function: distance metric 'euclidean', 'seuclidean', 'sqeuclidean',
-                              'beuclidean', or user defined function. Defaults to 'euclidean'
-    :type distance_function: string or user defined function
-    :param batch: Whether to cluster data in batches
-    :type batch: bool
-    :param batch_size: Size of the batches
-    :type batch_size: int
-    :param convergence_num: Converged if the data size is the same for 'num' iterations. The default is 2.
-    :type convergence_num: int
-    :param eps: The distance around a sample that defines its neighbors. (Only for DBSCAN)
-    :type eps: float
-    :param min_samples: The minimum number of samples to form a cluster. (Only for DBSCAN)
-    :type min_samples: int
-    :param min_cluster_size: The smallest size grouping to be considered a cluster
-    :type min_cluster_size: int
-    :param HAC_distance_scaling: Scales the default distance (self.default_distance), Must be greater than zero
-    :type HAC_distance_scaling: float
-    :param HAC_distance_value: User defines cut-off distance for clustering
-    :type HAC_distance_value: float
-    :param Nclusters: Number of clusters to find (Instead of using a distance for clustering)
-    :type Nclusters: int
-    :param core_sample: Whether to retain a sample from the center of the cluster (core sample),
-                        or a randomly chosen sample.
-    :type core_sample: bool
-    :param n_jobs: The number of parallel jobs to run. -1 means using all processors.
-    :type n_jobs: int
-    :param return_labels: Returns list of retained samples/indices and labels.
-                          If using HDBSCAN, labels will be cluster labels and probabilities.
-    :type return_labels: bool
-    :param format: Returns the indices as numpy array ('numpy') or defaults to pandas dataframe.
-    :type format: string
-    :param output: The retained data or the indices to get the retained data from the original dataset.
-    :type output: string
-    :returns: clustered subsample of original dataset, or indices of subsample
-    :rtype: numpy array or pandas dataframe
+    Reads in all the datasets and reduces data with cluster sampling.
     """
 
     data = inputs[0][:]
     for input_ in inputs[1:]:
         data = np.append(data, input_[:], axis=0)
 
-    method = options.get("method", "DBSCAN")
-    scaling_function = options.get("scaling_function", "")
-    flatten = options.get("flatten", False)
-
-    distance_function = options.get("distance_function", "euclidean")
-    core_sample = options.get("core_sample", True)
-    Nclusters = options.get("Nclusters", -1)
-    n_jobs = options.get("n_jobs", 1)
     return_labels = options.get("return_labels", False)
-    output = options.get("output", "samples")
 
     format = options.get("format", "numpy")
-    batch = options.get("batch", False)
-    batch_size = options.get("batch_size", 10000)
-    convergence_num = options.get("convergence_num", 2)
 
-    my_cluster = Cluster(
-        data,
-        method=method,
-        scaling_function=scaling_function,
-        flatten=flatten)
+    [out, labels, loss] = SerialClustering(data, options)
 
-    if method == 'DBSCAN':
+    result = []
 
-        eps = options.get('eps', .5)
-        min_samples = options.get("min_samples", 2)
-
-        if batch:
-            out = my_cluster.makeBatchCluster(batch_size=batch_size,
-                                              convergence_num=convergence_num,
-                                              output=output, core_sample=core_sample,
-                                              Nclusters=Nclusters, n_jobs=n_jobs,
-                                              eps=eps, min_samples=min_samples,
-                                              distance_function=distance_function)
-        else:
-            my_cluster.makeCluster(eps=eps, min_samples=min_samples,
-                                   distance_function=distance_function,
-                                   Nclusters=Nclusters, n_jobs=n_jobs)
-
-            labels = my_cluster.pd_data['clust_labels']
-
-            out = my_cluster.subsample(output=output,
-                                       core_sample=core_sample,
-                                       distance_function=distance_function,
-                                       n_jobs=n_jobs)
-
-    elif method == 'HDBSCAN':
-
-        min_cluster_size = options.get("min_cluster_size", 2)
-        min_samples = options.get("min_samples", 2)
-
-        my_cluster.makeCluster(min_cluster_size=min_cluster_size,
-                               distance_function=distance_function,
-                               min_samples=min_samples)
-
-        labels = my_cluster.pd_data[["clust_labels", "probabilities"]]
-
-        out = my_cluster.subsample(output=output,
-                                   core_sample=core_sample,
-                                   distance_function=distance_function)
-
-    elif method == 'HAC':
-
-        HAC_distance_scaling = options.get('HAC_distance_scaling', 1.0)
-        HAC_distance_value = options.get("HAC_distance_value", -1)
-
-        if batch:
-            out = my_cluster.makeBatchCluster(batch_size,
-                                              convergence_num=convergence_num,
-                                              output=output, core_sample=core_sample,
-                                              distance_function=distance_function,
-                                              HAC_distance_scaling=HAC_distance_scaling,
-                                              Nclusters=Nclusters,
-                                              HAC_distance_value=HAC_distance_value,
-                                              n_jobs=n_jobs)
-        else:
-            my_cluster.makeCluster(distance_function=distance_function,
-                                   HAC_distance_scaling=HAC_distance_scaling,
-                                   HAC_distance_value=HAC_distance_value,
-                                   Nclusters=Nclusters)
-
-            labels = my_cluster.pd_data['clust_labels']
-
-            out = my_cluster.subsample(output=output,
-                                       core_sample=core_sample,
-                                       distance_function=distance_function,
-                                       n_jobs=n_jobs)
-
+    # Return data as either numpy array or Pandas DataFrame
+    if format == 'numpy':
+        result.append(np.array(out))
+    elif format == 'pandas':
+        result.append(pd.DataFrame(out))
     else:
-        print("Error: no valid clustering method given")
-        exit()
+        print("Error: no valid output format given; numpy|pandas")
 
+    # Optionally return labels instead of loss
     if return_labels:
-        if format == 'numpy':
-            return [np.array(out), np.array(labels)]
-        elif format == 'pandas':
-            return [pd.DataFrame(out), labels]
+        result.append(np.array(labels))
     else:
-        if format == 'numpy':
-            return np.array(out)
-        elif format == 'pandas':
-            return pd.DataFrame(out)
+        result.append(loss)
+
+    return result
 
 
 class KoshHopkins(KoshOperator):
@@ -346,13 +348,16 @@ class KoshHopkins(KoshOperator):
         distributed, .5 means randomly distributed, and a value close to 1
         means highly clustered.
 
-        :param inputs: One or more arrays of size (n_samples, n_features). Datasets must have same number of n_features.
+        :param inputs: One or more arrays of size (n_samples, n_features).
+        Datasets must have same number of n_features.
         :type inputs: kosh datasets
         :param sample_ratio: Proportion of data for sample
         :type sample_ratio: float, between zero and one
-        :param scaling_function: Scaling function to use on data before it is clustered.
+        :param scaling_function: Scaling function to use on data before
+        it is clustered.
         :type scaling_function: string or user defined function
-        :param flatten: Flattens data to two dimensions. (n_samples, n_features_1*n_features_2* ... *n_features_m)
+        :param flatten: Flattens data to two dimensions.
+        (n_samples, n_features_1*n_features_2* ... *n_features_m)
         :type flatten: bool
         :return: Hopkins statistic
         :rtype: float
@@ -366,14 +371,17 @@ class KoshHopkins(KoshOperator):
         scaling_function = self.options.get("scaling_function", '')
         flatten = self.options.get("flatten", False)
 
-        cluster_object = Cluster(data, scaling_function=scaling_function, flatten=flatten)
+        cluster_object = Cluster(data,
+                                 scaling_function=scaling_function,
+                                 flatten=flatten)
         hopkins_stat = cluster_object.hopkins(sample_ratio=sample_ratio)
         return hopkins_stat
 
 
 class KoshClusterLossPlot(KoshOperator):
     types = {"numpy": ["mpl", "mpl/png", "numpy"]}
-    """Calculates sample size and estimated information loss for a range of distance values.
+    """Calculates sample size and estimated information loss
+    for a range of distance values.
 """
 
     def __init__(self, *args, **options):
@@ -382,35 +390,46 @@ class KoshClusterLossPlot(KoshOperator):
 
     def operate(self, *inputs, **kargs):
         """
-        :param inputs: One or more arrays of size (n_samples, n_features). Datasets must have same number of n_features.
+        :param inputs: One or more arrays of size (n_samples, n_features).
+        Datasets must have same number of n_features.
         :type inputs: kosh datasets
-        :param method: DBSCAN, HDBSCAN, or HAC (Hierarchical Agglomerative Clustering)
+        :param method: DBSCAN, HDBSCAN, or HAC
+        (Hierarchical Agglomerative Clustering)
         :type method: string
-        :param flatten: Flattens data to two dimensions. (n_samples, n_features_1*n_features_2* ... *n_features_m)
+        :param flatten: Flattens data to two dimensions.
+        (n_samples, n_features_1*n_features_2* ... *n_features_m)
         :type flatten: bool
-        :param val_range: Range of distance values to use for clustering/subsampling
+        :param val_range: Range of distance values to use for
+        clustering/subsampling
         :type val_range: array
-        :param val_type: Choose the type of value range for clustering: raw distance ('raw'),
-                         scaled distance ('scaled'), or number of clusters ('Nclusters').
+        :param val_type: Choose the type of value range for clustering:
+        raw distance ('raw'), scaled distance ('scaled'), or number of
+        clusters ('Nclusters').
         :type val_type: string
-        :param scaling_function: Scaling function to use on data before it is clustered.
+        :param scaling_function: Scaling function to use on data before
+        it is clustered.
         :type scaling_function: string or user defined function
-        :param distance_function: A valid pairwise distance option from scipy.spatial.distance,
-                                  or a user defined distance function.
+        :param distance_function: A valid pairwise distance option from
+        scipy.spatial.distance, or a user defined distance function.
         :type distance_function: string, or callable
-        :param draw_plot: Whether to plot the plt object. otherwise it returns a list of three arrays:
-                          the distance value range, loss estimate, and sample size.
-                          You can pass a matplotlib Axes instance if you want.
+        :param draw_plot: Whether to plot the plt object. otherwise it
+        returns a list of three arrays: the distance value range,
+        loss estimate, and sample size. You can pass a matplotlib Axes
+        instance if desired.
         :type draw_plot: bool or matplotlib.pyplot.Axes object
-        :param outputFormat: Returns the information as matplotlib pyplot object ('mpl'), png file ('mpl/png'),
+        :param outputFormat: Returns the information as matplotlib pyplot
+        object ('mpl'), png file ('mpl/png'),
                              or numpy array ('numpy')
         :type outputFormat: string
-        :param min_samples: The minimum number of samples to form a cluster. (Only for DBSCAN)
+        :param min_samples: The minimum number of samples to form a cluster.
+        (Only for DBSCAN)
         :type min_samples: int
-        :param n_jobs: The number of parallel jobs to run. -1 means using all processors.
+        :param n_jobs: The number of parallel jobs to run. -1 means
+        using all processors.
         :type n_jobs: int
-        :return: plt object showing loss/sample size information, location of the saved file,
-                 or an array with val_range, loss estimate, and sample size
+        :return: plt object showing loss/sample size information, location
+        of the saved file, or an array with val_range, loss estimate, and
+        sample size
         :rtype: object, string, array
         """
 
@@ -418,7 +437,6 @@ class KoshClusterLossPlot(KoshOperator):
         for input_ in inputs[1:]:
             data = np.append(data, input_[:], axis=0)
 
-        # self.outputDir        = self.options.get("outputDir", '.')
         self.fileNameTemplate = self.options.get(
             "fileNameTemplate", "./clusterLossPlot")
         method = self.options.get("method", "DBSCAN")
@@ -438,7 +456,9 @@ class KoshClusterLossPlot(KoshOperator):
             scaling_function=scaling_function,
             flatten=flatten)
 
-        draw_plot = self.options.get("draw_plot", (outputFormat == 'mpl') or (outputFormat == 'mpl/png'))
+        draw_plot = self.options.get("draw_plot",
+                                     (outputFormat == 'mpl') or
+                                     (outputFormat == 'mpl/png'))
 
         output = cluster_object.lossPlot(
             val_range=val_range,
