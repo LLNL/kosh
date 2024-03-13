@@ -120,7 +120,7 @@ class Cluster(object):
         The number of parallel jobs to run. -1 means using all processors.
         :type n_jobs: int
         :param distance_function: Method used to compute pairwise distances.
-        Must be a valid pairwise distance option from skikit-learn or
+        Must be a valid pairwise distance option from scikit-learn or
         scipy.spatial.distance. Also may be a user defined distance function.
         :type distance_function: string, or callable
         :param Nclusters: How many clusters to find
@@ -250,7 +250,7 @@ class Cluster(object):
         :type min_samples: int
         :param distance_function: Method used to compute pairwise
         distances. Must be a valid pairwise distance option from
-        skikit-learn or scipy.spatial.distance. Also may be a user
+        scikit-learn or scipy.spatial.distance. Also may be a user
         defined distance function.
         :type distance_function: string, or callable
 
@@ -842,7 +842,7 @@ class Cluster(object):
         :param distance_function: A valid pairwise distance option
         from scipy.spatial.distance, or a user defined distance function.
         :type distance_function: string, or callable
-        :param draw_plot: Whether to plot the plt object. otherwise it
+        :param draw_plot: Whether to plot the plt object. Otherwise it
         returns a list of three arrays: the distance value range, loss
         estimate, and sample size. You can pass a matplotlib Axes instance
         if desired.

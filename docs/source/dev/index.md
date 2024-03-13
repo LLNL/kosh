@@ -77,7 +77,7 @@ Potentially one can implement storing the DataObject directly in the store, or d
 
 ## Loader Objects
 
-Loader object allow for querying/ingestion of custom data representation and/or custom implementation of such query/ingestion.
+Loader object allowed for querying/ingestion of custom data representation and/or custom implementation of such query/ingestion.
 
 A data loader must at a minimum implement the following functions
 

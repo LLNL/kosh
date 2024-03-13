@@ -269,11 +269,11 @@ Bug fix and optimization release
 
 * Possibility to "update" multiple attributes of a dataset at once, faster and less db access
 * Possibility to associate many files at once, faster, less db access
-* Creating a new store, returns an handle to that store
+* Creating a new store, returns a handle to that store
 * Switched to pytest rather than nosetests
 * Added Ultra files loader
 * Loaders can be saved in store.
-* When many uri were associated with a dataset and many metrics had the same name, it was not necessarily returning the desired metric even when asking for one by it's full path.
+* When many uri were associated with a dataset and many metrics had the same name, it was not necessarily returning the desired metric even when asking for one by its full path.
 
 ## 0.8 Release
 

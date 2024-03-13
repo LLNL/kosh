@@ -20,7 +20,7 @@ class FakeLoader(kosh.loaders.KoshLoader):
 
 def MathVStackOperator(*args, **kargs):
     """
-    Perform an hstack across feature inputs
+    Perform a hstack across feature inputs
     """
     return numpy.vstack([arg[:] for arg in args])
 
@@ -34,7 +34,7 @@ class VStackOperator(kosh.KoshOperator):
 
     def operate(self, *inputs, **kargs):
         """
-        Perform an vstack across feature inputs
+        Perform a vstack across feature inputs
         """
         local_kargs = {**self.kargs, **kargs}
         return MathVStackOperator(
