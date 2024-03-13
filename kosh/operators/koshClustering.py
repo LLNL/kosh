@@ -130,7 +130,6 @@ class KoshCluster(KoshOperator):
         input_sizes = []
         for input_ in inputs:
             input_sizes.append(input_.shape[0])
-
         total_sample_size = sum(input_sizes)
 
         # Logical checks for batch and parallel clustering
