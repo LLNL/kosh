@@ -1,5 +1,7 @@
 from kosh.sampling_methods.cluster_sampling import Cluster
 from kosh.sampling_methods.cluster_sampling.Clustering import makeBatchClusterParallel
+from kosh.sampling_methods.cluster_sampling.Clustering import DoCluster
+from kosh.sampling_methods.cluster_sampling.Clustering import GetMaxLoss
 import numpy as np
 import pytest
 from unittest import TestCase
@@ -249,9 +251,82 @@ class ClusteringTest(TestCase):
             eps=0.001, batch_size=50, convergence_num=cv)
         self.assertLessEqual(data_sub1.shape[0], dataT.shape[0])
 
+    @pytest.mark.mpi_skip
+    def test_do_cluster(self):
+
+        data = np.random.random((100, 2))
+        options = {'method': 'DBSCAN'}
+
+        reduced_data, loss = DoCluster(data,
+                                       options,
+                                       parallel=False,
+                                       eps=.5,
+                                       comm=None,
+                                       indices=None)
+
+        self.assertLessEqual(reduced_data.shape[0], data.shape[0])
+
+    @pytest.mark.mpi(min_size=2)
+    def test_do_cluster_parallel(self):
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        nprocs = comm.Get_size()
+
+        data = np.random.random((100, 2))
+        options = {'method':     'DBSCAN',
+                   'batch':      'True',
+                   'batch_size': 20}
+        indices = np.arange(data.shape[0])
+
+        reduced_data, loss = DoCluster(data,
+                                       options,
+                                       parallel=True,
+                                       eps=.5,
+                                       comm=comm,
+                                       indices=indices)
+        if rank == 0:
+            self.assertLessEqual(reduced_data.shape[0], data.shape[0]*nprocs)
+
+    @pytest.mark.mpi_skip
+    def test_get_max_loss(self):
+
+        np.random.seed(3)
+        data = np.random.random((100, 2))
+        options = {'method': 'DBSCAN',
+                   'scaling_function': '',
+                   'distance_function': 'euclidean'}
+
+        temp_data, maxLoss = GetMaxLoss(data, options)
+        self.assertAlmostEqual(maxLoss, 37.75610305731018)
+
+    @pytest.mark.mpi(min_size=2)
+    def test_get_max_loss_parallel(self):
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        nprocs = comm.Get_size()
+
+        np.random.seed(3)
+        Nsamples = int(1000/nprocs)
+        data = np.random.random((Nsamples, 2))
+        options = {'method':     'DBSCAN',
+                   'batch':      'True',
+                   'batch_size': 50,
+                   'scaling_function': '',
+                   'distance_function': 'euclidean'}
+        indices = np.arange(data.shape[0])
+
+        temp_data, maxLoss = GetMaxLoss(data,
+                                        options,
+                                        parallel=True,
+                                        comm=comm,
+                                        indices=indices)
+        self.assertGreaterEqual(maxLoss, 300.0)
+
     @pytest.mark.mpi(min_size=2)
     def test_batch_parallel(self):
-        import numpy as np
         from mpi4py import MPI
         from sklearn.datasets import make_blobs
 

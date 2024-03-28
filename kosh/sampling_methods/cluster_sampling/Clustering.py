@@ -1087,10 +1087,15 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
         if (is_converged):
             retained = data[np.array(subset_indices), :]
             break
-        elif (total_subsamples < batch_size):
+        elif (total_subsamples < batch_size or total_subsamples < nprocs):
             if pverbose:
-                print(f"Total data size ({total_subsamples}) < batch size ({batch_size})."
-                      " Moving all the data to rank {gather_to}")
+                if total_subsamples < batch_size:
+                    print(f"Total data size ({total_subsamples}) < batch size ({batch_size})."
+                          " Moving all the data to rank {gather_to}")
+                else:
+                    print(f"Total data size ({total_subsamples}) < number of processors"
+                          " ({nprocs}). Moving all the data to rank {gather_to}")
+
             # Send all data to primary rank
             #  lowercase "gather" supports GatherV like behavior
 
@@ -1329,77 +1334,116 @@ def scaleDataParallel(data, comm, scaling_function,
         return data, scale_vars
 
 
+def DoCluster(data, options, parallel, eps, comm, indices):
+
+    options['eps'] = eps
+
+    # This needs to do the following
+    # - Make a cluster:
+    #    - serial, batch, parallel-batch
+    # - Subsample
+    if not parallel:
+        [local_data, loss, labels] = SerialClustering(data, options)
+    else:
+        [local_data, loss] = ParallelClustering(data, comm, indices, options)
+
+    # - Get/return loss
+    return [local_data, loss]
+
+
+def GetSubsetDistance(data, options, Nsubset=250):
+    # Compute the distances between samples on a random subset of the data.
+    from kosh.sampling_methods.cluster_sampling import Cluster
+
+    scaling_function = options.get("scaling_function", '')
+    distance_function = options.get("distance_function", "euclidean")
+
+    # Get subset of data
+    np.random.seed(3)
+    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], Nsubset]))
+    sub_idx.sort()
+    sub_data = data[sub_idx, :]
+
+    # Make temporary cluster object of subset of data
+    temp_cluster_object = Cluster(sub_data,
+                                  scaling_function=scaling_function)
+
+    distances = temp_cluster_object.computeDistance(sub_data,
+                                                    distance_function=distance_function)
+    return distances
+
+
+def GetMaxLoss(data, options, parallel=False, comm=None, indices=None, Nsubset=250):
+
+    from mpi4py import MPI
+
+    if data is None:
+        return [None,]
+
+    flatten = options.get("flatten", False)
+    if flatten:
+        nsamples = data.shape[0]
+        nfeatures = np.prod(data.shape[1:])
+        data = data.reshape(nsamples, nfeatures)
+
+    distances = GetSubsetDistance(data,
+                                  options,
+                                  Nsubset=Nsubset)
+
+    # 2) Compute max loss @ epsMax
+    epsMax = np.max(distances)
+    if epsMax == 0.0:
+        epsMax = 1.0
+    if parallel:
+        epsMax = comm.allreduce(epsMax, MPI.MAX)
+
+    [tmpdata, maxLoss] = DoCluster(data, options, parallel, epsMax, comm, indices)
+
+    return [epsMax, maxLoss]
+
+
 def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, indices=None):
 
-    from kosh.sampling_methods.cluster_sampling import Cluster
     from mpi4py import MPI
 
     rank = comm.Get_rank()
     primary = options.get("gather_to", 0)
     verbose = options.get("verbose", False)
     pverbose = rank == primary and verbose
-    scaling_function = options.get("scaling_function", '')
     eps_0 = options.get("eps_0", None)
+    method = options.get("method", "DBSCAN")
+    non_dim_return = options.get("non_dim_return", False)
 
-    def DO_CLUSTER(eps):
+    if method == "HAC":
+        print("Error: HAC not supported for SubsampleWithLoss")
+        exit()
 
-        options['eps'] = eps
+    # Compute the maximum distance on a random subset of the data
+    [epsMax, maxLoss] = GetMaxLoss(data,
+                                   options,
+                                   parallel=parallel,
+                                   comm=comm,
+                                   indices=indices,
+                                   Nsubset=250)
 
-        method = options.get("method", "DBSCAN")
-        if method == "HAC":
-            print("Error: HAC not supported for SubsampleWithLoss")
-            exit()
-
-        # This needs to do the following
-        # - Make a cluster:
-        #    - serial, batch, parallel-batch
-        # - Subsample
-        if not parallel:
-            [local_data, labels, loss] = SerialClustering(data, options)
-        else:
-            [local_data, loss] = ParallelClustering(data, comm, indices, options)
-
-        # - Get/return loss
-        return [local_data, loss]
-
-    # Make temporary cluster object of subset of data
-
-    # Get subset of data
-    sub_idx = np.random.choice(data.shape[0], size=min([data.shape[0], 250]))
-    sub_idx.sort()
-    sub_data = data[sub_idx, :]
-
-    distance_function = options.get("distance_function", "euclidean")
-
-    temp_cluster_object = Cluster(
-        sub_data,
-        scaling_function=scaling_function)
-
-    distances = temp_cluster_object.computeDistance(sub_data,
-                                                    distance_function=distance_function)
-
-    # 2) Compute max loss @ epsMax
-    epsMax = np.max(distances)
-    if parallel:
-        epsMax = comm.allreduce(epsMax, MPI.MAX)
-    [tmpdata, maxLoss] = DO_CLUSTER(epsMax)
+    # Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
 
     # Use ave distance of subsample if no eps guess is given
     if eps_0 is None:
+        distances = GetSubsetDistance(data, options, Nsubset=250)
         epsGuess = np.mean(distances)
         if parallel:
             epsGuess = comm.allreduce(epsGuess, MPI.SUM)/comm.Get_size()
     else:
         epsGuess = eps_0
 
-    # 3) Optimize to find optimal eps, given targetLoss = epsLoss(eps) / maxLoss(epsMax)
-
     bounds = [1e-15, epsMax]
 
     if pverbose:
         print("epsGuess: " + str(epsGuess))
 
-    [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
+    [Cdata, epsLoss] = DoCluster(data, options, parallel, epsGuess, comm, indices)
+
     non_dim_loss = epsLoss / maxLoss
     if pverbose:
         print("Loss proportion: " + str(non_dim_loss))
@@ -1438,7 +1482,7 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
                 step_size = (bounds[1] - bounds[0])/4
                 reduce_step_size = False
 
-        [Cdata, epsLoss] = DO_CLUSTER(epsGuess)
+        [Cdata, epsLoss] = DoCluster(data, options, parallel, epsGuess, comm, indices)
         non_dim_loss = epsLoss / maxLoss
         losses.append(non_dim_loss)
         guesses.append(epsGuess)
@@ -1461,7 +1505,9 @@ def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, ind
         print("Final Loss proportion: " + str(non_dim_loss))
 
     # 4) Return results
-    return [Cdata, epsGuess]
+    if not non_dim_return:
+        non_dim_loss *= maxLoss
+    return [Cdata, non_dim_loss, epsGuess]
 
 
 def SerialClustering(data, options):
@@ -1476,16 +1522,15 @@ def SerialClustering(data, options):
     n_jobs = options.get("n_jobs", 1)
     output = options.get("output", "samples")
     batch = options.get("batch", False)
-    batch_size = options.get("batch_size", 10000)
+    batch_size = options.get("batch_size", 3000)
     convergence_num = options.get("convergence_num", 2)
 
     labels = []
 
-    my_cluster = Cluster(
-        data,
-        method=method,
-        scaling_function=scaling_function,
-        flatten=flatten)
+    my_cluster = Cluster(data,
+                         method=method,
+                         scaling_function=scaling_function,
+                         flatten=flatten)
 
     if method == 'DBSCAN':
 
@@ -1563,7 +1608,7 @@ def SerialClustering(data, options):
         exit()
 
     loss = my_cluster.loss_estimate
-    return [out, labels, loss]
+    return [out, loss, labels]
 
 
 def ParallelClustering(data, comm, global_ind, options):
