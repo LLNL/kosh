@@ -4,6 +4,7 @@ from ..sampling_methods.cluster_sampling import Cluster
 from ..sampling_methods.cluster_sampling import SubsampleWithLoss
 from ..sampling_methods.cluster_sampling import ParallelClustering
 from ..sampling_methods.cluster_sampling import SerialClustering
+from ..sampling_methods.cluster_sampling import GetMaxLoss
 from .core import KoshOperator
 
 
@@ -58,6 +59,8 @@ class KoshCluster(KoshOperator):
         :param target_loss: The proportion of information loss allowed from removing
         samples from the original dataset. The default is .01 or 1% loss.
         :type target_loss: float
+        :param non_dim_return: The option to return non-dimensional information loss.
+        :type non_dim_return: bool
         :param verbose: Verbose message
         :type verbose: bool
         :param output: The retained data or the indices to get the retained
@@ -117,6 +120,10 @@ class KoshCluster(KoshOperator):
         self.target_loss = self.options.get('target_loss', .01)
         self.autoEPS = self.options.get('auto_eps', False)
 
+        # Option to return non-dimensional info loss
+        self.non_dim_return = self.options.get('non_dim_return', False)
+        options['non_dim_return'] = self.non_dim_return
+
     def operate(self, *inputs, **kargs):
         """
         Checks for serial or parallel clustering and calls
@@ -146,10 +153,12 @@ class KoshCluster(KoshOperator):
                 print("Switching to batch clustering.")
 
         # Case where data size is smaller than number of processes
-        if total_sample_size <= self.nprocs:
+        #     or data size is smaller than batch size
+        if (total_sample_size <= self.nprocs or total_sample_size <= self.batch_size):
             self.do_parallel = False
             if self.pverbose:
-                print("Total sample size is less than number of processors.")
+                if total_sample_size <= self.nprocs:
+                    print("Total sample size is less than number of processors.")
                 print("Switching to serial clustering.")
                 print("Idling all non-primary processors.")
             if self.rank != self.primary:
@@ -163,18 +172,19 @@ class KoshCluster(KoshOperator):
                                                   self.comm,
                                                   input_sizes)
             else:
-                r_data = _koshSerialClustering_(inputs, self.options)
+                r_data = _koshSerialClustering_(inputs,
+                                                self.options)
 
         else:
             # AutoEPS will compute needed EPS for the desired loss
             #   and return a list with the data and found EPS value
-            [data, epsActual] = _koshAutoEPS_(inputs,
-                                              self.options,
-                                              self.target_loss,
-                                              input_sizes,
-                                              self.comm,
-                                              self.do_parallel)
-            r_data = [data, epsActual]
+            [data, loss, epsActual] = _koshAutoEPS_(inputs,
+                                                    self.options,
+                                                    self.target_loss,
+                                                    input_sizes,
+                                                    self.comm,
+                                                    self.do_parallel)
+            r_data = [data, loss, epsActual]
             # When data is None return None instead of list
             if data is None:
                 return [None, ]
@@ -202,14 +212,14 @@ def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
         for input_ in inputs[1:]:
             data = np.append(data, input_[:], axis=0)
 
-    [data, epsActual] = SubsampleWithLoss(data,
-                                          target_loss,
-                                          options,
-                                          parallel=parallel,
-                                          comm=comm,
-                                          indices=global_ind)
+    [data, loss, epsActual] = SubsampleWithLoss(data,
+                                                target_loss,
+                                                options,
+                                                parallel=parallel,
+                                                comm=comm,
+                                                indices=global_ind)
 
-    return [data, epsActual]
+    return [data, loss, epsActual]
 
 
 def _koshParallelClustering_(inputs, options, comm, input_sizes):
@@ -220,6 +230,7 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     """
     gather_to = options.get("gather_to")
     verbose = options.get("verbose")
+    non_dim_return = options.get("non_dim_return")
 
     # Read in the data in parallel; each processor has its own data
     data, global_ind = _koshParallelReader_(inputs,
@@ -228,9 +239,18 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
                                             gather_to,
                                             verbose)
 
-    [local_data, loss] = ParallelClustering(data, comm, global_ind, options)
+    [reduced_data, loss] = ParallelClustering(data, comm, global_ind, options)
 
-    return [local_data, loss]
+    if non_dim_return:
+        # Estimate the max loss to calculate the non-dimensional information loss
+        [epsMax, maxLoss] = GetMaxLoss(data,
+                                       options,
+                                       parallel=True,
+                                       comm=comm,
+                                       indices=global_ind)
+        loss = loss/maxLoss
+
+    return [reduced_data, loss]
 
 
 def _koshParallelReader_(inputs, comm, input_sizes, gather_to, verbose):
@@ -307,26 +327,32 @@ def _koshSerialClustering_(inputs, options):
         data = np.append(data, input_[:], axis=0)
 
     return_labels = options.get("return_labels", False)
-
+    non_dim_return = options.get("non_dim_return")
     format = options.get("format", "numpy")
 
-    [out, labels, loss] = SerialClustering(data, options)
-
-    result = []
+    [out, loss, labels] = SerialClustering(data, options)
 
     # Return data as either numpy array or Pandas DataFrame
     if format == 'numpy':
-        result.append(np.array(out))
+        reduced_data = np.array(out)
     elif format == 'pandas':
-        result.append(pd.DataFrame(out))
+        reduced_data = pd.DataFrame(out)
     else:
         print("Error: no valid output format given; numpy|pandas")
 
-    # Optionally return labels instead of loss
+    if non_dim_return:
+        # Estimate the max loss to calculate the non-dimensional information loss
+        [epsMax, maxLoss] = GetMaxLoss(data, options)
+        if maxLoss > 0.0:
+            loss = loss/maxLoss
+        else:
+            loss = 0.0
+
+    result = [reduced_data, loss]
+
+    # Optionally return labels as a third element in the return list
     if return_labels:
         result.append(np.array(labels))
-    else:
-        result.append(loss)
 
     return result
 
