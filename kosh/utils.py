@@ -15,7 +15,8 @@ try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
-
+from . import threadsafe  # noqa
+from . import threadsafe_decorators  # noqa
 
 try:
     default_nx_layout = nx.planar_layout

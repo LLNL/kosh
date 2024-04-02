@@ -67,7 +67,8 @@ setup(name="kosh",
           'pandas',
           'hdbscan',
           'matplotlib',
-          'tqdm'
+          'tqdm',
+          'filelock'
       ],
       classifiers=[
           "Programming Language :: Python",
