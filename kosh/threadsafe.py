@@ -95,7 +95,7 @@ def safe_clone(kosh_obj, **kw_args):
     return kosh_obj.clone(**kw_args)
 
 
-@threadsafe_decorators.patient_find(3, 3)
+@threadsafe_decorators.patient_find(4, 5)
 @threadsafe_decorators.threadsafe_call(3, 3)
 def safe_find_datasets(ensemble, **kw_args):
     """
