@@ -189,8 +189,7 @@ class KoshTestLoaders(KoshTest):
         features = sorted(
             ds.list_features(
                 None,
-                group="node",
-                use_cache=False))
+                group="node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
@@ -200,8 +199,7 @@ class KoshTestLoaders(KoshTest):
         features = sorted(
             ds.list_features(
                 ds._associated_data_[0],
-                group="node",
-                use_cache=False))
+                group="node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
@@ -413,14 +411,14 @@ class KoshTestLoaders(KoshTest):
         asso = store._load(id_)
         asso.features_separator = " "
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=True), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self.assertEqual(
-            ds.list_features(use_cache=False), [
+            ds.list_features(), [
                 "time\tzeros\tones\ttwos\tthrees\tfours"])
         asso.features_separator = "\t"
         self.assertEqual(
-            ds.list_features(use_cache=False), [
+            ds.list_features(), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         ds.dissociate(
             os.path.join(
@@ -526,6 +524,51 @@ class KoshTestLoaders(KoshTest):
         ds1.range_max = 12
         self.assertTrue(numpy.allclose(
             ds1["node/metrics_9"][:], m9[:, 4:12:2]))
+
+    def testPandas(self):
+        store, db_uri = self.connect()
+
+        ds = store.create()
+        pth = "tests/baselines/csv"
+
+        assoc = ds.associate(
+            os.path.join(
+                pth,
+                "my_csv_file.csv"),
+            mime_type="pandas/csv",
+            id_only=False,
+            loader_kwargs={'index_col': 0})
+
+        self.assertEqual(ds.list_features(),
+                         ['id', 'name', 'creator',
+                          'mynewattribute', 'myotherattribute',
+                          'myparam10', 'myparam20', 'myparam30',
+                          'myparam40', 'myparam50', 'myparam60'])
+
+        # Single column
+        d1 = ds.get_execution_graph("creator", Id=assoc.id)[:]
+        self.assertEqual(d1.shape, (25, 1))
+
+        # Whole DataFrame
+        df = ds.open(Id=assoc.id)
+        self.assertEqual(df.shape, (25, 11))
+
+        # Updating loader_kwargs
+        assoc.loader_kwargs = {'index_col': None}
+
+        # Single column
+        d1 = ds.get_execution_graph("Unnamed: 0", Id=assoc.id)[:]
+        self.assertEqual(d1.shape, (25, 1))
+
+        # Whole DataFrame
+        df = ds.open(Id=assoc.id)
+        self.assertEqual(df.shape, (25, 12))
+
+        self.assertEqual(ds.list_features(),
+                         ['Unnamed: 0', 'id', 'name', 'creator',
+                          'mynewattribute', 'myotherattribute',
+                          'myparam10', 'myparam20', 'myparam30',
+                          'myparam40', 'myparam50', 'myparam60'])
 
 
 if __name__ == "__main__":

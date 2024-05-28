@@ -4,7 +4,7 @@ import time
 import warnings
 import sina
 from sina.model import Record
-from .core_sina import KoshSinaObject
+from .core_sina import KoshSinaObject, kosh_pickler
 from .utils import get_graph
 from .utils import compute_fast_sha
 from .utils import compute_long_sha
@@ -226,7 +226,7 @@ class KoshDataset(KoshSinaObject):
         return self.__store__.open(Id, loader, *args, **kargs)
 
     def list_features(self, Id=None, loader=None,
-                      use_cache=True, verbose=False, *args, **kargs):
+                      use_cache=False, verbose=False, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
         then the associated_data uri gets appended to feature name
 
@@ -234,7 +234,7 @@ class KoshDataset(KoshSinaObject):
         :type Id: str, optional
         :param loader: loader to use to search for feature, will return ONLY features that the loader knows about
         :type loader: kosh.loaders.KoshLoader
-        :param use_cache: If features is found on cache use it (default: True)
+        :param use_cache: If features is found on cache use it (default: False)
         :type use_cache: bool
         :param verbose: Verbose mode will show which file is being opened and errors on it
         :type verbose: bool
@@ -706,7 +706,8 @@ class KoshDataset(KoshSinaObject):
         self.__dict__["__features__"][kosh_id] = {}
 
     def associate(self, uri, mime_type, metadata={},
-                  id_only=True, long_sha=False, absolute_path=True):
+                  id_only=True, long_sha=False, absolute_path=True,
+                  loader_kwargs=None):
         """associates a uri/mime_type with this dataset
 
         :param uri: uri(s) to access content
@@ -721,6 +722,8 @@ class KoshDataset(KoshSinaObject):
         :type long_sha: bool
         :param absolute_path: if file exists should we store its absolute_path
         :type absolute_path: bool
+        :param loader_kwargs: Extra arguments to pass to more advanced loader
+        :type loader_kwargs: dict, optional
         :return: A (list) Kosh Sina File(s)
         :rtype: list of KoshSinaFile or KoshSinaFile
         """
@@ -728,6 +731,10 @@ class KoshDataset(KoshSinaObject):
         rec = self.get_record()
         # Need to remember we touched associated files
         now = time.time()
+
+        if loader_kwargs is not None:
+            pickled = kosh_pickler.dumps(loader_kwargs)
+            metadata['loader_kwargs'] = pickled
 
         if isinstance(uri, six.string_types):
             uris = [uri, ]

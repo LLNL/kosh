@@ -86,7 +86,7 @@ class KoshSinaObject(object):
 
         metadata_copy = metadata.copy()
         for key in metadata:
-            if att in self.__dict__["__protected__"]:
+            if key in self.__dict__["__protected__"]:
                 del metadata_copy[key]
         self.update(metadata_copy)
 
@@ -144,9 +144,9 @@ class KoshSinaObject(object):
                 schema = kosh_pickler.loads(record["data"]["schema"]["value"])
                 self.__dict__["__schema__"] = schema
             return self.__dict__["__schema__"]
-        elif name == 'alias_feature':
+        elif name in ['alias_feature', 'loader_kwargs']:
             if name in record["data"]:
-                return kosh_pickler.loads(record["data"]["alias_feature"]["value"])
+                return kosh_pickler.loads(record["data"][name]["value"])
             else:
                 return {}
         if name not in record["data"]:
@@ -219,10 +219,13 @@ class KoshSinaObject(object):
         if name == "schema":
             assert isinstance(value, KoshSchema)
             value.validate(self)
+        elif name in ['alias_feature', 'loader_kwargs']:
+            if isinstance(value, dict):
+                value = kosh_pickler.dumps(value)
+            else:  # Pre-pickled at dataset level
+                value = value
         elif self.schema is not None:
             self.schema.validate_attribute(name, value)
-        elif name == 'alias_feature':
-            value = kosh_pickler.dumps(value)
 
         # For datasets we need to check if the att comes from ensemble
         from kosh.dataset import KoshDataset
@@ -393,7 +396,7 @@ class KoshSinaObject(object):
         record = self.get_record()
         attributes = {}
         for a in record["data"]:
-            if a == 'alias_feature':
+            if a in ['alias_feature', 'loader_kwargs']:
                 continue
             attributes[a] = record["data"][a]["value"]
             if a == "creator":

@@ -382,13 +382,13 @@ KOSH DATASET
 
         # Now let's run it again and make sure cache is used
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=True)
         end = time.time()
         self.assertLess(end - start, 1.)
 
         # Ok this time let's use skip cache
         start = time.time()
-        features = ds.list_features(use_cache=False)
+        features = ds.list_features()
         end = time.time()
         self.assertGreaterEqual(end - start, 1.)
 
@@ -402,7 +402,7 @@ KOSH DATASET
 
         # Now let's run it again and make sure cache is used
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=True)
         end = time.time()
         self.assertLess(end - start, 1.)
 

@@ -6,3 +6,4 @@ from .hdf5 import HDF5Loader  # noqa
 from .UltraLoader import UltraLoader  # noqa
 from .sidre import SidreMeshBlueprintFieldLoader  # noqa
 from .npy import NpyLoader, NumpyTxtLoader  # noqa
+from .pandas_loader import PandasLoader  # noqa
