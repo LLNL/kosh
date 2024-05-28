@@ -11,11 +11,13 @@ if not sys.platform.startswith("win"):
 import hashlib
 import warnings
 import time
+import pandas as pd
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
 from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
 from .loaders import NpyLoader
 from .loaders import NumpyTxtLoader
+from .loaders import PandasLoader
 from .dataset import KoshDataset
 from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
@@ -164,6 +166,7 @@ class KoshStore(object):
         self.add_loader(JSONLoader)
         self.add_loader(NpyLoader)
         self.add_loader(NumpyTxtLoader)
+        self.add_loader(PandasLoader)
         try:
             self.add_loader(HDF5Loader)
         except Exception:  # no h5py module?
@@ -746,7 +749,7 @@ class KoshStore(object):
         """
         return self.find(types=self._ensembles_type, *atts, **keys)
 
-    def find(self, load_type='dataset', *atts, **keys):
+    def find(self, *atts, **keys):
         """Find objects matching some metadata in the store
         and its associated stores.
 
@@ -778,10 +781,7 @@ class KoshStore(object):
         else:
             ids_to_add = []
 
-        # If no *atts are passed, just a single value, load_type gets overwritten
-        if load_type not in ('dataset', 'record', 'dictionary'):
-            atts = atts + (load_type,)
-            load_type = 'dataset'
+        keys['load_type'] = keys.get('load_type', 'dataset')
 
         atts_to_remove = []
         for attr in atts:
@@ -797,7 +797,7 @@ class KoshStore(object):
         if 'id_pool' in keys or ids_to_add:  # Create key if doesn't exist
             keys['id_pool'] = [*set(ids_to_add)]
 
-        for result in self._find(load_type, *atts, **keys):
+        for result in self._find(*atts, **keys):
             yield result
 
         searched_stores = [self.db_uri]
@@ -822,7 +822,7 @@ class KoshStore(object):
                 if id_ in store.searched_stores:
                     store.searched_stores.remove(id_)
 
-    def _find(self, load_type='dataset', *atts, **keys):
+    def _find(self, *atts, **keys):
         """Find objects matching some metadata in the store
         arguments are the metadata name we are looking for e.g
         find("attr1", "attr2")
@@ -852,6 +852,7 @@ class KoshStore(object):
             self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
+        load_type = keys.pop("load_type", "dataset")
         # We only want to search sina for ids not records
         sina_kargs["ids_only"] = True
 
@@ -2047,3 +2048,65 @@ class KoshStore(object):
         cmmd.extend(["--merge_strategy", merge_strategy])
 
         KoshCmd._tar(self, tar_type, store_args=cmmd, opts=opts)
+
+    def to_dataframe(self, *atts, **keys):
+        """Return the find object as a Pandas DataFrame.
+
+        Pass in the same arguments and keyword arguments as the find method.
+
+        Arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a reserved key that will return all records being associated
+                   with the given "uri", e.g store.find(file_uri=uri)
+        "types" let you search over specific sina record types only.
+        "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
+
+        :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator'].
+                             If nothing is passed, will return al data.
+        :type data_columns: Union(str, list), optional
+        :return: Pandas DataFrame
+        :rtype: Pandas DataFrame
+        """
+        data_columns = keys.pop("data_columns", [])
+        if isinstance(data_columns, str):
+            data_columns = [data_columns]
+
+        keys['load_type'] = 'dictionary'
+        keys['ids_only'] = False
+        datasets = list(self.find(*atts, **keys))
+
+        dict = {}
+        total_datasets = len(datasets)
+
+        # Always have these by default
+        dict['id'] = [pd.NA] * total_datasets
+        dict['name'] = [pd.NA] * total_datasets
+        dict['creator'] = [pd.NA] * total_datasets
+
+        # Acquire all data if `data_columns` was not passed
+        if not data_columns:
+            unique_keys = []
+            for i, dataset in enumerate(datasets):
+                unique_keys.extend(list(dataset['data'].keys()))
+
+            data_columns = list(set(unique_keys))
+            data_columns.sort()
+
+        for col in data_columns:
+            if col not in ['name', 'creator']:
+                dict[col] = [pd.NA] * total_datasets
+
+        data_columns.extend(['name', 'creator'])
+        for i, dataset in enumerate(datasets):
+            dict['id'][i] = dataset['id']
+            for column, values in dataset['data'].items():
+                if column in data_columns:
+                    dict[column][i] = values.get('value', pd.NA)
+
+        df = pd.DataFrame(dict)
+        return df
