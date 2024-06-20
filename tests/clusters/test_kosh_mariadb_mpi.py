@@ -22,6 +22,9 @@ class KoshTestStore(KoshTest):
             self.mariadb, execution_options={
                 "isolation_level": "READ UNCOMMITTED"})
 
+        count = None
+        # make sure count is created everywhere before moving on to scatter
+        comm.barrier()
         if rank == 0:
             #
             # NOTE: I try to remove previous ensembles here, but the other ranks
