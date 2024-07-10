@@ -18,47 +18,56 @@ class KoshTestStore(KoshTest):
         size = comm.Get_size()
 
         print("RANK:", rank, size, self.mariadb, file=sys.stderr)
-        store, _ = self.connect(
-            self.mariadb, execution_options={
-                "isolation_level": "READ UNCOMMITTED"})
+        try:
+            store, _ = self.connect(
+                self.mariadb, execution_options={
+                    "isolation_level": "READ UNCOMMITTED"})
 
-        count = None
-        # make sure count is created everywhere before moving on to scatter
-        comm.barrier()
-        if rank == 0:
-            #
-            # NOTE: I try to remove previous ensembles here, but the other ranks
-            # can still sometimes have access to the ensembles being deleted here!
-            # You can see this because the "count" attribute doesn't always match
-            # rank 0.
-            #
-            ens = list(store.find_ensembles(name='bug-test'))
-            for e in ens:
-                store.delete(e)
+        except Exception as err:
+            print("Could not open store on rank:", rank, err, file=sys.stderr)
+            comm.Abort()
+        finally:
+            # make sure count is created everywhere before moving on to scatter
+            comm.barrier()
+            print("passed br", rank, file=sys.stderr)
 
-            metadata = {
-                'count': 0,
-            }
+        try:
+            if rank == 0:
+                #
+                # NOTE: I try to remove previous ensembles here, but the other ranks
+                # can still sometimes have access to the ensembles being deleted here!
+                # You can see this because the "count" attribute doesn't always match
+                # rank 0.
+                #
+                ens = list(store.find_ensembles(name='bug-test'))
+                for e in ens:
+                    store.delete(e)
 
-            ens = store.create_ensemble(name='bug-test', metadata=metadata)
+                metadata = {
+                    'count': 0,
+                }
 
+                ens = store.create_ensemble(name='bug-test', metadata=metadata)
+
+                #
+                # NOTE: use a random number here to make sure that all ranks
+                # are truly accessing the same ensemble (they aren't always!).
+                #
+                ens.count = random.randint(1, 10000)
+                count = ens.count
             #
-            # NOTE: use a random number here to make sure that all ranks
-            # are truly accessing the same ensemble (they aren't always!).
+            # Wait until rank 0 finishes with the store.
             #
-            ens.count = random.randint(1, 10000)
-            count = ens.count
-            counts = [ens.count, ] * size
-            comm.scatter(counts, root=0)
-        #
-        # Wait until rank 0 finishes with the store.
-        #
-        comm.barrier()
-        print("POST BARR:", rank, file=sys.stderr)
+        except Exception as err:
+            print(f"Rank 0 failed to prep the store with error {err}")
+            comm.Abort()
+        finally:
+            comm.barrier()
         counts = list(store.find_ensembles(name='bug-test'))[0].count
         print(f"{rank}: {counts}", file=sys.stderr)
         gathered_count = comm.gather(counts, root=0)
         if rank == 0:
+            print("RK 0:", gathered_count, count)
             self.assertEqual(gathered_count, [count, ] * size)
 
 
