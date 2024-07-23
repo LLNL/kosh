@@ -32,6 +32,7 @@ def threadsafe_call(num_tries, patience):
 
                     with lock:
                         ret = func(*args, **kw_args)
+                        print("IN THREADSAFE")
                         return ret
 
                 except ValueError as e:
