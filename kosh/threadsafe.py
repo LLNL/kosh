@@ -1,5 +1,4 @@
-#from . import threadsafe_decorators
-import threadsafe_decorators
+from . import threadsafe_decorators
 
 @threadsafe_decorators.threadsafe_call(10, 10)
 def safe_open(store, *args, **kw_args):
