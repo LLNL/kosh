@@ -1,5 +1,22 @@
 from . import threadsafe_decorators
 
+@threadsafe_decorators.threadsafe_call(10, 10)
+def safe_open(store, *args, **kw_args):
+    """
+    A threadsafe version of Kosh's "open" method.
+
+    Parameters:
+    -----------
+    store: Kosh store
+        A kosh store that has the "open" method.
+
+    Returns:
+    --------
+    object:
+        The result of calling store.open(*args, **kw_args)
+    """
+    return store.open(*args, **kw_args)
+
 
 @threadsafe_decorators.threadsafe_call(1, 0)
 def safe_create(kosh_obj, **kw_args):
