@@ -1,5 +1,6 @@
 from . import threadsafe_decorators
 
+
 @threadsafe_decorators.threadsafe_call(10, 10)
 def safe_open(store, *args, **kw_args):
     """
@@ -16,6 +17,42 @@ def safe_open(store, *args, **kw_args):
         The result of calling store.open(*args, **kw_args)
     """
     return store.open(*args, **kw_args)
+
+
+@threadsafe_decorators.threadsafe_call(1, 0)
+def safe_get_execution_graph(dataset, **kw_args):
+    """
+    A threadsafe version of Kosh's "get_execution_graph" method.
+
+    Parameters:
+    -----------
+    dataset: Kosh dataset
+        A kosh dataset that has the "get_execution_graph" method.
+
+    Returns:
+    --------
+    object:
+        The result of calling dataset.get_execution_graph(**kw_args)
+    """
+    return dataset.get_execution_graph(**kw_args)
+
+
+@threadsafe_decorators.threadsafe_call(1, 0)
+def safe_associate(dataset, **kw_args):
+    """
+    A threadsafe version of Kosh's "associate" method.
+
+    Parameters:
+    -----------
+    dataset: Kosh dataset
+        A kosh dataset that has the "associate" method.
+
+    Returns:
+    --------
+    object:
+        The result of calling dataset.associate(**kw_args)
+    """
+    return dataset.associate(**kw_args)
 
 
 @threadsafe_decorators.threadsafe_call(1, 0)
