@@ -1,7 +1,12 @@
+import os
 from . import threadsafe_decorators
 
 
-@threadsafe_decorators.threadsafe_call(10, 10)
+NUM_TRIES = os.environ.get("KOSH_THREADSAFE_NUM_TRIES", 10)
+PATIENCE = os.environ.get("KOSH_THREADSAFE_PATIENCE", 3)
+
+
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_open(store, *args, **kw_args):
     """
     A threadsafe version of Kosh's "open" method.
@@ -19,7 +24,7 @@ def safe_open(store, *args, **kw_args):
     return store.open(*args, **kw_args)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_get_execution_graph(dataset, **kw_args):
     """
     A threadsafe version of Kosh's "get_execution_graph" method.
@@ -37,7 +42,7 @@ def safe_get_execution_graph(dataset, **kw_args):
     return dataset.get_execution_graph(**kw_args)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_associate(dataset, **kw_args):
     """
     A threadsafe version of Kosh's "associate" method.
@@ -55,7 +60,7 @@ def safe_associate(dataset, **kw_args):
     return dataset.associate(**kw_args)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_create(kosh_obj, **kw_args):
     """
     A threadsafe version of Kosh's "create" method.
@@ -73,7 +78,7 @@ def safe_create(kosh_obj, **kw_args):
     return kosh_obj.create(**kw_args)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_create_ensemble(store, **kw_args):
     """
     A threadsafe version of Kosh's "create_ensemble" method.
@@ -91,7 +96,7 @@ def safe_create_ensemble(store, **kw_args):
     return store.create_ensemble(**kw_args)
 
 
-@threadsafe_decorators.threadsafe_call(3, 3)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_delete(kosh_obj, del_object):
     """
     A threadsafe version of Kosh's "delete" method.
@@ -111,7 +116,7 @@ def safe_delete(kosh_obj, del_object):
     return kosh_obj.delete(del_object)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_add(kosh_obj, add_obj):
     """
     A threadsafe version of Kosh's "add" method.
@@ -131,7 +136,7 @@ def safe_add(kosh_obj, add_obj):
     return kosh_obj.add(add_obj)
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_clone(kosh_obj, **kw_args):
     """
     A threadsafe version of Kosh's "clone" method.
@@ -149,8 +154,8 @@ def safe_clone(kosh_obj, **kw_args):
     return kosh_obj.clone(**kw_args)
 
 
-@threadsafe_decorators.patient_find(4, 5)
-@threadsafe_decorators.threadsafe_call(3, 3)
+@threadsafe_decorators.patient_find(NUM_TRIES, PATIENCE)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_find_datasets(ensemble, **kw_args):
     """
     A threadsafe version of Kosh's "find_datasets" method.
@@ -176,7 +181,7 @@ def safe_find_datasets(ensemble, **kw_args):
     return iter(list(ensemble.find_datasets(**kw_args)))
 
 
-@threadsafe_decorators.threadsafe_call(1, 0)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_kosh_get(kosh_obj, *args, **kw_args):
     """
     A threadsafe version of Kosh's "get" method.
@@ -194,8 +199,8 @@ def safe_kosh_get(kosh_obj, *args, **kw_args):
     return kosh_obj.get(*args, **kw_args)
 
 
-@threadsafe_decorators.patient_find(3, 3)
-@threadsafe_decorators.threadsafe_call(3, 3)
+@threadsafe_decorators.patient_find(NUM_TRIES, PATIENCE)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_find_ensembles(store, **kw_args):
     """
     A threadsafe version of Kosh's "find_ensembles" method.
@@ -221,8 +226,8 @@ def safe_find_ensembles(store, **kw_args):
     return iter(list(store.find_ensembles(**kw_args)))
 
 
-@threadsafe_decorators.patient_find(3, 3)
-@threadsafe_decorators.threadsafe_call(3, 3)
+@threadsafe_decorators.patient_find(NUM_TRIES, PATIENCE)
+@threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
 def safe_find(kosh_obj, **kw_args):
     """
     A threadsafe version of Kosh's "find" method.
