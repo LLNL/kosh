@@ -2,6 +2,7 @@ import os
 import uuid
 import time
 import warnings
+import pandas as pd
 import sina
 from sina.model import Record
 from .core_sina import KoshSinaObject, kosh_pickler
@@ -1259,3 +1260,55 @@ class KoshDataset(KoshSinaObject):
         # the features cache
         self.__dict__["__features__"][None] = {}
         return
+
+    def to_dataframe(self, data_columns=[], *atts, **keys):
+        """Return the find object as a Pandas DataFrame.
+
+        Pass in the same arguments and keyword arguments as the find method.
+
+        find associated data matching some metadata
+        arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a special key that will return the kosh object associated
+        with this dataset for the given uri.  e.g store.find(file_uri=uri)
+
+        :param data_columns: Columns to extract. By default this will include ['id', 'mime_type', 'uri', 'associated'].
+                            If nothing is passed, will return all data.
+        :type data_columns: Union(str, list), optional
+        :return: Pandas DataFrame
+        :rtype: Pandas DataFrame
+        """
+        if isinstance(data_columns, str):
+            data_columns = [data_columns]
+
+        keys['ids_only'] = False
+        sources = list(self.find(*atts, **keys))
+
+        attr_dict = {}
+        total_sources = len(sources)
+
+        # Always have these by default
+        defaults = ['id', 'mime_type', 'uri', 'associated']
+
+        # Acquire all data if `data_columns` was not passed
+        if not data_columns:
+            unique_keys = []
+            for i, source in enumerate(sources):
+                unique_keys += source.list_attributes()
+
+            data_columns = sorted(set(unique_keys))
+
+        data_columns = defaults + data_columns  # Want defaults in front
+        attr_dict = {d: [pd.NA] * total_sources for d in data_columns}
+
+        for i, source in enumerate(sources):
+            for column in data_columns:
+                attr_dict[column][i] = getattr(source, column, pd.NA)
+
+        df = pd.DataFrame(attr_dict)
+        return df

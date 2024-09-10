@@ -574,6 +574,17 @@ def record_to_dataset(record):
     return next(temp_store.find())
 
 
+def record_to_dataframe(rec_uri):
+    """Converts a Sina record to a Pandas DataFrame
+    :param rec_uri: The Sina Record URI to convert
+    :type rec_uri: str
+    :return: Pandas DataFrame version of the record
+    :rtype: Pandas.DataFrame"""
+    temp_store = kosh.connect(None)
+    temp_store.import_dataset(rec_uri, match_attributes=['id'])
+    return temp_store.to_dataframe()
+
+
 def datasets_in_place_of_records(func):
     """This decorator will convert all Record input or output to KoshDataset
     This allows a user to use sina functions that expect Record with Kosh datasets instead"""

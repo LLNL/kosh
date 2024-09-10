@@ -2049,7 +2049,7 @@ class KoshStore(object):
 
         KoshCmd._tar(self, tar_type, store_args=cmmd, opts=opts)
 
-    def to_dataframe(self, *atts, **keys):
+    def to_dataframe(self, data_columns=[], *atts, **keys):
         """Return the find object as a Pandas DataFrame.
 
         Pass in the same arguments and keyword arguments as the find method.
@@ -2067,12 +2067,11 @@ class KoshStore(object):
         "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
 
         :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator'].
-                             If nothing is passed, will return al data.
+                             If nothing is passed, will return all data.
         :type data_columns: Union(str, list), optional
         :return: Pandas DataFrame
         :rtype: Pandas DataFrame
         """
-        data_columns = keys.pop("data_columns", [])
         if isinstance(data_columns, str):
             data_columns = [data_columns]
 
@@ -2080,13 +2079,11 @@ class KoshStore(object):
         keys['ids_only'] = False
         datasets = list(self.find(*atts, **keys))
 
-        dict = {}
+        attr_dict = {}
         total_datasets = len(datasets)
 
         # Always have these by default
-        dict['id'] = [pd.NA] * total_datasets
-        dict['name'] = [pd.NA] * total_datasets
-        dict['creator'] = [pd.NA] * total_datasets
+        defaults = ['id', 'name', 'creator']
 
         # Acquire all data if `data_columns` was not passed
         if not data_columns:
@@ -2094,19 +2091,16 @@ class KoshStore(object):
             for i, dataset in enumerate(datasets):
                 unique_keys.extend(list(dataset['data'].keys()))
 
-            data_columns = list(set(unique_keys))
-            data_columns.sort()
+            data_columns = sorted(set(unique_keys))
 
-        for col in data_columns:
-            if col not in ['name', 'creator']:
-                dict[col] = [pd.NA] * total_datasets
+        data_columns = defaults + data_columns  # Want defaults in front
+        attr_dict = {d: [pd.NA] * total_datasets for d in data_columns}
 
-        data_columns.extend(['name', 'creator'])
         for i, dataset in enumerate(datasets):
-            dict['id'][i] = dataset['id']
+            attr_dict['id'][i] = dataset['id']
             for column, values in dataset['data'].items():
                 if column in data_columns:
-                    dict[column][i] = values.get('value', pd.NA)
+                    attr_dict[column][i] = values.get('value', pd.NA)
 
-        df = pd.DataFrame(dict)
+        df = pd.DataFrame(attr_dict)
         return df
