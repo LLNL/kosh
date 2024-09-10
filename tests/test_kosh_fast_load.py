@@ -93,9 +93,74 @@ class TestKoshFastLoad(koshbase.KoshTest):
         # Find data
         target_data = {'mynewattribute': 5}
         df = store.to_dataframe(data=target_data)
+        for val in df["mynewattribute"].values:
+            self.assertEqual(val, 5)
         assert df.shape == (1, 4)
 
         # Find data with missing columns
         target_data = {'mynewattribute': 5}
         df = store.to_dataframe(data=target_data, data_columns=['param1', 'param6'])
         assert df.shape == (1, 5)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              'param1', 'param6']
+
+    def test_dataset_to_pandas(self):
+
+        store, kosh_db = self.connect()
+
+        dataset = store.create()
+
+        # hdf5
+        dataset.associate("baselines/node_extracts2/node_extracts2.hdf5",
+                          mime_type="hdf5",
+                          metadata={"param10": "my value",
+                                    "my other param": "Example Text"},
+                          absolute_path=False)
+
+        # csv
+        dataset.associate("baselines/csv/my_csv_file.csv",
+                          mime_type="pandas/csv",
+                          metadata={"param10": "my value",
+                                    "param20": "my other value",
+                                    "my param": 10},
+                          loader_kwargs={'index_col': 0},
+                          absolute_path=False)
+
+        # ultra
+        dataset.associate("../examples/my_ult_file.ult",
+                          metadata={"param30": 45,
+                                    "my param": 560},
+                          mime_type="ultra")
+
+        # Everything
+        df = dataset.to_dataframe()
+        assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
+                                              'loader_kwargs', 'my other param', 'my param',
+                                              'param10', 'param20', 'param30']
+
+        # Only certain columns
+        df = dataset.to_dataframe(data_columns='loader_kwargs')
+        assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
+                                              'loader_kwargs']
+
+        df = dataset.to_dataframe(data_columns=['loader_kwargs'])
+        assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
+                                              'loader_kwargs']
+
+        df = dataset.to_dataframe(data_columns=['loader_kwargs', 'my other param'])
+        assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
+                                              'loader_kwargs', 'my other param']
+
+        # Find data
+        target_data = {'param10': "my value"}
+        df = dataset.to_dataframe(data=target_data)
+        for val in df["param10"].values:
+            self.assertEqual(val, "my value")
+        assert df.shape == (2, 9)
+
+        # Find data with missing columns
+        target_data = {'param10': "my value"}
+        df = dataset.to_dataframe(data=target_data, data_columns=['param1', 'param6'])
+        assert df.shape == (2, 6)
+        assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
+                                              'param1', 'param6']
