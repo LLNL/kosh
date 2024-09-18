@@ -2,8 +2,8 @@ import os
 from . import threadsafe_decorators
 
 
-NUM_TRIES = os.environ.get("KOSH_THREADSAFE_NUM_TRIES", 10)
-PATIENCE = os.environ.get("KOSH_THREADSAFE_PATIENCE", 3)
+NUM_TRIES = int(os.environ.get("KOSH_THREADSAFE_NUM_TRIES", 10))
+PATIENCE = int(os.environ.get("KOSH_THREADSAFE_PATIENCE", 3))
 
 
 @threadsafe_decorators.threadsafe_call(NUM_TRIES, PATIENCE)
