@@ -7,7 +7,7 @@ sys.path.append("/usr/gapps/pydv/current")  # noqa
 
 class UltraLoader(KoshLoader):
     """Kosh Loader for ultra files"""
-    types = {"ultra": ["numpy", ]}
+    types = {"ultra": ["dict", "numpy"]}
 
     def __init__(self, obj, **kargs):
         super(UltraLoader, self).__init__(obj, **kargs)
