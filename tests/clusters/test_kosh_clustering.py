@@ -212,11 +212,11 @@ class KoshTestClusters(KoshTest):
 
         vr = np.linspace(1e-4, .008, 10)
 
-        # Test outputFormat=mpl/png
+        # Test outputFormat=png
         lossPlotFile = KoshClusterLossPlot(dataset["dataset_1"],
                                            val_range=vr,
                                            scaling_function='standard',
-                                           outputFormat='mpl/png')[:]
+                                           outputFormat='png')[:]
         self.assertTrue(exists(lossPlotFile))
 
         # Test outputFormat=mpl
@@ -473,6 +473,269 @@ class KoshTestClusters(KoshTest):
         # Cleanup
         if rank == 0:
             os.remove(fileName)
+        store.close()
+        if rank == 0:
+            os.remove(uri)
+
+    @pytest.mark.mpi(min_size=2)
+    def test_parallel_data_source(self):
+        import kosh
+        from mpi4py import MPI
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+
+        Nsamples = 100
+        Ndims = 2
+
+        if rank == 0:
+            # generate random strings
+            res = ''.join(random.choices(string.ascii_uppercase +
+                                         string.digits, k=rand_n))
+            fileName = 'data_' + str(res) + '.h5'
+            np.random.seed(3)
+            data = np.random.random((Nsamples, Ndims))
+
+            f1 = h5py.File(fileName, 'w')
+            f1.create_dataset('dataset_1', data=data)
+            f1.close()
+        elif rank == 1:
+            data2 = [[0]]
+
+            f2 = h5py.File("none_data.h5", 'w')
+            f2.create_dataset('dataset_2', data=data2)
+            f2.close()
+
+        # Create a new store (erase if exists)
+        store, uri = self.connect()
+
+        # Add "dataT" to store...
+        if rank == 0:
+            dataset = store.create("kosh_example1")
+            dataset.associate(fileName, "hdf5")
+        else:
+            dataset = store.create("kosh_example2")
+            dataset.associate("none_data.h5", "hdf5")
+
+        @kosh.numpy_operator
+        def fake_op(*inputs):
+            new_col = inputs[0][:, 0] + 1.0
+            new_col = new_col.reshape(-1, 1)
+            return np.hstack(tup=(inputs[0][:], new_col))
+
+        if rank == 0:
+            processed_data = fake_op(dataset['dataset_1'])
+        else:
+            processed_data = dataset['dataset_2']
+
+        # use Kosh operator to subsample data based off of clustering
+        output = KoshCluster(processed_data,
+                             method="DBSCAN",
+                             eps=.16,
+                             output="indices",
+                             scaling_function='min_max',
+                             batch=True,
+                             batch_size=25,
+                             data_source=0,
+                             non_dim_return=True)[:]
+
+        indices = output[0]
+        actual_loss = output[1]
+
+        all_indices = comm.allgather(indices)
+        flat_indices = np.sort(np.concatenate(all_indices))
+
+        indices_expected = np.array([0, 2, 4, 10, 15, 17, 18, 22, 23,
+                                     25, 27, 29, 32, 34, 38, 40, 41,
+                                     47, 51, 52, 54, 63, 64, 65, 71,
+                                     76, 87, 89, 91])
+        loss_expected = 0.1538495698951048
+
+        self.assertEqual(flat_indices.all(), indices_expected.all())
+        self.assertAlmostEqual(actual_loss, loss_expected)
+
+        # Cleanup
+        if rank == 0:
+            os.remove(fileName)
+        elif rank == 1:
+            os.remove("none_data.h5")
+        store.close()
+        os.remove(uri)
+
+    @pytest.mark.mpi(min_size=2)
+    def test_LossPlot_parallel(self):
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+
+        import matplotlib
+        matplotlib.use("agg", force=True)
+        import matplotlib.pyplot as plt
+
+        try:
+            os.remove("clusterLossPlot.png")
+        except BaseException:
+            pass
+
+        Nsamples = 2000
+        Ndims = 2
+
+        fileName = ""
+
+        if rank == 0:
+            # generate random strings
+            res = ''.join(random.choices(string.ascii_uppercase +
+                          string.digits, k=rand_n))
+            fileName = 'data_' + str(res) + '.h5'
+
+            data = np.random.random((Nsamples, Ndims))
+
+            h5f = h5py.File(fileName, 'w')
+            h5f.create_dataset('dataset_1', data=data)
+            h5f.close()
+
+        fileName = comm.bcast(fileName, root=0)
+
+        # Create a new store (erase if exists)
+        store, uri = self.connect()
+
+        # Add "dataT" to store...
+
+        dataset = store.create("kosh_example1")
+        dataset.associate(fileName, "hdf5")
+
+        vr = np.linspace(1e-4, .008, 10)
+
+        # Test outputFormat=png
+        lossPlotFile = KoshClusterLossPlot(dataset["dataset_1"],
+                                           val_range=vr,
+                                           scaling_function='standard',
+                                           outputFormat='png')[:]
+
+        comm.Barrier()
+        if rank == 0:
+            self.assertTrue(exists(lossPlotFile))
+
+        # # Test outputFormat=mpl
+        lossPlot = KoshClusterLossPlot(dataset["dataset_1"],
+                                       val_range=vr,
+                                       scaling_function='standard',
+                                       outputFormat='mpl')[:]
+
+        if rank == 0:
+            self.assertEqual(type(lossPlot), type(plt.figure()))
+
+        # Test outputFormat=numpy
+        lossPlotData = KoshClusterLossPlot(dataset["dataset_1"],
+                                           val_range=vr,
+                                           scaling_function='standard',
+                                           outputFormat='numpy')[:]
+        if rank == 0:
+            self.assertEqual(len(lossPlotData), 3)
+
+        # Test passing a mpl plot to it.
+        fig = plt.figure(figsize=(25, 20))
+        axes = fig.subplots(nrows=2, ncols=2)
+
+        for i in range(4):
+            lossPlot = KoshClusterLossPlot(dataset["dataset_1"],
+                                           val_range=vr,
+                                           scaling_function='standard',
+                                           outputFormat='mpl',
+                                           draw_plot=axes[i // 2, i % 2])[:]
+        if rank == 0:
+            self.assertEqual(type(lossPlot), type(plt.figure()))
+
+        comm.Barrier()
+        # Cleanup
+        if rank == 0:
+            os.remove(fileName)
+            os.remove(lossPlotFile)
+        store.close()
+        if rank == 0:
+            os.remove(uri)
+
+    @pytest.mark.mpi(min_size=2)
+    def test_LossPlot_data_source(self):
+        from mpi4py import MPI
+        import kosh
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+
+        import matplotlib
+        matplotlib.use("agg", force=True)
+
+        try:
+            os.remove("clusterLossPlot.png")
+        except BaseException:
+            pass
+
+        Nsamples = 2000
+        Ndims = 2
+
+        fileName = ""
+
+        if rank == 0:
+            # generate random strings
+            res = ''.join(random.choices(string.ascii_uppercase +
+                                         string.digits, k=rand_n))
+            fileName = 'data_' + str(res) + '.h5'
+
+            data = np.random.random((Nsamples, Ndims))
+
+            h5f = h5py.File(fileName, 'w')
+            h5f.create_dataset('dataset_1', data=data)
+            h5f.close()
+        elif rank == 1:
+            data2 = [[0]]
+
+            f2 = h5py.File("none_data.h5", 'w')
+            f2.create_dataset('dataset_2', data=data2)
+            f2.close()
+
+        # Create a new store (erase if exists)
+        store, uri = self.connect()
+
+        # Add "data" to store...
+        if rank == 0:
+            dataset = store.create("kosh_example1")
+            dataset.associate(fileName, "hdf5")
+        else:
+            dataset = store.create("kosh_example2")
+            dataset.associate("none_data.h5", "hdf5")
+
+        @kosh.numpy_operator
+        def fake_op(*inputs):
+            new_col = inputs[0][:, 0] + 1.0
+            new_col = new_col.reshape(-1, 1)
+            return np.hstack(tup=(inputs[0][:], new_col))
+
+        if rank == 0:
+            processed_data = fake_op(dataset['dataset_1'])
+        else:
+            processed_data = dataset['dataset_2']
+
+        vr = np.linspace(1e-4, .008, 10)
+
+        # Test outputFormat=png
+        lossPlotFile = KoshClusterLossPlot(processed_data,
+                                           val_range=vr,
+                                           scaling_function='min_max',
+                                           data_source=0,
+                                           batch=True,
+                                           batch_size=250,
+                                           fileNameTemplate='doo_wop',
+                                           outputFormat='png')[:]
+
+        if rank == 0:
+            assert exists(lossPlotFile)
+
+        comm.Barrier()
+        # Cleanup
+        if rank == 0:
+            os.remove(fileName)
+            os.remove(lossPlotFile)
+            os.remove("none_data.h5")
         store.close()
         if rank == 0:
             os.remove(uri)
