@@ -897,7 +897,7 @@ class Cluster(object):
                           "'scaled', 'raw', 'Nclusters'")
                     return
             else:
-                return
+                raise ValueError("Method must be either DBSCAN or HAC.")
 
             # Number of clusters
             k = len(np.unique(self.cluster_labels))
@@ -1091,10 +1091,10 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
             if pverbose:
                 if total_subsamples < batch_size:
                     print(f"Total data size ({total_subsamples}) < batch size ({batch_size})."
-                          " Moving all the data to rank {gather_to}")
+                          f" Moving all the data to rank {gather_to}")
                 else:
                     print(f"Total data size ({total_subsamples}) < number of processors"
-                          " ({nprocs}). Moving all the data to rank {gather_to}")
+                          f" ({nprocs}). Moving all the data to rank {gather_to}")
 
             # Send all data to primary rank
             #  lowercase "gather" supports GatherV like behavior
