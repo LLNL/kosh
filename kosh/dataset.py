@@ -2,7 +2,6 @@ import os
 import uuid
 import time
 import warnings
-import pandas as pd
 import sina
 from sina.model import Record
 from .core_sina import KoshSinaObject, kosh_pickler
@@ -78,7 +77,7 @@ class KoshDataset(KoshSinaObject):
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
             for a in sorted(atts):
-                if a == "_associated_data_":
+                if a == "_associated_data_" or "_ENSEMBLE_TAG_" in a:  # Remove associated data and ensemble tags
                     continue
                 if not self.is_ensemble_attribute(a):
                     st += "\t{}: {}\n".format(a, atts[a])
@@ -122,11 +121,18 @@ class KoshDataset(KoshSinaObject):
         st += "\n--- Ensemble Attributes ---\n"
         for ensemble in ensembles:
             st += "\t--- Ensemble {} ---\n".format(ensemble.id)
-            for a in sorted(atts):
-                if a == "_associated_data_":
-                    continue
-                if self.is_ensemble_attribute(a, ensemble):
-                    st += "\t\t{}: {}\n".format(a, atts[a])
+            eas = ensemble.list_attributes()
+            for ignore in ['creator', 'id', 'name']:
+                eas.remove(ignore)
+            eas.sort()
+            st += f"\t\t{eas}\n"
+
+            ensemble_tags = self.list_ensemble_tags(ensemble.id)
+            ensemble_tags.sort()
+            if ensemble_tags:
+                ensemble_tags = [et.replace(f"{ensemble.id}_ENSEMBLE_TAG_", "") for et in ensemble_tags]
+                st += "\t\t--- Ensemble Tags ---\n"
+                st += f"\t\t\t{ensemble_tags}\n"
         if self.alias_feature is not {}:
             st += '--- Alias Feature Dictionary ---'
             for key, val in self.alias_feature.items():
@@ -1137,6 +1143,48 @@ class KoshDataset(KoshSinaObject):
         else:
             return False
 
+    def list_ensemble_tags(self, ensemble_id, dictionary=False):
+        """list all ensemble tags of specific ensemble ids
+
+        :param ensemble_id: Ensemble ID(s) of ensemble(s)
+        :type ensemble_id: str, str
+        :param dictionary: return a dictionary of value/pair rather than just tag names
+        :type dictionary: bool
+
+        :return: list of ensemble tags for dataset of a specific ensemble
+        :rtype: list
+        """
+        ens_tags = self.list_attributes(dictionary=dictionary, ensemble_id=ensemble_id)
+        if dictionary:
+            return {key: val for key, val in ens_tags.items() if "_ENSEMBLE_TAG_" in key}
+        else:
+            return [et for et in ens_tags if "_ENSEMBLE_TAG_" in et]
+
+    def add_ensemble_tags(self, ensemble_id, ensemble_tags):
+        """add ensemble tags to a specific ensemble
+
+        :param ensemble_id: Ensemble ID of ensemble
+        :type ensemble_id: str
+        :param ensemble_tags: Ensemble tags and their values to add
+        :type ensemble_tags: dict
+        """
+        for key, val in ensemble_tags.items():
+            self.___setattr___(f"{ensemble_id}_ENSEMBLE_TAG_{key}", val, force=True)
+
+    def delete_ensemble_tags(self, ensemble_id, ensemble_tags):
+        """remove ensemble tags from a specific ensemble
+
+        :param ensemble_id: Ensemble ID of ensemble
+        :type ensemble_id: str
+        :param ensemble_tags: Ensemble tags to remove
+        :type ensemble_tags: list
+        """
+        if isinstance(ensemble_tags, str):
+            ensemble_tags = [ensemble_tags]
+        for et in ensemble_tags:
+            attr = f"{ensemble_id}_ENSEMBLE_TAG_{et}"
+            delattr(self, attr)
+
     def add_curve(self, curve, curve_set=None, curve_name=None, independent=None, units=None, tags=None):
         """Add a curve to a dataset
         :param curve: The curve data
@@ -1283,6 +1331,7 @@ class KoshDataset(KoshSinaObject):
         :return: Pandas DataFrame
         :rtype: Pandas DataFrame
         """
+        import pandas as pd
         if isinstance(data_columns, str):
             data_columns = [data_columns]
 

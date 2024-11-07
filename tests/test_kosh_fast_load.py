@@ -164,3 +164,224 @@ class TestKoshFastLoad(koshbase.KoshTest):
         assert df.shape == (2, 6)
         assert df.columns.values.tolist() == ['id', 'mime_type', 'uri', 'associated',
                                               'param1', 'param6']
+
+    def test_ensemble_to_pandas(self):
+        store, kosh_db = self.connect()
+
+        n_ensembles = 10
+        n_datasets = 10
+
+        datasets = []
+
+        for i in range(n_datasets):
+            metadata = {f"{ia}": f"dataset_{i}_attributes_{ia}" for ia in range(n_datasets)}
+            if i % 2 == 0:
+                metadata['my_dataset_attribute'] = 0
+            else:
+                metadata['my_dataset_attribute'] = 9
+            ds = store.create(id=f"dataset_{i}", metadata=metadata)
+            datasets.append(ds)
+
+        ensembles = []
+        for i in range(n_ensembles):
+            metadata = {f"{ia}": f"ensemble_{i}_attributes_{ia}" for ia in range(n_ensembles)}
+            ens = store.create_ensemble(id=f"ensemble_{i}", metadata=metadata)
+            ensembles.append(ens)
+            for j, ds in enumerate(datasets):
+                ensemble_tags = {}
+                if j % 2 == 0:
+                    ensemble_tags[f"eoo{i}"] = "even"
+                else:
+                    ensemble_tags[f"eoo{i}"] = "odd"
+
+                if j % 5 == 0:
+                    ensemble_tags[f"data_type{i}"] = "test data"
+                else:
+                    ensemble_tags[f"data_type{i}"] = "train data"
+
+                ens.add(ds, inherit_attributes=False, ensemble_tags=ensemble_tags)
+
+        # Everything
+        df = ensembles[0].to_dataframe()
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        df = ensembles[1].to_dataframe()
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
+                                              # ensemble attributes
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_0', 'ensemble_1_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_2', 'ensemble_1_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_4', 'ensemble_1_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_6', 'ensemble_1_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_8', 'ensemble_1_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_1_ENSEMBLE_TAG_data_type1', 'ensemble_1_ENSEMBLE_TAG_eoo1']
+
+        # Only certain columns
+        df = ensembles[0].to_dataframe(data_columns='4')
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '4',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        df = ensembles[0].to_dataframe(data_columns=['4'])
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '4',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        df = ensembles[0].to_dataframe(data_columns=['4', '9'])
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '4', '9',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        # Find data
+        target_data = {'my_dataset_attribute': 0}
+        df = ensembles[0].to_dataframe(data=target_data)
+        for val in df['my_dataset_attribute'].values:
+            self.assertEqual(val, 0)
+        for i in range(n_ensembles):
+            for val in df[f'ensemble_0_ENSEMBLE_ATTRIBUTE_{i}'].values:
+                self.assertEqual(val, f"ensemble_0_attributes_{i}")
+        assert df.shape == (5, 29)
+
+        # Find data with missing columns
+        target_data = {'my_dataset_attribute': 0}
+        df = ensembles[0].to_dataframe(data=target_data, data_columns=['param1', 'param6'])
+        assert df.shape == (5, 20)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              'param1', 'param6',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        # Find data with ensemble tags
+        target_data = {'my_dataset_attribute': 0}
+        ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
+        df = ensembles[0].to_dataframe(data=target_data,
+                                       ensemble_tags=ensemble_tags)
+        assert df.shape == (1, 29)
+
+        # Find data with ensemble tags and with missing columns
+        target_data = {'my_dataset_attribute': 0}
+        ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
+        df = ensembles[0].to_dataframe(data=target_data,
+                                       ensemble_tags=ensemble_tags,
+                                       data_columns=['param1', 'param6'])
+        assert df.shape == (1, 20)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              'param1', 'param6',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        # Don't include ensemble attributes
+        target_data = {'my_dataset_attribute': 0}
+        ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
+        df = ensembles[0].to_dataframe(data=target_data,
+                                       ensemble_tags=ensemble_tags,
+                                       include_ensemble_attributes=False)
+        assert df.shape == (1, 16)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
+                                              # ensemble tags
+                                              'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
+
+        # Don't include ensemble tags
+        target_data = {'my_dataset_attribute': 0}
+        ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
+        df = ensembles[0].to_dataframe(data=target_data,
+                                       ensemble_tags=ensemble_tags,
+                                       include_ensemble_tags=False)
+        assert df.shape == (1, 27)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
+                                              # ensemble attributes
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_6', 'ensemble_0_ENSEMBLE_ATTRIBUTE_7',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_8', 'ensemble_0_ENSEMBLE_ATTRIBUTE_9']
+
+        # Don't include ensemble attributes or ensemble tags
+        target_data = {'my_dataset_attribute': 0}
+        ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
+        df = ensembles[0].to_dataframe(data=target_data,
+                                       ensemble_tags=ensemble_tags,
+                                       include_ensemble_attributes=False,
+                                       include_ensemble_tags=False)
+        assert df.shape == (1, 14)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+                                              # dataset attributes
+                                              '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute']

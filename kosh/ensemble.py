@@ -99,7 +99,8 @@ These datasets will inherit attributes and associated sources from the ensemble.
         return output_dict
 
     def create(self, name="Unnamed Dataset", id=None,
-               metadata={}, schema=None, sina_type=None, **kargs):
+               metadata={}, schema=None, sina_type=None, ensemble_tags=None,
+               inherit_attributes=True, **kargs):
         """create a new (possibly named) dataset as a member of this ensemble.
 
         :param name: name for the dataset, defaults to None
@@ -112,6 +113,17 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :type schema: KoshSchema
         :param sina_type: If you want to query the store for a specific sina record type, not just a dataset
         :type sina_type: str
+        :param inherit_attributes: Whether datasets inherit attributes from ensembles.
+                                   If False, datasets can have the same attributes as ensembles
+                                   and the different ensembles that the dataset belongs to can also
+                                   have the same attributes. They can also have different values.
+                                   Defaults to True.
+        :type inherit_attributes: bool
+        :param ensemble_tags: Organize datasets within ensemble by using tags. These "attributes"
+                              are only available at the ensemble level for each dataset. These tags
+                              can also be used in `ensemble.find_datasets(ensemble_tags=dict)`.
+                              e.g., ensemble_tags={"even_or_odd": "even", "data_type": "test data"}
+        :type ensemble_tags: dict
         :param kargs: extra keyword arguments (ignored)
         :type kargs: dict
         :raises RuntimeError: Dataset already exists
@@ -141,13 +153,24 @@ These datasets will inherit attributes and associated sources from the ensemble.
             schema=schema,
             sina_type=sina_type,
             **kargs)
-        self.add(ds)
+        self.add(ds, inherit_attributes=inherit_attributes, ensemble_tags=ensemble_tags)
         return ds
 
-    def add(self, dataset):
+    def add(self, dataset, inherit_attributes=True, ensemble_tags=None):
         """Adds a dataset to this ensemble
-        :param dataset: The dataset to add to this ensemble""
+        :param dataset: The dataset to add to this ensemble
         :type dataset: KoshDataset or str
+        :param inherit_attributes: Whether datasets inherit attributes from ensembles.
+                                   If False, datasets can have the same attributes as ensembles
+                                   and the different ensembles that the dataset belongs to can also
+                                   have the same attributes. They can also have different values.
+                                   Defaults to True.
+        :type inherit_attributes: bool
+        :param ensemble_tags: Organize datasets within ensemble by using tags. These "attributes"
+                              are only available at the ensemble level for each dataset. These tags
+                              can also be used in `ensemble.find_datasets(ensemble_tags=dict)`.
+                              e.g., ensemble_tags={"even_or_odd": "even", "data_type": "test data"}
+        :type ensemble_tags: dict
         """
         # Step1 make sure the dataset does not belong to another ensemble
         if isinstance(dataset, KoshDataset):
@@ -157,41 +180,53 @@ These datasets will inherit attributes and associated sources from the ensemble.
             dataset = self.__store__._load(dataset_id)
         relationships = self.get_sina_store().relationships.find(
             dataset_id, self.__store__._ensemble_predicate, None)
-        for rel in relationships:
-            if rel.object_id != self.id:
-                other_ensemble = self.__store__.open(rel.object_id)
-                # Ok... Already a member of another ensemble.
-                # let's make sure there are no conflict here
-                for att in self.list_attributes():
-                    if att in self.__dict__["__ok_duplicates__"]:
-                        continue
-                    if att in other_ensemble.list_attributes():
-                        raise ValueError(
-                            "Dataset {} is already part of ensemble {} "
-                            "which already provides support for attribute: {}. Bailing".format(
-                                dataset_id, rel.object_id, att))
-            else:
-                # ok it's already done, no need to do anything else
-                return
 
-        # Ok we're good, let's now makes sure attributes are ok
-        attributes = self.list_attributes(dictionary=True)
-        dataset_attributes = dataset.list_attributes(dictionary=True)
-        for att in dataset.list_attributes():
-            if att in self.__dict__["__ok_duplicates__"]:
-                continue
-            if att in attributes and dataset_attributes[att] != attributes[att]:
-                raise ValueError(
-                    "Dataset {} has attribute `{}` with value {}, this ensemble ({}) has value `{}`".format(
-                        dataset_id, att, dataset_attributes[att], self.id, attributes[att]))
-        # At this point we need to add the ensemble attributes to the dataset
-        for att in self.list_attributes():
-            if att in self.__dict__["__ok_duplicates__"]:
-                continue
-            dataset.___setattr___(att, getattr(self, att), force=True)
+        if inherit_attributes:
+            for rel in relationships:
+                if rel.object_id != self.id:
+                    other_ensemble = self.__store__.open(rel.object_id)
+                    # Ok... Already a member of another ensemble.
+                    # let's make sure there are no conflict here
+                    for att in self.list_attributes():
+                        if att in self.__dict__["__ok_duplicates__"]:
+                            continue
+                        if att in other_ensemble.list_attributes():
+                            raise ValueError(
+                                "Dataset {} is already part of ensemble {} "
+                                "which already provides support for attribute: {}. Bailing".format(
+                                    dataset_id, rel.object_id, att))
+                else:
+                    # ok it's already done, no need to do anything else
+                    return
+
+            # Ok we're good, let's now makes sure attributes are ok
+            attributes = self.list_attributes(dictionary=True)
+            dataset_attributes = dataset.list_attributes(dictionary=True)
+            for att in dataset.list_attributes():
+                if att in self.__dict__["__ok_duplicates__"]:
+                    continue
+                if att in attributes and dataset_attributes[att] != attributes[att]:
+                    raise ValueError(
+                        f"Dataset {dataset_id} has attribute `{att}` with value {dataset_attributes[att]}, "
+                        f"this ensemble ({self.id}) has value `{attributes[att]}`\n"
+                        "This error can by bypassed by setting `inherit_attributes=False` which makes it so "
+                        "datasets can have the same attributes as ensembles and the different ensembles that "
+                        "the dataset belongs to can also have the same attributes.")
+            # At this point we need to add the ensemble attributes to the dataset
+            for att in self.list_attributes():
+                if att in self.__dict__["__ok_duplicates__"]:
+                    continue
+                dataset.___setattr___(att, getattr(self, att), force=True)
         # Ok We are clear let's create the relationship
         rel = sina.model.Relationship(
             self.id, dataset_id, self.__store__._ensemble_predicate)
+        # Add ensemble tags
+        if ensemble_tags is not None:
+            if self.schema is not None:
+                self.schema.validate(ensemble_tags, f"Ensemble {self.id}")
+            if dataset.schema is not None:
+                dataset.schema.validate(ensemble_tags, f"Dataset {dataset.id}")
+            dataset.add_ensemble_tags(self.id, ensemble_tags)
         self.get_sina_store().relationships.insert(rel)
 
     def remove(self, dataset):
@@ -204,9 +239,13 @@ These datasets will inherit attributes and associated sources from the ensemble.
             dataset_id = dataset.id
         else:
             dataset_id = dataset
-            dataset = self.__store__._load(dataset_id)
+            dataset = self.__store__.open(dataset_id)
         relationships = self.get_sina_store().relationships.find(
             dataset_id, self.__store__._ensemble_predicate, self.id)
+        # Delete ensemble tags from dataset
+        ensemble_tags = dataset.list_ensemble_tags(ensemble_id=self.id)
+        ensemble_tags = [et.replace(f"{self.id}_ENSEMBLE_TAG_", "") for et in ensemble_tags]
+        dataset.delete_ensemble_tags(ensemble_id=self.id, ensemble_tags=ensemble_tags)
         if len(relationships) == 0:
             warnings.warn(
                 "Dataset {} is not a member of ensemble {}".format(
@@ -231,7 +270,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             else:
                 yield self.__store__.open(id)
 
-    def find_datasets(self, *atts, **keys):
+    def find_datasets(self, ensemble_tags=None, *atts, **keys):
         """Find datasets members of this ensemble that are matching some metadata.
         Arguments are the metadata names we are looking for e.g
         find("attr1", "attr2")
@@ -240,10 +279,14 @@ These datasets will inherit attributes and associated sources from the ensemble.
         you can return ids only by using: ids_only=True
         range can be specified via: sina.utils.DataRange(min, max)
 
+        :param ensemble_tags: Further filter out datasets with ensemble tags
+        :type ensemble_tags: dict
         :return: generator of matching datasets in this ensemble
         :rtype: generator
         """
-
+        if ensemble_tags is not None:
+            for key, val in ensemble_tags.items():
+                keys[f"{self.id}_ENSEMBLE_TAG_{key}"] = val
         members_ids = list(self.get_members(ids_only=True))
         return self.__store__.find(id_pool=members_ids, *atts, **keys)
 
@@ -254,7 +297,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
     def list_attributes(self, dictionary=False, no_duplicate=False):
         """list_attributes list all non protected attributes
 
-        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :param dictionary: return a dictionary of value/pair rather than just attributes names
         :type dictionary: bool
 
         :param no_duplicate: return only attributes that cannot be duplicated in members
@@ -269,3 +312,90 @@ These datasets will inherit attributes and associated sources from the ensemble.
             return [x for x in attributes if x not in self.__dict__["__ok_duplicates__"]]
         else:
             return attributes
+
+    def to_dataframe(self, data_columns=[], include_ensemble_attributes=True, include_ensemble_tags=True,
+                     *atts, **keys):
+        """Return the find_datasets object as a Pandas DataFrame.
+
+        Pass in the same arguments and keyword arguments as the find method.
+
+        Arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a reserved key that will return all records being associated
+                   with the given "uri", e.g store.find(file_uri=uri)
+        "types" let you search over specific sina record types only.
+        "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
+
+        :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator'].
+                             If nothing is passed, will return all data.
+        :type data_columns: Union(str, list), optional
+        :param include_ensemble_attributes: Include ensemble attributes in DataFrame.
+        :type include_ensemble_attributes: bool, optional
+        :param include_ensemble_tags: Include ensemble tags in DataFrame.
+        :type include_ensemble_tags: bool, optional
+        :return: Pandas DataFrame
+        :rtype: Pandas DataFrame
+        """
+        import pandas as pd
+        if isinstance(data_columns, str):
+            data_columns = [data_columns]
+
+        keys['load_type'] = 'dictionary'
+        keys['ids_only'] = False
+        datasets = list(self.find_datasets(*atts, **keys))
+
+        attr_dict = {}
+        total_datasets = len(datasets)
+
+        # Always have these by default
+        defaults = ['id', 'name', 'creator']
+
+        unique_keys = set()
+        for dataset in datasets:
+            unique_keys.update(list(dataset['data'].keys()))
+        data_columns_all = sorted(unique_keys)
+        # Remove all ensemble tags and only keep dataset attributes
+        data_columns_no_ensemble_tags = [dc for dc in data_columns_all if "_ENSEMBLE_TAG_" not in dc]
+
+        # Acquire all data if `data_columns` was not passed
+        if not data_columns:
+            data_columns = data_columns_no_ensemble_tags
+
+        data_columns = defaults + data_columns  # Want defaults in front
+
+        # Acquire ensemble attributes
+        if include_ensemble_attributes:
+            data_columns_ens_default_attributes = [f"{self.id}_ENSEMBLE_ATTRIBUTE_id",
+                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_name",
+                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_creator"]
+
+            ens_attrs = self.list_attributes(dictionary=True)
+            data_columns_ens_other_attributes = [f"{self.id}_ENSEMBLE_ATTRIBUTE_{attr}" for attr in ens_attrs.keys()
+                                                 if attr not in ['id', 'name', 'creator']]
+
+            data_columns += data_columns_ens_default_attributes + data_columns_ens_other_attributes
+
+        # Remove all other ensemble tags and only keep this ensemble's tags
+        if include_ensemble_tags:
+            data_columns += [dc for dc in data_columns_all if f"{self.id}_ENSEMBLE_TAG_" in dc]
+
+        attr_dict = {d: [pd.NA] * total_datasets for d in data_columns}
+
+        for i, dataset in enumerate(datasets):
+            attr_dict['id'][i] = dataset['id']
+            for column, values in dataset['data'].items():
+                if column in data_columns:
+                    attr_dict[column][i] = values.get('value', pd.NA)
+
+        # Ensemble attributes
+        if include_ensemble_attributes:
+            for key, val in ens_attrs.items():
+                attr_dict[f"{self.id}_ENSEMBLE_ATTRIBUTE_{key}"] = [val] * total_datasets
+
+        df = pd.DataFrame(attr_dict)
+        return df
