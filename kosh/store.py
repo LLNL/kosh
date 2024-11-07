@@ -11,7 +11,6 @@ if not sys.platform.startswith("win"):
 import hashlib
 import warnings
 import time
-import pandas as pd
 from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
 from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
@@ -2072,6 +2071,7 @@ class KoshStore(object):
         :return: Pandas DataFrame
         :rtype: Pandas DataFrame
         """
+        import pandas as pd
         if isinstance(data_columns, str):
             data_columns = [data_columns]
 
@@ -2094,6 +2094,7 @@ class KoshStore(object):
             data_columns = sorted(set(unique_keys))
 
         data_columns = defaults + data_columns  # Want defaults in front
+        data_columns = [dc for dc in data_columns if "_ENSEMBLE_TAG_" not in dc]  # Remove ensemble tags
         attr_dict = {d: [pd.NA] * total_datasets for d in data_columns}
 
         for i, dataset in enumerate(datasets):

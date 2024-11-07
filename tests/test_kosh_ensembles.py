@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 from koshbase import KoshTest
+import kosh
 
 
 class KoshTestEnsembles(KoshTest):
@@ -66,7 +67,7 @@ KOSH ENSEMBLE
         ['{}']
 --- Ensemble Attributes ---
         --- Ensemble {} ---
-                root: foo
+                ['root']
 --- Alias Feature Dictionary ---
 """.format(str(ds1.id), username, username, str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
@@ -289,3 +290,106 @@ KOSH ENSEMBLE
         self.assertFalse(ds.is_ensemble_attribute("foo", a_en))
         a.close()
         os.remove(dba)
+
+    def test_ensemble_tags(self):
+        store, kosh_db = self.connect()
+
+        n_ensembles = 10
+        n_datasets = 10
+
+        datasets = []
+
+        for i in range(n_datasets):
+            metadata = {f"{ia}": f"dataset_{i}_attributes_{ia}" for ia in range(n_datasets)}
+            ds = store.create(id=f"dataset_{i}", metadata=metadata)
+            datasets.append(ds)
+
+        for i in range(n_ensembles):
+            metadata = {f"{ia}": f"ensemble_{i}_attributes_{ia}" for ia in range(n_ensembles)}
+            ens = store.create_ensemble(id=f"ensemble_{i}", metadata=metadata)
+            for j, ds in enumerate(datasets):
+                ensemble_tags = {}
+                if j % 2 == 0:
+                    ensemble_tags["eoo"] = "even"
+                else:
+                    ensemble_tags["eoo"] = "odd"
+
+                if j % 5 == 0:
+                    ensemble_tags["data_type"] = "test data"
+                else:
+                    ensemble_tags["data_type"] = "train data"
+
+                ens.add(ds, inherit_attributes=False, ensemble_tags=ensemble_tags)
+
+            ds = list(ens.find_datasets(ensemble_tags={"eoo": "even"}))
+            self.assertEqual(len(ds), 5)
+            ds = list(ens.find_datasets(ensemble_tags={"data_type": "test data"}))
+            self.assertEqual(len(ds), 2)
+            ds = list(ens.find_datasets(ensemble_tags={"eoo": "even", "data_type": "test data"}))
+            self.assertEqual(len(ds), 1)
+
+        # Attributes and Tags
+        ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id)
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+
+        ds_atts_and_tags = ds[0].list_attributes(dictionary=True, ensemble_id=ens.id)
+        self.assertDictEqual(ds_atts_and_tags, {'0': 'dataset_0_attributes_0',
+                                                '1': 'dataset_0_attributes_1',
+                                                '2': 'dataset_0_attributes_2',
+                                                '3': 'dataset_0_attributes_3',
+                                                '4': 'dataset_0_attributes_4',
+                                                '5': 'dataset_0_attributes_5',
+                                                '6': 'dataset_0_attributes_6',
+                                                '7': 'dataset_0_attributes_7',
+                                                '8': 'dataset_0_attributes_8',
+                                                '9': 'dataset_0_attributes_9',
+                                                'creator': os.environ.get("USER", "default"),
+                                                'id': 'dataset_0',
+                                                'name': 'Unnamed Dataset',
+                                                'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
+                                                'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+
+        ds_atts_and_tags = ds[0].list_attributes(ensemble_id=['ensemble_0', 'ensemble_9'])
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                            'ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
+                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+
+        # Only tags
+        ds_tags = ds[0].list_ensemble_tags(ensemble_id=ens.id)
+        self.assertEqual(ds_tags, ['ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+
+        ds_tags = ds[0].list_ensemble_tags(dictionary=True, ensemble_id=ens.id)
+        self.assertDictEqual(ds_tags, {'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
+                                       'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+
+        ds_tags = ds[0].list_ensemble_tags(ensemble_id=['ensemble_0', 'ensemble_9'])
+        self.assertEqual(ds_tags, ['ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
+                                   'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+
+        ens.remove(ds[0])
+
+        ds_ens_tags = ds[0].list_attributes(ensemble_id=ens.id)
+        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name'])
+
+        # Testing Schema
+        required = {"color": None}
+        optional = {"number": [0, 10]}
+        schema_ds = kosh.KoshSchema(required, optional)
+        ds = store.create(id="dataset_schema", metadata={"color": "blue", "number": 0}, schema=schema_ds)
+
+        required = {"color": None}
+        optional = {"number": [10, 100]}
+        schema_ens = kosh.KoshSchema(required, optional)
+        ens = store.create_ensemble(id="ensemble_schema", metadata={"color": "red",  "number": 100}, schema=schema_ens)
+
+        # Doesn't pass ensemble schema
+        with self.assertRaises(ValueError):
+            ens.add(ds, inherit_attributes=False, ensemble_tags={"color": "green",  "number": 0})
+
+        # Doesn't pass dataset schema
+        with self.assertRaises(ValueError):
+            ens.add(ds, inherit_attributes=False, ensemble_tags={"color": "green",  "number": 100})
+
+        # Passes both
+        ens.add(ds, inherit_attributes=False, ensemble_tags={"color": "green",  "number": 10})

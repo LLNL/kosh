@@ -77,7 +77,7 @@ class KoshSchema(object):
         {}""".format(self.required, self.optional)
         return st
 
-    def validate(self, obj):
+    def validate(self, obj, level=None):
         """validate an object through a schema
         Checks that the obj has all the required attribute
         and that both required and present optional attributes pass
@@ -85,6 +85,8 @@ class KoshSchema(object):
 
         :param obj: object to validate
         :type obj: str
+        :param level: Dataset or Ensemble level, used for `ensemble_tags`
+        :type level: str
         :raises ValueError: obj does not validate through the schema
         :return: True if validates
         "rtype: bool
@@ -93,14 +95,20 @@ class KoshSchema(object):
         req_errors = {}
         for k, v in self.required.items():
             try:
-                value = getattr(obj, k)
+                if isinstance(obj, dict):
+                    value = obj[k]
+                else:
+                    value = getattr(obj, k)
                 validate_value(value, v)
             except Exception as err:
                 req_errors[k] = err
         opt_errors = {}
         for k, v in self.optional.items():
             try:
-                value = getattr(obj, k)
+                if isinstance(obj, dict):
+                    value = obj[k]
+                else:
+                    value = getattr(obj, k)
             except AttributeError:
                 continue
             try:
@@ -109,11 +117,15 @@ class KoshSchema(object):
                 opt_errors[k] = err
 
         if len(req_errors) != 0 or len(opt_errors) != 0:
+            if isinstance(obj, dict):
+                obj_level = level
+            else:
+                obj_level = obj.id
             raise ValueError(
                 "Could not validate {}\n"
                 "{} required attribute errors: {}\n"
                 "{} optional attributes errors: {}".format(
-                    obj.id, len(req_errors), req_errors, len(opt_errors), opt_errors))
+                    obj_level, len(req_errors), req_errors, len(opt_errors), opt_errors))
         return True
 
     def validate_attribute(self, attribute, value):

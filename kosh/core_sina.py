@@ -361,31 +361,44 @@ class KoshSinaObject(object):
         """sync this object with database"""
         self.__store__.sync([self.id, ])
 
-    def list_attributes(self, dictionary=False):
+    def list_attributes(self, dictionary=False, ensemble_id=None):
         __doc__ = self.listattributes.__doc__.replace("listattributes", "list_attributes")  # noqa
-        return self.listattributes(dictionary=dictionary)
+        return self.listattributes(dictionary=dictionary, ensemble_id=ensemble_id)
 
-    def listattributes(self, dictionary=False):
+    def listattributes(self, dictionary=False, ensemble_id=None):
         """listattributes list all non protected attributes
 
-        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :param dictionary: return a dictionary of value/pair rather than just attributes names
         :type dictionary: bool
+        :param ensemble_id: Provide ensemble ID(s) to return ensemble tags
+        :type ensemble_id: str, lst
 
         :return: list of attributes set on object
         :rtype: list
         """
         record = self.get_record()
         attributes = list(record["data"].keys()) + ['id', ]
+
+        no_tags = [a for a in attributes if "_ENSEMBLE_TAG_" not in a]  # Remove ensemble tags
+        ens_tags = []
+        if ensemble_id is not None:
+            if isinstance(ensemble_id, str):
+                ensemble_id = [ensemble_id]
+            for ens_id in ensemble_id:
+                ens_tags += sorted([a for a in attributes if f"{ens_id}_ENSEMBLE_TAG_" in a])
+        attributes = sorted(no_tags)
+
         for att in self.__protected__:
             if att in attributes and att != "id":
                 attributes.remove(att)
+        attributes += ens_tags
         if dictionary:
             out = {}
             for att in attributes:
                 out[att] = getattr(self, att)
             return out
         else:
-            return sorted(attributes)
+            return attributes
 
     def __getattributes__(self):
         """__getattributes__ return dictionary with pairs of attribute/value
