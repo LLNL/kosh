@@ -1172,18 +1172,20 @@ class KoshDataset(KoshSinaObject):
             return False
 
     @lock_strategies.lock_method
-    def list_ensemble_tags(self, ensemble_id, dictionary=False):
+    def list_ensemble_tags(self, ensemble_id, dictionary=False, obscure=True):
         """list all ensemble tags of specific ensemble ids
 
         :param ensemble_id: Ensemble ID(s) of ensemble(s)
         :type ensemble_id: str, str
         :param dictionary: return a dictionary of value/pair rather than just tag names
         :type dictionary: bool
+        :param obscure: Don't return backend attributes such as 'INHERIT_ATTRIBUTES'
+        :type obscure: bool
 
         :return: list of ensemble tags for dataset of a specific ensemble
         :rtype: list
         """
-        ens_tags = self.list_attributes(dictionary=dictionary, ensemble_id=ensemble_id)
+        ens_tags = self.list_attributes(ensemble_id=ensemble_id, dictionary=dictionary, obscure=obscure)
         if dictionary:
             return {key: val for key, val in ens_tags.items() if "_ENSEMBLE_TAG_" in key}
         else:
@@ -1341,6 +1343,29 @@ class KoshDataset(KoshSinaObject):
         # the features cache
         self.__dict__["__features__"][None] = {}
         return
+
+    @lock_strategies.lock_method
+    def list_attributes(self, dictionary=False, ensemble_id=None, obscure=True):
+        """listattributes list all non protected attributes
+
+        :param dictionary: return a dictionary of value/pair rather than just attributes names
+        :type dictionary: bool
+        :param ensemble_id: Provide ensemble ID(s) to return ensemble tags
+        :type ensemble_id: str, lst
+        :param obscure: Don't return backend attributes such as 'INHERIT_ATTRIBUTES'
+        :type obscure: bool
+
+        :return: list of attributes set on object
+        :rtype: list
+        """
+
+        attributes = super(KoshDataset, self).list_attributes(dictionary=dictionary, ensemble_id=ensemble_id)
+        if obscure:
+            if dictionary:
+                return {key: val for key, val in attributes.items() if '_ENSEMBLE_TAG_INHERIT_ATTRIBUTES' not in key}
+            else:
+                return [et for et in attributes if '_ENSEMBLE_TAG_INHERIT_ATTRIBUTES' not in et]
+        return attributes
 
     @lock_strategies.lock_method
     def to_dataframe(self, data_columns=[], *atts, **keys):

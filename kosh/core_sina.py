@@ -247,43 +247,45 @@ class KoshSinaObject(object):
                 self.id, self.__store__._ensemble_predicate, None)
             for relationship in relationships:
                 ensemble = self.__store__.open(relationship.object_id)
-                if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
-                    if value != getattr(ensemble, name):
-                        raise KeyError(
-                            "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
-                                name, relationship.object_id))
-                    else:
-                        warnings.warn(
-                            "The attribute {} is controlled by ensemble: {}"
-                            ". You should NOT set this attribute at the dataset level"
-                            ". Values match so we will accept it here".format(
-                                name, relationship.object_id), UserWarning)
+                ens_tags = self.list_ensemble_tags(ensemble.id, dictionary=True, obscure=False)
+                inherit_attributes = ens_tags.get(f"{ensemble.id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES", True)
+                if inherit_attributes:
+                    if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
+                        if value != getattr(ensemble, name):
+                            raise KeyError(
+                                "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
+                                    name, relationship.object_id))
+                        else:
+                            warnings.warn(
+                                "The attribute {} is controlled by ensemble: {}"
+                                ". You should NOT set this attribute at the dataset level"
+                                ". Values match so we will accept it here".format(
+                                    name, relationship.object_id), UserWarning)
 
         # For Ensembles we need to set it on all members
         from kosh.ensemble import KoshEnsemble
         if isinstance(self, KoshEnsemble):
             # First we make a pass to collect all other ensembles datasets are
             # part of
-            other_ensembles = set()
             for dataset in self.get_members():
-                for e in dataset.get_ensembles():
-                    other_ensembles.add(e)
-            for ensemble in other_ensembles:
-                if ensemble.id == self.id:
-                    continue
-                for att in ensemble.list_attributes():
-                    if att in self.__dict__["__ok_duplicates__"]:
-                        continue
-                    if att == name:
-                        raise NameError("A member of this ensemble belongs to ensemble {} "
-                                        "which already controls attribute {}".format(ensemble.id, att))
-            for dataset in self.get_members():
-                dataset.___setattr___(
-                    name=name,
-                    value=value,
-                    record=None,
-                    update_db=update_db,
-                    force=True)
+                for ensemble in dataset.get_ensembles():
+                    ens_tags = dataset.list_ensemble_tags(ensemble.id, dictionary=True, obscure=False)
+                    inherit_attributes = ens_tags.get(f"{ensemble.id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES", True)
+                    if inherit_attributes:
+                        if ensemble.id != self.id:
+                            for att in ensemble.list_attributes():
+                                if att in self.__dict__["__ok_duplicates__"]:
+                                    continue
+                                if att == name:
+                                    raise NameError("A member of this ensemble belongs to ensemble {} "
+                                                    "which already controls attribute {}".format(ensemble.id, att))
+
+                        dataset.___setattr___(
+                            name=name,
+                            value=value,
+                            record=None,
+                            update_db=update_db,
+                            force=True)
 
         # Did it change on db since we last read it?
         last_modif_att = "{name}_last_modified".format(name=name)

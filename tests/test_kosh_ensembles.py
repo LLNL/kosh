@@ -301,11 +301,13 @@ KOSH ENSEMBLE
 
         for i in range(n_datasets):
             metadata = {f"{ia}": f"dataset_{i}_attributes_{ia}" for ia in range(n_datasets)}
+            metadata['same'] = 'dataset'
             ds = store.create(id=f"dataset_{i}", metadata=metadata)
             datasets.append(ds)
 
         for i in range(n_ensembles):
             metadata = {f"{ia}": f"ensemble_{i}_attributes_{ia}" for ia in range(n_ensembles)}
+            metadata['same'] = 'ensemble'
             ens = store.create_ensemble(id=f"ensemble_{i}", metadata=metadata)
             for j, ds in enumerate(datasets):
                 ensemble_tags = {}
@@ -320,6 +322,9 @@ KOSH ENSEMBLE
                     ensemble_tags["data_type"] = "train data"
 
                 ens.add(ds, inherit_attributes=False, ensemble_tags=ensemble_tags)
+                ds.same = f'dataset {j}'
+
+            ens.same = f'ensemble {i}'
 
             ds = list(ens.find_datasets(ensemble_tags={"eoo": "even"}))
             self.assertEqual(len(ds), 5)
@@ -328,9 +333,18 @@ KOSH ENSEMBLE
             ds = list(ens.find_datasets(ensemble_tags={"eoo": "even", "data_type": "test data"}))
             self.assertEqual(len(ds), 1)
 
+        self.assertEqual(ens.same, 'ensemble 9')
+
         # Attributes and Tags
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id)
         self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                            'same',
+                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+
+        ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id, obscure=False)
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                            'same',
+                                            'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES',
                                             'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
 
         ds_atts_and_tags = ds[0].list_attributes(dictionary=True, ensemble_id=ens.id)
@@ -347,11 +361,32 @@ KOSH ENSEMBLE
                                                 'creator': os.environ.get("USER", "default"),
                                                 'id': 'dataset_0',
                                                 'name': 'Unnamed Dataset',
+                                                'same': 'dataset 0',
+                                                'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
+                                                'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+
+        ds_atts_and_tags = ds[0].list_attributes(dictionary=True, ensemble_id=ens.id, obscure=False)
+        self.assertDictEqual(ds_atts_and_tags, {'0': 'dataset_0_attributes_0',
+                                                '1': 'dataset_0_attributes_1',
+                                                '2': 'dataset_0_attributes_2',
+                                                '3': 'dataset_0_attributes_3',
+                                                '4': 'dataset_0_attributes_4',
+                                                '5': 'dataset_0_attributes_5',
+                                                '6': 'dataset_0_attributes_6',
+                                                '7': 'dataset_0_attributes_7',
+                                                '8': 'dataset_0_attributes_8',
+                                                '9': 'dataset_0_attributes_9',
+                                                'creator': os.environ.get("USER", "default"),
+                                                'id': 'dataset_0',
+                                                'name': 'Unnamed Dataset',
+                                                'same': 'dataset 0',
+                                                'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES': False,
                                                 'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
                                                 'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
 
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=['ensemble_0', 'ensemble_9'])
         self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                            'same',
                                             'ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
                                             'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
 
@@ -370,7 +405,8 @@ KOSH ENSEMBLE
         ens.remove(ds[0])
 
         ds_ens_tags = ds[0].list_attributes(ensemble_id=ens.id)
-        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name'])
+        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+                                       'same'])
 
         # Testing Schema
         required = {"color": None}

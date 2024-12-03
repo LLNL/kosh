@@ -221,6 +221,12 @@ These datasets will inherit attributes and associated sources from the ensemble.
                 if att in self.__dict__["__ok_duplicates__"]:
                     continue
                 dataset.___setattr___(att, getattr(self, att), force=True)
+        else:
+            # Use for core_sina.py ___setattr___()
+            if isinstance(ensemble_tags, dict):
+                ensemble_tags['INHERIT_ATTRIBUTES'] = False
+            else:
+                ensemble_tags = {'INHERIT_ATTRIBUTES': False}
         # Ok We are clear let's create the relationship
         rel = sina.model.Relationship(
             self.id, dataset_id, self.__store__._ensemble_predicate)
@@ -322,6 +328,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         else:
             return attributes
 
+    @lock_strategies.lock_method
     def to_dataframe(self, data_columns=[], include_ensemble_attributes=True, include_ensemble_tags=True,
                      *atts, **keys):
         """Return the find_datasets object as a Pandas DataFrame.
@@ -391,7 +398,8 @@ These datasets will inherit attributes and associated sources from the ensemble.
 
         # Remove all other ensemble tags and only keep this ensemble's tags
         if include_ensemble_tags:
-            data_columns += [dc for dc in data_columns_all if f"{self.id}_ENSEMBLE_TAG_" in dc]
+            data_columns += [dc for dc in data_columns_all if f"{self.id}_ENSEMBLE_TAG_" in dc and
+                             "_ENSEMBLE_TAG_INHERIT_ATTRIBUTES" not in dc]
 
         attr_dict = {d: [pd.NA] * total_datasets for d in data_columns}
 
