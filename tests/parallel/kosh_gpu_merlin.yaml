@@ -1,0 +1,60 @@
+description:
+    name: test_kosh_gpu_merlin
+    description: A workflow to test Kosh scalability with parallel GPU calls.
+
+env:
+    variables:
+        KOSH_GPU_SCRIPT: ./kosh_gpu.py
+        KOSH_STORE: "mysql+mysqlconnector://cz-kosh-testkoshdb.apps.czapps.llnl.gov:30637/?read_default_file=${HOME}/.my.kosh.testdb.cnf"
+
+batch:
+
+    # Dane
+    type: slurm  # The name of the scheduler (can be local, slurm, lsf, or flux)
+    bank: wbronze  # The account to charge computing time to
+    queue: pdebug  # The scheduler queue/partition to submit jobs (study steps) to
+    host: dane  # The name of the cluster to execute this study on
+
+    # Lassen
+    # type: lsf  # The name of the scheduler (can be local, slurm, lsf, or flux)
+    # bank: wbronze  # The account to charge computing time to
+    # queue: pdebug  # The scheduler queue/partition to submit jobs (study steps) to
+    # host: lassen  # The name of the cluster to execute this study on
+
+    # Tioga
+    # type: flux  # The name of the scheduler (can be local, slurm, lsf, or flux)
+    # queue: pdebug  # The scheduler queue/partition to submit jobs (study steps) to
+    # host: tioga  # The name of the cluster to execute this study on
+
+study:
+    - name: kosh_gpu_clear
+      description: Only clear store since running script in parallel will cause race conditions resulting in missing data.
+      run:
+        cmd: |
+            python $(SPECROOT)/../$(KOSH_GPU_SCRIPT) \
+            --store $(KOSH_STORE) \
+            --clear
+
+    - name: kosh_gpu
+      description: Run python Kosh script with parallel GPU calls.
+      run:
+        cmd: |
+            $(LAUNCHER) python $(SPECROOT)/../$(KOSH_GPU_SCRIPT) \
+            --store $(KOSH_STORE) \
+            --run-number $(RUN_NUMBER) \
+            --ensembles $(ENSEMBLES) \
+            --datasets $(DATASETS) \
+            --lock-strategy OnlyRetry
+        nodes: 1
+        procs: 1
+        walltime: "2:00"
+        depends: ["kosh_gpu_clear"]
+
+merlin:
+    resources:
+        task_server: celery
+        overlap: False
+        workers:
+            gpu_worker:
+                args: -l INFO --concurrency 100 --prefetch-multiplier 2 -O fair
+                steps: [kosh_gpu]

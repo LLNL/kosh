@@ -3,6 +3,7 @@ import sina
 from .dataset import KoshDataset
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
+from . import lock_strategies
 try:
     import orjson
 except ImportError:
@@ -25,15 +26,17 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :param record: to avoid looking up in sina pass sina record
         :type record: Record
         """
-        super(KoshEnsemble, self).__init__(id, store,
-                                           schema=schema, record=record,
-                                           kosh_type=store._ensembles_type)
-        self.__dict__["__protected__"] = ["__name__", "__creator__", "__store__",
-                                          "_associated_data_", "__features__",
-                                          "_associated_datasets_", "__ok_duplicates__"]
-        # Attributes that the members can have on their own
-        self.__dict__["__ok_duplicates__"] = ["creator", "id", "name"]
+        with store.lock_strategy:
+            super(KoshEnsemble, self).__init__(id, store,
+                                               schema=schema, record=record,
+                                               kosh_type=store._ensembles_type)
+            self.__dict__["__protected__"] = ["__name__", "__creator__", "__store__",
+                                              "_associated_data_", "__features__",
+                                              "_associated_datasets_", "__ok_duplicates__"]
+            # Attributes that the members can have on their own
+            self.__dict__["__ok_duplicates__"] = ["creator", "id", "name"]
 
+    @lock_strategies.lock_method
     def __str__(self):
         """string representation"""
         st = super(KoshEnsemble, self).__str__()
@@ -45,6 +48,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             st += "\t{}".format(self._associated_datasets_)
         return st
 
+    @lock_strategies.lock_method
     def cleanup_files(self, dry_run=False, interactive=False, **search_keys):
         """Cleanup the ensemble's members from references to dead files.
         You can filter associated objects by passing key=values
@@ -70,6 +74,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
                                               interactive=interactive, **search_keys)
         return missings
 
+    @lock_strategies.lock_method
     def export(self, file=None):
         """Exports this ensemble datasets
         :param file: export datasets to a file
@@ -82,11 +87,8 @@ These datasets will inherit attributes and associated sources from the ensemble.
                 cleanup_sina_record_from_kosh_sync(
                     self.__store__.get_record(dataset_id)))
         # We also need to export the relationships
-        rels = self.get_sina_store().relationships.find(
+        relationships = self.get_sina_store().relationships.find(
             None, self.__store__._ensemble_predicate, self.id)
-        relationships = []
-        for rel in rels:
-            relationships.append(rel.to_json())
         output_dict = {
             "minimum_kosh_version": None,
             "kosh_version": kosh.version(comparable=True),
@@ -98,6 +100,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         update_json_file_with_records_and_relationships(file, output_dict)
         return output_dict
 
+    @lock_strategies.lock_method
     def create(self, name="Unnamed Dataset", id=None,
                metadata={}, schema=None, sina_type=None, ensemble_tags=None,
                inherit_attributes=True, **kargs):
@@ -156,6 +159,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         self.add(ds, inherit_attributes=inherit_attributes, ensemble_tags=ensemble_tags)
         return ds
 
+    @lock_strategies.lock_method
     def add(self, dataset, inherit_attributes=True, ensemble_tags=None):
         """Adds a dataset to this ensemble
         :param dataset: The dataset to add to this ensemble
@@ -229,6 +233,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             dataset.add_ensemble_tags(self.id, ensemble_tags)
         self.get_sina_store().relationships.insert(rel)
 
+    @lock_strategies.lock_method
     def remove(self, dataset):
         """Removes a dataset from this ensemble. Does not delete the dataset.
         :param dataset: The dataset to remove
@@ -257,6 +262,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
 
     delete = remove
 
+    @lock_strategies.lock_method
     def get_members(self, ids_only=False):
         """Generator for member datasets
         :param ids_only: generator will return ids if True Kosh datasets otherwise
@@ -270,6 +276,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             else:
                 yield self.__store__.open(id)
 
+    @lock_strategies.lock_method
     def find_datasets(self, ensemble_tags=None, *atts, **keys):
         """Find datasets members of this ensemble that are matching some metadata.
         Arguments are the metadata names we are looking for e.g
@@ -290,10 +297,12 @@ These datasets will inherit attributes and associated sources from the ensemble.
         members_ids = list(self.get_members(ids_only=True))
         return self.__store__.find(id_pool=members_ids, *atts, **keys)
 
+    @lock_strategies.lock_method
     def clone(self, *atts, **keys):
         """We cannot clone an ensemble"""
         raise NotImplementedError("Ensembles objects cannot clone themselves")
 
+    @lock_strategies.lock_method
     def list_attributes(self, dictionary=False, no_duplicate=False):
         """list_attributes list all non protected attributes
 

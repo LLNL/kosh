@@ -15,8 +15,6 @@ try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
-from . import threadsafe  # noqa
-from . import threadsafe_decorators  # noqa
 
 try:
     default_nx_layout = nx.planar_layout
@@ -407,11 +405,7 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         need_update = True
     if need_update and hasattr(records, "insert"):
         try:
-            records.delete(rec.id)
-        except Exception:  # in case multi-processors interfere with each others
-            pass
-        try:
-            records.insert(rec)
+            records.update(rec)
         except Exception:  # in case multi-processors interfere with each others
             pass
     return rec
@@ -620,6 +614,10 @@ def update_json_file_with_records_and_relationships(file, output_dict):
             file_dict = output_dict
 
         with open(file, "w") as f:
+            rels = []
+            for relationship in file_dict['relationships']:
+                rels.append(relationship.__dict__)
+            file_dict['relationships'] = rels
             try:
                 f.write(orjson.dumps(file_dict).decode())
             except AttributeError:

@@ -5,6 +5,7 @@ from .schema import KoshSchema
 from sina.model import Record
 from sina import get_version
 from .utils import KoshPickler
+from . import lock_strategies
 
 
 kosh_pickler = KoshPickler()
@@ -16,7 +17,7 @@ sina_version = float(".".join(get_version().split(".")[:2]))
 class KoshSinaObject(object):
     """KoshSinaObject Base class for sina objects
     """
-
+    @lock_strategies.lock_method
     def get_record(self):
         return self.__store__.get_record(self.id)
 
@@ -40,56 +41,59 @@ class KoshSinaObject(object):
         :param record: sina record to prevent looking it up again and again in sina
         :type record: Record
         """
-        self.__dict__["__store__"] = store
-        self.__dict__["__schema__"] = schema
-        self.__dict__["__record_handler__"] = record_handler
-        self.__dict__["__protected__"] = [
-            "id", "__type__", "__protected__",
-            "__record_handler__", "__store__", "id", "__schema__"] + protected
-        self.__dict__["__type__"] = kosh_type
-        if Id is None:
-            Id = uuid.uuid4().hex
-            record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
-            if store.__sync__:
-                store.lock()
-                store.__record_handler__.insert(record)
-                store.unlock()
+        with store.lock_strategy:
+            self.__dict__["__store__"] = store
+            self.__dict__["__schema__"] = schema
+            self.__dict__["__record_handler__"] = record_handler
+            self.__dict__["__protected__"] = [
+                "id", "__type__", "__protected__",
+                "__record_handler__", "__store__", "id", "__schema__"] + protected
+            self.__dict__["__type__"] = kosh_type
+            self.__dict__["lock_strategy"] = store.lock_strategy
+            if Id is None:
+                Id = uuid.uuid4().hex
+                record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
+                if store.__sync__:
+                    store.lock()
+                    store.__record_handler__.insert(record)
+                    store.unlock()
+                else:
+                    record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                    self.__store__.__sync__dict__[Id] = record
+                self.__dict__["id"] = Id
             else:
-                record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
-                self.__store__.__sync__dict__[Id] = record
-            self.__dict__["id"] = Id
-        else:
-            self.__dict__["id"] = Id
-            if record is None:
-                try:
-                    record = self.get_record()
-                except BaseException:  # record exists nowhere
-                    record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
-                    if store.__sync__:
-                        store.lock()
-                        store.__record_handler__.insert(record)
-                        store.unlock()
-                    else:
-                        self.__store__.__sync__dict__[Id] = record
-                        record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
-            else:
-                deleted_items = False
-                for att in self.__dict__["__protected__"]:
-                    if att in record["data"]:
-                        del record["data"][att]
-                        deleted_items = True
-                if deleted_items:
-                    if store.__sync__:
-                        self._update_record(record)
-                    else:
-                        self.__store__.__sync__dict__[Id] = record
+                self.__dict__["id"] = Id
+                if record is None:
+                    try:
+                        record = self.get_record()
+                    except BaseException:  # record exists nowhere
+                        record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
+                        if store.__sync__:
+                            store.lock()
+                            store.__record_handler__.insert(record)
+                            store.unlock()
+                        else:
+                            self.__store__.__sync__dict__[Id] = record
+                            record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                else:
+                    deleted_items = False
+                    for att in self.__dict__["__protected__"]:
+                        if att in record["data"]:
+                            del record["data"][att]
+                            deleted_items = True
+                    if deleted_items:
+                        if store.__sync__:
+                            self._update_record(record)
+                        else:
+                            self.__store__.__sync__dict__[Id] = record
 
-        metadata_copy = metadata.copy()
-        for key in metadata:
-            if key in self.__dict__["__protected__"]:
-                del metadata_copy[key]
-        self.update(metadata_copy)
+            metadata_copy = metadata.copy()
+            for key in metadata:
+                if key in self.__dict__["__protected__"]:
+                    del metadata_copy[key]
+            self.update(metadata_copy)
 
+    @lock_strategies.lock_method
     def __getattr__(self, name):
         """__getattr__ get an attribute
 
@@ -153,6 +157,8 @@ class KoshSinaObject(object):
             if name == "mime_type":
                 return record["type"]
             else:
+                if name == "uri":
+                    return ""
                 raise AttributeError(
                     "Object {} does not have {} attribute".format(self.id,
                                                                   name))
@@ -164,14 +170,17 @@ class KoshSinaObject(object):
                 value = self.__store__.get_record(value)["data"]["username"]["value"]
         return value
 
+    @lock_strategies.lock_method
     def get_sina_store(self):
         """Returns the sina store object"""
         return self.__store__.get_sina_store()
 
+    @lock_strategies.lock_method
     def get_sina_records(self):
         """Returns sina store's records"""
         return self.__record_handler__
 
+    @lock_strategies.lock_method
     def update(self, attributes):
         """update many attributes at once to limit db writes
         :param: attributes: dictionary with attributes to update
@@ -190,6 +199,7 @@ class KoshSinaObject(object):
                 update_db = False
             rec = self.___setattr___(name, value, rec, update_db=update_db)
 
+    @lock_strategies.lock_method
     def __setattr__(self, name, value):
         """set an attribute
         We are calling the ___setattr___
@@ -197,6 +207,7 @@ class KoshSinaObject(object):
         """
         self.___setattr___(name, value)
 
+    @lock_strategies.lock_method
     def ___setattr___(self, name, value, record=None,
                       update_db=True, force=False):
         """__setattr__ set an attribute on an object
@@ -308,6 +319,7 @@ class KoshSinaObject(object):
             self._update_record(record)
         return record
 
+    @lock_strategies.lock_method
     def _update_record(self, record, store=None):
         """Updates a record in the sina store
         :param record: The record to update
@@ -320,23 +332,14 @@ class KoshSinaObject(object):
         id_ = record.id
         rels = store.relationships.find(id_, None, None)
         rels += store.relationships.find(None, None, id_)
-        try:
-            # if rec exists let's get it
-            old_record = store.records.get(id_)
-        except Exception:
-            old_record = None  # new record
-        store.records.delete(id_)
-        try:
+        if not self.__store__.__sync__:
+            store.records.delete(id_)
             store.records.insert(record)
-        except Exception as err:
-            # Let's put back in place the old record
-            if old_record is not None:
-                store.records.insert(old_record)
-            raise err
-
-        store.relationships.insert(rels)
+            store.relationships.insert(rels)
+        store.records.update(record)
         self.__store__.unlock()
 
+    @lock_strategies.lock_method
     def __delattr__(self, name):
         """__delattr__ deletes an attribute
 
@@ -357,14 +360,17 @@ class KoshSinaObject(object):
         if self.__store__.__sync__:
             self._update_record(record)
 
+    @lock_strategies.lock_method
     def sync(self):
         """sync this object with database"""
         self.__store__.sync([self.id, ])
 
+    @lock_strategies.lock_method
     def list_attributes(self, dictionary=False, ensemble_id=None):
         __doc__ = self.listattributes.__doc__.replace("listattributes", "list_attributes")  # noqa
         return self.listattributes(dictionary=dictionary, ensemble_id=ensemble_id)
 
+    @lock_strategies.lock_method
     def listattributes(self, dictionary=False, ensemble_id=None):
         """listattributes list all non protected attributes
 
@@ -400,6 +406,7 @@ class KoshSinaObject(object):
         else:
             return attributes
 
+    @lock_strategies.lock_method
     def __getattributes__(self):
         """__getattributes__ return dictionary with pairs of attribute/value
 
@@ -419,6 +426,7 @@ class KoshSinaObject(object):
                     attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
 
+    @lock_strategies.lock_method
     def __str__(self):
         """String for printing"""
         st = "Id: {}".format(self.id)
@@ -431,6 +439,7 @@ class KoshSinaObject(object):
 class KoshSinaFile(KoshSinaObject):
     """KoshSinaFile file representation in Kosh via Sina"""
 
+    @lock_strategies.lock_method
     def open(self, *args, **kargs):
         """open opens the file
         :return: handle to file in open mode
