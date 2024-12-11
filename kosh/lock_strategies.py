@@ -5,6 +5,7 @@ import functools
 import os
 import logging
 import random
+import sys
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(int(os.environ.get('LOCK_STRATEGIES_LOG_LEVEL', 30)))   # 30 is logging.WARNING
@@ -147,7 +148,7 @@ class RFileLock(LockStrategy):
     """
     A Re-entrant Filelock.
     """
-    def __init__(self, num_tries=10, patience=1, lock_path=None, timeout=3600):
+    def __init__(self, num_tries=10, patience=1, lock_path=None, timeout=180):
         self.num_tries = num_tries
         self.patience = patience
         if lock_path is None:
@@ -199,19 +200,24 @@ class RFileLock(LockStrategy):
                     return result
 
                 except Exception as e:
-
+                    import traceback
+                    error_stack = traceback.extract_stack()
                     num_tries -= 1
                     exceptions.append(e)
-                    msg = f"Exception {e} in {func.__name__}. "
-                    msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
-                    msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
+                    msg = f"\nError in parent function {error_stack[0]}.\n"
+                    msg += f"Exception {e} in child function: {func.__name__}.\n"
+                    msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} }\n'
+                    msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining...\n"
+                    msg += f"Error Stack: {error_stack}\n"
                     LOGGER.warning(msg=msg)
+                    print(msg)  # For users without a logger
                     time.sleep(self.patience + random.random())  # random in case parallel calls retry at same time
             exception_reprs = '\n'.join([repr(e) for e in exceptions])
             msg = f"Function {func.__name__} failed after {self.num_tries} attempts. "
             msg += f"Exception Traceback(s): \n{exception_reprs}"
             LOGGER.exception(msg=msg)
-            raise exceptions[0]
+            sys.exit(1)
+            # raise exceptions[0]
         return wrapper
 
 
