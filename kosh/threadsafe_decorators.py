@@ -6,7 +6,7 @@ import sys
 import warnings
 
 
-warnings.warn(("This version of threadsafe will be depreciated in Kosh 3.2.",
+warnings.warn(("This version of threadsafe will be depreciated in Kosh 3.2. "
                "Use lock_strategies instead: examples/Example_ThreadSafe.ipynb."))
 
 
