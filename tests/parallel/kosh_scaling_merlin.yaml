@@ -1,11 +1,15 @@
 description:
-    name: test_kosh_gpu_maestro
-    description: A workflow to test Kosh scalability with parallel GPU calls.
+    name: test_kosh_scaling_merlin
+    description: A workflow to test Kosh scalability with parallel scaling calls.
 
 env:
     variables:
-        KOSH_GPU_SCRIPT: ./kosh_gpu.py
-        KOSH_STORE: "mysql+mysqlconnector://cz-kosh-testkoshdb.apps.czapps.llnl.gov:30637/?read_default_file=${HOME}/.my.kosh.testdb.cnf"
+        KOSH_STORE_DEFAULT: "mysql+mysqlconnector://cz-kosh-testkoshdb.apps.czapps.llnl.gov:30637/?read_default_file=${HOME}/.my.kosh.testdb.cnf"
+
+    dependencies:
+      paths:
+        - name: KOSH_scaling_SCRIPT
+          path: kosh_scaling.py
 
 batch:
 
@@ -27,25 +31,35 @@ batch:
     # host: tioga  # The name of the cluster to execute this study on
 
 study:
-    - name: kosh_gpu_clear
+    - name: kosh_scaling_clear
       description: Only clear store since running script in parallel will cause race conditions resulting in missing data.
       run:
         cmd: |
-            python $(SPECROOT)/../$(KOSH_GPU_SCRIPT) \
+            python $(SPECROOT)/../$(KOSH_scaling_SCRIPT) \
             --store $(KOSH_STORE) \
             --clear
 
-    - name: kosh_gpu
-      description: Run python Kosh script with parallel GPU calls.
+    - name: kosh_scaling
+      description: Run python Kosh script with parallel scaling calls.
       run:
         cmd: |
-            $(LAUNCHER) python $(SPECROOT)/../$(KOSH_GPU_SCRIPT) \
+            $(LAUNCHER) python $(SPECROOT)/../$(KOSH_scaling_SCRIPT) \
             --store $(KOSH_STORE) \
             --run-number $(RUN_NUMBER) \
             --ensembles $(ENSEMBLES) \
             --datasets $(DATASETS) \
-            --lock-strategy OnlyRetry
+            --lock-strategy OnlyRetry \
+            --retries $(NUM_RETRY)
         nodes: 1
         procs: 1
         walltime: "2:00"
-        depends: ["kosh_gpu_clear"]
+        depends: ["kosh_scaling_clear"]
+
+merlin:
+    resources:
+        task_server: celery
+        overlap: False
+        workers:
+            scaling_worker:
+                args: -l INFO --concurrency 100 --prefetch-multiplier 2 -O fair
+                steps: [kosh_scaling]

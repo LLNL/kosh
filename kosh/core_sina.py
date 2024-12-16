@@ -112,6 +112,12 @@ class KoshSinaObject(object):
                 rels = self.get_sina_store().relationships.find(
                     None, "is a member of ensemble", self.id)
                 return [str(x.subject_id) for x in rels]
+            if name == "__features__":
+                record = self.get_record()
+                try:
+                    return KoshPickler().loads(record["user_defined"]["__features__"])
+                except Exception:
+                    return {None: {}}
             if name == "_associated_data_":
                 from kosh.dataset import KoshDataset
                 record = self.get_record()
@@ -156,9 +162,9 @@ class KoshSinaObject(object):
         if name not in record["data"]:
             if name == "mime_type":
                 return record["type"]
+            elif name == "uri":
+                return ""
             else:
-                if name == "uri":
-                    return ""
                 raise AttributeError(
                     "Object {} does not have {} attribute".format(self.id,
                                                                   name))
@@ -230,6 +236,9 @@ class KoshSinaObject(object):
         if name == "schema":
             assert isinstance(value, KoshSchema)
             value.validate(self)
+        elif name == "__features__":
+            value = kosh_pickler.dumps(value)
+            record["user_defined"]["__features__"] = value
         elif name in ['alias_feature', 'loader_kwargs']:
             if isinstance(value, dict):
                 value = kosh_pickler.dumps(value)

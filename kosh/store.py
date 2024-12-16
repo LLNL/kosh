@@ -12,7 +12,7 @@ import hashlib
 import warnings
 import time
 import re
-from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
+from .loaders import KoshFileLoader, PGMLoader, KoshSinaLoader
 from .utils import compute_fast_sha, merge_datasets_handler
 from .loaders import JSONLoader
 from .loaders import NpyLoader
@@ -22,7 +22,8 @@ from .dataset import KoshDataset
 from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
 from .utils import create_kosh_users
-from .utils import update_store_and_get_info_record
+from .utils import update_store_and_get_info_record, get_store_info_record
+from .utils import get_store_info_record_attribute
 from sina import connect as sina_connect
 from inspect import isfunction, ismethod
 import kosh
@@ -31,7 +32,7 @@ import types
 import sys
 from .kosh_command import KoshCmd, process_cmd
 from . import lock_strategies
-
+from sqlalchemy.exc import ResourceClosedError
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -108,7 +109,10 @@ figures out which backend is required.
 
         if not read_only:
             if delete_all_contents:
-                sina_store.delete_all_contents(force="SKIP PROMPT")
+                try:
+                    sina_store.delete_all_contents(force="SKIP PROMPT")
+                except ResourceClosedError:
+                    pass  # Store was already empty
             update_store_and_get_info_record(sina_store.records)
             create_kosh_users(sina_store.records)
         sina_store.close()
@@ -178,38 +182,6 @@ class KoshStore(object):
                 warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
                 use_lock_file = False
             self.use_lock_file = use_lock_file
-            self.loaders = {}
-            self.storeLoader = KoshLoader
-            self.add_loader(KoshFileLoader)
-            self.add_loader(JSONLoader)
-            self.add_loader(NpyLoader)
-            self.add_loader(NumpyTxtLoader)
-            self.add_loader(PandasLoader)
-            try:
-                self.add_loader(HDF5Loader)
-            except Exception:  # no h5py module?
-                if verbose:
-                    warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
-                                  " Pass verbose=False when creating the store to turn this message off")
-            try:
-                self.add_loader(PILLoader)
-            except Exception:  # no PIL?
-                if verbose:
-                    warnings.warn("Could not add pil loader, check if you have pillow installed."
-                                  " Pass verbose=False when creating the store to turn this message off")
-            self.add_loader(PGMLoader)
-            try:
-                self.add_loader(UltraLoader)
-            except Exception:  # no pydv?
-                if verbose:
-                    warnings.warn("Could not add ultra files loader, check if you have pydv installed."
-                                  " Pass verbose=False when creating the store to turn this message off")
-            try:
-                self.add_loader(SidreMeshBlueprintFieldLoader)
-            except Exception:  # no conduit?
-                if verbose:
-                    warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
-                                  " Pass verbose=False when creating the store to turn this message off")
             if read_only:
                 sync = False
             self.__read_only__ = read_only
@@ -253,6 +225,7 @@ class KoshStore(object):
 
             rec = update_store_and_get_info_record(self.__sina_store.records, ensemble_predicate)
 
+            self._cached_features_ = rec["user_defined"]["cached_features"]
             self._sources_type = rec["data"]["sources_type"]["value"]
             self._users_type = rec["data"]["users_type"]["value"]
             self._groups_type = rec["data"]["groups_type"]["value"]
@@ -295,14 +268,47 @@ class KoshStore(object):
             else:
                 self.__user_id__ = list(inter_recs)[0]
             self.storeLoader = KoshSinaLoader
+            self.loaders = {}
             self.add_loader(self.storeLoader)
 
+            # self.storeLoader = KoshLoader
+            self.add_loader(KoshFileLoader)
+            self.add_loader(JSONLoader)
+            self.add_loader(NpyLoader)
+            self.add_loader(NumpyTxtLoader)
+            self.add_loader(PandasLoader)
+            try:
+                self.add_loader(HDF5Loader)
+            except Exception:  # no h5py module?
+                if verbose:
+                    warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            try:
+                self.add_loader(PILLoader)
+            except Exception:  # no PIL?
+                if verbose:
+                    warnings.warn("Could not add pil loader, check if you have pillow installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            self.add_loader(PGMLoader)
+            try:
+                self.add_loader(UltraLoader)
+            except Exception:  # no pydv?
+                if verbose:
+                    warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            try:
+                self.add_loader(SidreMeshBlueprintFieldLoader)
+            except Exception:  # no conduit?
+                if verbose:
+                    warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
             # Now let's add the loaders in the store
             for rec_loader in self.__record_handler__.find_with_type("koshloader"):
                 loader = kosh_pickler.loads(rec_loader.data["code"]["value"])
                 self.add_loader(loader)
             self._added_unsync_mem_store = sina_connect(None)
-            self._cached_loaders = {}
+            self._cached_loaders = collections.OrderedDict()
+            # self._cached_features = "cached_features"
 
             # Ok we need to map the KoshFileLoader back to whatever the source_type is
             # in this store
@@ -329,6 +335,7 @@ class KoshStore(object):
         """
         # We add a loader we need to clear the cache
         self._cached_loaders = collections.OrderedDict()
+
         for k in loader.types:
             if k in self.loaders:
                 if loader not in self.loaders[k]:
@@ -343,7 +350,7 @@ class KoshStore(object):
     def delete_loader(self, loader, permanently=False):
         """Removes a loader from the store and possible from its db
 
-        :param loader: The Kosh loader you want to add to the store
+        :param loader: The Kosh loader you want to remove
         :type loader: KoshLoader
         :param permanently: Do we also remove it from the db if saved there?
         :type permanently: bool
@@ -351,12 +358,28 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
-        # We add a loader we need to clear the cache
-        self._cached_loaders = collections.OrderedDict()
+        # We deleted a loader we need to clear the cache
+        existing_cached = self._cached_loaders.values()
+        empty_types = []
         for k in loader.types:
             if k in self.loaders:
                 if loader in self.loaders[k]:
                     self.loaders[k].remove(loader)
+                    if len(self.loaders[k]) == 0:
+                        # ok we took them all out
+                        empty_types.append(k)
+                    __listed_features_cache = self._cached_features_
+                    yank = []
+                    for id in __listed_features_cache.keys():
+                        for ld, _ in existing_cached:
+                            if isinstance(ld, loader) and id.startswith(ld.signature):
+                                yank.append(id)
+                    for id in yank:
+                        del __listed_features_cache[id]
+                    self._cached_features_ = __listed_features_cache
+        for k in empty_types:
+            del self.loaders[k]
+        self._cached_loaders = collections.OrderedDict()
 
         if permanently:  # Remove it from saved in db as well
             pickled = kosh_pickler.dumps(loader)
@@ -410,6 +433,7 @@ class KoshStore(object):
     @lock_strategies.lock_method
     def __del__(self):
         """delete the KoshStore object"""
+        self.close()
         if not self.use_lock_file or "://" in self.db_uri:
             return
         name = self.lock_file.name
@@ -425,11 +449,21 @@ class KoshStore(object):
     @lock_strategies.lock_method
     def get_sina_records(self):
         """Returns sina store's records"""
-        return self.__record_handler__
+        return self.__sina_store.records
 
     @lock_strategies.lock_method
     def close(self):
         """closes store and sina related things"""
+        try:
+            # We need to update the features
+            recs = self.get_sina_records()
+            store_rec = get_store_info_record(recs)
+            cached_features = get_store_info_record_attribute(recs, "cached_features")
+            cached_features.update(self._cached_features_)
+            store_rec["user_defined"]["cached_features"] = cached_features
+            recs.update(store_rec)
+        except Exception:  # store is likely closed already
+            pass
         self.__sina_store.close()
         gc.collect()
 
@@ -625,7 +659,7 @@ class KoshStore(object):
         return out
 
     @lock_strategies.lock_method
-    def _find_loader(self, Id, verbose=False, requestorId=None):
+    def _find_loader(self, Id, verbose=False, requestorId=None, use_cache=True):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
@@ -634,9 +668,14 @@ class KoshStore(object):
         :type verbose: bool
         :param requestorId: The id of the dataset requesting data
         :type requestorId: str
+        :param use_cache: do we use cached feature
+        :typpe use_cache: True
         :return: Kosh loader object
+        :rtype: KoshLoader
         """
         Id_original = str(Id)
+        if verbose:
+            print(f"Getting loader for Id: {Id}")
         if "__uri__" in Id:
             # Ok this is a pure sina file with mime_type
             Id, uri = Id.split("__uri__")
@@ -646,7 +685,7 @@ class KoshStore(object):
             print("Finding loader for: {}".format(uri))
         if (Id_original, requestorId) in self._cached_loaders:
             try:
-                feats = self._cached_loaders[Id_original, requestorId][0].list_features()  # != []
+                feats = self._cached_loaders[Id_original, requestorId][0]._list_features(use_cache=use_cache)  # != []
             except Exception as err:
                 feats = []
                 if verbose:
@@ -673,7 +712,8 @@ class KoshStore(object):
         if mime_type in self.loaders:
             for ld in self.loaders[mime_type]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed,
+                               uri=uri)._list_features(use_cache=use_cache, verbose=verbose)
                 except Exception as err:
                     # Something happened can't list features
                     feats = []
@@ -689,7 +729,8 @@ class KoshStore(object):
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
             for ld in self.loaders[record["type"]]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed,
+                               uri=uri, requestorId=requestorId)._list_features(use_cache=use_cache)
                 except Exception:
                     # Something happened can't list features
                     feats = []
@@ -1193,40 +1234,51 @@ class KoshStore(object):
                 continue
             try:
                 db = self.__record_handler__.get(key)
-                for att in local["user_defined"]['kosh_information']:
-                    if att[-14:] == "_last_modified":  # We touched it
-                        if att[-27:-14] == "___associated":
-                            # ok it's an associated thing
-                            uri = att[:-27]
-                            if uri not in local["files"]:  # dissociated
-                                del db["files"][uri]
-                            elif att not in db["user_defined"]['kosh_information']:  # newly associated
-                                db["files"][uri] = local["files"][uri]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                            elif local["user_defined"]['kosh_information'][att] > \
-                                    db["user_defined"]['kosh_information'][att]:
-                                # last changed locally
-                                db["files"][uri] = local["files"][uri]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                        else:
-                            name = att[:-14]
-                            if name not in local["data"]:  # we deleted it
-                                if name in db["data"]:
-                                    del db["data"][name]
-                            elif local["user_defined"]['kosh_information'][att] > \
-                                    db["user_defined"]['kosh_information'][att]:
-                                db["data"][name] = local["data"][name]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                if db is not None:
-                    update_records.append(db)
-                else:  # db did not have that key and returned None (no error)
-                    update_records.append(local)
-                del_keys.append(key)
-            except Exception:
+            except ValueError:
+                # not in main store yet
+                self.__record_handler__.insert(local)
+                # now we can retrieve it process for associated file not in storer yet
+                db = self.__record_handler__.get(key)
+            for att in local["user_defined"]['kosh_information']:
+                if att[-14:] == "_last_modified":  # We touched it
+                    if att[-27:-14] == "___associated":
+                        # ok it's an associated thing
+                        uri = att[:-27]
+                        if uri not in local["files"]:  # dissociated
+                            del db["files"][uri]
+                            continue
+                        # Now let's see if it is in main store
+                        try:
+                            self.__record_handler__.get(local["files"][uri]["kosh_id"])
+                        except ValueError:
+                            # Ok it is not in the store itself
+                            rec = self.get_record(local["files"][uri]["kosh_id"])
+                            self.__record_handler__.insert(rec)
+                        if att not in db["user_defined"]['kosh_information']:  # newly associated
+                            db["files"][uri] = local["files"][uri]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+                        elif local["user_defined"]['kosh_information'][att] > \
+                                db["user_defined"]['kosh_information'][att]:
+                            # last changed locally
+                            db["files"][uri] = local["files"][uri]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+                    else:
+                        name = att[:-14]
+                        if name not in local["data"]:  # we deleted it
+                            if name in db["data"]:
+                                del db["data"][name]
+                        elif local["user_defined"]['kosh_information'][att] > \
+                                db["user_defined"]['kosh_information'][att]:
+                            db["data"][name] = local["data"][name]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+            if db is not None:
+                update_records.append(db)
+            else:  # db did not have that key and returned None (no error)
                 update_records.append(local)
+            del_keys.append(key)
 
         rels = []
         relationships = self.get_sina_store().relationships

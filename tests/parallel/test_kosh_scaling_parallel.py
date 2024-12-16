@@ -32,14 +32,14 @@ class KoshTestStore(KoshTest):
         print(out, e)
         # self.assertIn("Total Time to complete:", out, "Did not complete")
 
-    def test_kosh_gpu_maestro(self):
+    def test_kosh_scaling_maestro(self):
         # Ensemble Test
 
         # Script path
-        yaml_path = os.path.join(self.test_pth, "parallel", "kosh_gpu_maestro.yaml")
-        pgen_path = os.path.join(self.test_pth, "parallel", "kosh_gpu_pgen.py")
+        yaml_path = os.path.join(self.test_pth, "parallel", "kosh_scaling_maestro.yaml")
+        pgen_path = os.path.join(self.test_pth, "parallel", "kosh_scaling_pgen.py")
 
-        # maestro run tests/kosh_gpu_maestro.yaml --pgen tests/kosh_gpu_pgen.py -y
+        # maestro run tests/kosh_scaling_maestro.yaml --pgen tests/kosh_scaling_pgen.py -y
         # With --lock-strategy RFileLock
         #     2 parallel runs with --ensembles 2 --datasets 2
         #         Total Time to complete: 0:01:02.995092
@@ -94,15 +94,15 @@ class KoshTestStore(KoshTest):
 
         self.send_command(cmd)
 
-    def kosh_gpu_merlin(self):
+    def kosh_scaling_merlin(self):
         # Ensemble Test
 
         # Script path
-        yaml_path = os.path.join(self.test_pth, "kosh_gpu_merlin.yaml")
-        pgen_path = os.path.join(self.test_pth, "kosh_gpu_pgen.py")
+        yaml_path = os.path.join(self.test_pth, "kosh_scaling_merlin.yaml")
+        pgen_path = os.path.join(self.test_pth, "kosh_scaling_pgen.py")
 
-        # merlin run tests/kosh_gpu_merlin.yaml --pgen tests/kosh_gpu_pgen.py
-        # merlin run-workers tests/kosh_gpu.yaml
+        # merlin run tests/kosh_scaling_merlin.yaml --pgen tests/kosh_scaling_pgen.py
+        # merlin run-workers tests/kosh_scaling.yaml
         cmd = f"merlin run {yaml_path} " + \
               f"--pgen {pgen_path} " + \
               "&& " + \

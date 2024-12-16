@@ -9,7 +9,7 @@
 # Turn off core files to work aroung flux exec issue.
 ulimit -c 0
 
-YAML=kosh/tests/parallel/kosh_gpu_merlin.yaml
+YAML=kosh/tests/parallel/kosh_scaling_merlin.yaml
 echo "Specification File: $YAML"
 
 VENV_PATH=kosh/kosh_test_venv

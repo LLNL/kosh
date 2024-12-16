@@ -50,7 +50,7 @@ class KoshLoader(KoshExecutionGraph):
         :type requestorId: str
         """
         self.requestorId = requestorId
-        self.signature = hashlib.sha256(repr(self.__class__).encode())
+        self.signature = hashlib.sha256(repr(self.__class__).encode()).hexdigest()
         self.signature = self.update_signature(obj.id)
         if mime_type is None:
             self._mime_type = obj.mime_type
@@ -78,7 +78,7 @@ class KoshLoader(KoshExecutionGraph):
                 raise RuntimeError(
                     "will not be able to load object of type {mime_type}".format(mime_type=self._mime_type))
         self.obj = obj
-        self.__listed_features = None
+        self.__records__ = obj.__store__.get_sina_records()
 
     def get_requestor(self):
         """Returns the Kosh object requesting the data"""
@@ -122,13 +122,13 @@ class KoshLoader(KoshExecutionGraph):
         :return: updated signature
         :rtype: str
         """
-        signature = self.signature.copy()
+        signature = hashlib.sha256(self.signature.encode())
         for arg in args:
             signature.update(repr(arg).encode())
         for kw in kargs:
             signature.update(repr(kw).encode())
             signature.update(repr(kargs[kw]).encode())
-        return signature
+        return signature.hexdigest()
 
     def get_execution_graph(self, feature, transformers=[]):
         """Generates the execution graph to extract a feature and possibly transform it.
@@ -191,7 +191,7 @@ class KoshLoader(KoshExecutionGraph):
                 self=self, format=format))
         self.format = format
         _, kargs = self._user_passed_parameters
-        signature = self.update_signature(self.feature, format, **kargs).hexdigest()
+        signature = self.update_signature(self.feature, format, **kargs)
         if self.cache_file_only is True:
             # Ok user just wants to know where cache should be (plus/minus extesions)
             return signature
@@ -235,17 +235,31 @@ class KoshLoader(KoshExecutionGraph):
 
     def _list_features(self, *args, **kargs):
         """Wrapper on top of list_features to snatch from cache rather than calling every time"""
+        verbose = kargs.get("verbose", False)
         use_cache = kargs.pop("use_cache", True)
-        if self.__listed_features is None or not use_cache:
+        __listed_features_cache = self.obj.__store__._cached_features_
+        __listed_features = None
+        if __listed_features_cache is not None and use_cache:
+            if self.uri is None or self.uri == "":
+                __listed_features = __listed_features_cache.get(self.signature+self.obj.id, None)
+            else:
+                __listed_features = __listed_features_cache.get(self.signature+self.uri, None)
+        if __listed_features is None:  # didn't get it from cache
             try:
-                self.__listed_features = self.list_features(*args, **kargs)
-            except Exception:
+                __listed_features = self.list_features(*args, **kargs)
+                # Reset
+                if self.uri is None or self.uri == "":
+                    __listed_features_cache[self.signature+self.obj.id] = __listed_features
+                else:
+                    __listed_features_cache[self.signature+self.uri] = __listed_features
+                # Update the local stroe features cache
+                self.obj.__store__._cached_features_ = __listed_features_cache
+            except Exception as err:
+                if verbose:
+                    print("\tCould not obtain features from loader {}\n\t\tError:{}".format(self, err))
                 # Broken loader at the moment
-                self.__listed_features = []
-        out = self.__listed_features
-        # Reset
-        if not use_cache:
-            self.__listed_features = None
+                __listed_features = []
+        out = __listed_features
         return out
 
     def list_features(self, *args, **kargs):

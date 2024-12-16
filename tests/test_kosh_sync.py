@@ -199,6 +199,7 @@ class KoshTestSync(KoshTest):
         # Ok now let's see if we do conflict
         ds2.associate("conflict", "conf")
         ds1.associate("conflict", "conf2")
+        ds1.list_features()
 
         with self.assertRaises(RuntimeError):
             ds2.sync()

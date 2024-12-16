@@ -1,4 +1,5 @@
 from __future__ import absolute_import
+import collections
 import pkg_resources
 import os
 import kosh
@@ -11,6 +12,7 @@ import warnings
 from sina.model import Record
 from kosh.exec_graphs import find_network_ends, populate
 import pickle
+from . import lock_strategies
 try:
     import orjson
 except ImportError:
@@ -326,13 +328,43 @@ def compute_long_sha(uri, buff_size=65536):
     return sha.hexdigest()
 
 
-def update_store_and_get_info_record(records, ensemble_predicate=None):
+def update_store_record(records, store_record):
+    """Updates the store record
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param store_record: sina record for store info
+    :type store_record: Record
+    """
+    if hasattr(records, "insert"):
+        try:
+            records.update(store_record)
+        except Exception:  # in case multi-processors interfere with each others
+            pass
+    return
+
+
+@lock_strategies.lock_function
+def get_store_info_record_attribute(records, attribute):
+    """Obtain an attribute from the store record info.
+Sometimes when multiple process try to initiate that record it comes back with missing attributes
+This will wrap into the lock strategy
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param attribute: The attribute to retrievr
+    :type attribute: str
+    :returns: sina record for store info
+    :rtype: object
+    """
+    rec = get_store_info_record(records)
+    return rec["user_defined"][attribute]
+
+
+@lock_strategies.lock_function
+def get_store_info_record(records):
     """Obtain the sina record containing store info
     If necessary update store to latest standards
     :param records: The sina store "records" object
     :type records: sina.datastore.DataStore.RecordOperations
-    :param ensemble_predicate: The predicate for the relationship to an ensemble
-    :type ensemble_predicate: str
     :returns: sina record for store info
     :rtype: Record
     """
@@ -362,12 +394,31 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         # revisit then...
         ver = sum(
             [float(x) / 10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
-        min_ver = rec["data"]["kosh_min_version"]["value"]
+        try:
+            min_ver = rec["data"]["kosh_min_version"]["value"]
+        except Exception:  # Ok rec is somehow missing this info, setting to 0
+            min_ver = "0.0"
         min_ver = sum(
             [float(x) / 10**i for i, x in enumerate(min_ver.split("."))])
         if ver < min_ver:
             raise RuntimeError(
                 "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+    return rec
+
+
+def update_store_and_get_info_record(records, ensemble_predicate=None):
+    """Obtain the sina record containing store info
+    If necessary update store to latest standards
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param ensemble_predicate: The predicate for the relationship to an ensemble
+    :type ensemble_predicate: str
+    :returns: sina record for store info
+    :rtype: Record
+    """
+    # First let's see if this store contains a dedicated record
+    # describing this store specs
+    rec = get_store_info_record(records)
     need_update = False
     if "sources_type" not in rec["data"]:
         rec.add_data("sources_type", "file")
@@ -390,6 +441,9 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         else:
             rec.add_data("ensemble_predicate", ensemble_predicate)
         need_update = True
+    if "cached_features" not in rec["user_defined"]:
+        rec["user_defined"]["cached_features"] = collections.OrderedDict()
+        need_update = True
     if "kosh_min_version" not in rec["data"]:
         rec.add_data("kosh_min_version", "1.2.1")
         need_update = True
@@ -403,11 +457,8 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         rec["data"]["reserved_types"]["value"] = ['__kosh_storeinfo__',
                                                   'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
         need_update = True
-    if need_update and hasattr(records, "insert"):
-        try:
-            records.update(rec)
-        except Exception:  # in case multi-processors interfere with each others
-            pass
+    if need_update:
+        update_store_record(records, rec)
     return rec
 
 
