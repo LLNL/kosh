@@ -48,7 +48,6 @@ class KoshDataset(KoshSinaObject):
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
             self.__dict__["__record_handler__"] = store.__record_handler__
-            self.__dict__["__features__"] = {None: {}}
             if record is None:
                 record = self.get_record()
             try:
@@ -241,7 +240,7 @@ class KoshDataset(KoshSinaObject):
 
     @lock_strategies.lock_method
     def list_features(self, Id=None, loader=None,
-                      use_cache=False, verbose=False, *args, **kargs):
+                      use_cache=True, verbose=False, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
         then the associated_data uri gets appended to feature name
 
@@ -249,7 +248,7 @@ class KoshDataset(KoshSinaObject):
         :type Id: str, optional
         :param loader: loader to use to search for feature, will return ONLY features that the loader knows about
         :type loader: kosh.loaders.KoshLoader
-        :param use_cache: If features is found on cache use it (default: False)
+        :param use_cache: If features is found on cache use it (default: True)
         :type use_cache: bool
         :param verbose: Verbose mode will show which file is being opened and errors on it
         :type verbose: bool
@@ -257,9 +256,6 @@ class KoshDataset(KoshSinaObject):
         :return: list of features available
         :rtype: list
         """
-        if use_cache and self.__dict__["__features__"].get(
-                Id, {}).get(loader, None) is not None:
-            return self.__dict__["__features__"][Id][loader]
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
         if saved_sync:
@@ -275,13 +271,15 @@ class KoshDataset(KoshSinaObject):
             for associated in associated_data:
                 if verbose:
                     asso = self.__store__._load(associated)
-                    print("Finding features for {}".format(asso.uri))
+                    print("Finding features for {}".format(asso))
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated, requestorId=self.id, verbose=verbose)
+                    ld, _ = self.__store__._find_loader(associated,
+                                                        requestorId=self.id, verbose=verbose, use_cache=use_cache)
                 else:
                     if (associated, self.id) not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated, self.id] = loader(
                             self.__store__._load(associated), requestorId=self.id), None
+                        # self.__store__.update_cached_loaders()
                     ld, _ = self.__store__._cached_loaders[associated, self.id]
                 loaders.append(ld)
                 try:
@@ -317,10 +315,10 @@ class KoshDataset(KoshSinaObject):
                 ld = loader
             else:
                 ld, _ = self.__store__._find_loader(Id, requestorId=self.id, verbose=verbose)
-            features = ld._list_features(*args, use_cache=use_cache, **kargs)
-        features_id = self.__dict__["__features__"].get(Id, {})
+            features = ld._list_features(*args, use_cache=use_cache, verbose=verbose, **kargs)
+        features_id = self.__features__.get(Id, {})
         features_id[loader] = features
-        self.__dict__["__features__"][Id] = features_id
+        self.__features__[Id] = features_id
         if saved_sync:
             # we need to restore sync mode
             self.__store__.__sync__dict__ = backup
@@ -329,7 +327,7 @@ class KoshDataset(KoshSinaObject):
 
     @lock_strategies.lock_method
     def get_execution_graph(self, feature=None, Id=None,
-                            loader=None, transformers=[], *args, **kargs):
+                            loader=None, transformers=[], use_cache=True, *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
@@ -340,6 +338,8 @@ class KoshDataset(KoshSinaObject):
         :type loader: kosh.loaders.KoshLoader
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
+        :param use_cache: use cache to find features
+        :type use_cache: bool
         :returns: [description]
         :rtype: [type]
         """
@@ -374,7 +374,7 @@ class KoshDataset(KoshSinaObject):
             elif isinstance(val, str):
                 alias_feature_flattened[i].extend([val])
 
-        def find_features(self, a):
+        def find_features(self, a, use_cache=True):
 
             a_original = a
 
@@ -383,7 +383,7 @@ class KoshDataset(KoshSinaObject):
                 a, _ = a.split("__uri__")
             a_obj = self.__store__._load(a)
             if loader is None:
-                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
+                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id, use_cache=use_cache)
                 if ld is None:  # unknown mimetype probably
                     return _, None, _, _
             else:
@@ -394,7 +394,7 @@ class KoshDataset(KoshSinaObject):
 
             # Dataset with curve have themselves as uri
             obj_uri = getattr(ld.obj, "uri", "self")
-            ld_features = ld._list_features()
+            ld_features = ld._list_features(use_cache=use_cache)
 
             return a_original, ld, obj_uri, ld_features
 
@@ -403,13 +403,13 @@ class KoshDataset(KoshSinaObject):
             if Id is None:
                 for a in self._associated_data_:
 
-                    a_original, ld, obj_uri, ld_features = find_features(self, a)
+                    a_original, ld, obj_uri, ld_features = find_features(self, a, use_cache=use_cache)
                     if ld is None:  # No features
                         continue
 
                     if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
                         # ok we have to be careful list_features can be returned two ways
-                        if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
+                        if isinstance(ld_features[0], (list, tuple)) and isinstance(feature_, six.string_types):
                             # we need to convert the feature to str
                             possibilities = kosh.utils.find_curveset_and_curve_name(feature_, self.get_record())
                             if len(possibilities) > 1:
@@ -417,11 +417,11 @@ class KoshDataset(KoshSinaObject):
                                     feature_, possibilities))
                             feature_ = possibilities[0]
                             features[index] = feature_
-                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, tuple):
+                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, (list, tuple)):
                             feature_ = "/".join(feature_)
                             features[index] = feature_
 
-                    if ("_@_" not in feature_ and feature_ in ld_features) or\
+                    if ("_@_" not in feature_ and (feature_ in ld_features or list(feature_) in ld_features)) or\
                             feature_ is None or\
                             (feature_[:-len(obj_uri) - 3] in ld_features and
                              feature_[-len(obj_uri):] == obj_uri):
@@ -441,7 +441,7 @@ class KoshDataset(KoshSinaObject):
                         poss = []
                         for a in self._associated_data_:
 
-                            a_original, ld, obj_uri, ld_features = find_features(self, a)
+                            a_original, ld, obj_uri, ld_features = find_features(self, a, use_cache=use_cache)
                             if ld is None:  # No features
                                 continue
 
@@ -464,16 +464,16 @@ class KoshDataset(KoshSinaObject):
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
-                ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
-                if feature_ in ld._list_features():
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id, use_cache=use_cache)
+                if feature_ in ld._list_features(use_cache=use_cache):
                     possible_ids = [Id, ]
                 else:  # ok not a curve maybe a file?
                     rec = self.get_record()
                     for uri in rec["files"]:
                         if "mimetype" in rec["files"][uri]:
                             full_id = "{}__uri__{}".format(Id, uri)
-                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id)
-                            if ld is not None and feature_ in ld.list_features():
+                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id, use_cache=use_cache)
+                            if ld is not None and feature_ in ld._list_features(use_cache=use_cache):
                                 possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
                 raise RuntimeError(
@@ -510,30 +510,27 @@ class KoshDataset(KoshSinaObject):
                 tmp = None
                 try:
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
+                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id, use_cache=use_cache)
                         mime_type = ld._mime_type
                     else:
                         if (Id, self.id) not in self.__store__._cached_loaders:
                             a_obj = self.__store__._load(Id)
                             self.__store__._cached_loaders[Id, self.id] = loader(a_obj, requestorId=self.id)
+                            # self.__store__.update_cached_loaders()
                             mime_type = a_obj.mime_type
                         ld = self.__store__._cached_loaders[Id, self.id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
                     # But let's not lose the cached list_features
-                    saved_listed_features = ld.__dict__[
-                        "_KoshLoader__listed_features"]
                     ld_uri = getattr(ld, "uri", None)
                     ld = ld.__class__(
                         ld.obj, mime_type=ld._mime_type, uri=ld_uri, requestorId=self.id)
-                    ld.__dict__[
-                        "_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
                     obj_uri = getattr(ld.obj, "uri", "")
                     for feature_ in features:
-                        if (feature_[:-len(obj_uri) - 3] in ld._list_features()
+                        if (feature_[:-len(obj_uri) - 3] in ld._list_features(use_cache=use_cache)
                                 and feature_[-len(obj_uri):] == obj_uri):
                             final_features.append(
                                 feature_[:-len(obj_uri) - 3])
@@ -719,15 +716,24 @@ class KoshDataset(KoshSinaObject):
                 del self.__store__._cached_loaders[kosh_id, self.id]
             if (kosh_id, None) in self.__store__._cached_loaders:
                 del self.__store__._cached_loaders[kosh_id, None]
+            # We also need to clean up all features associated with the id
+            cached_features = self.__store__._cached_features_
+            yank = []
+            for id in cached_features:
+                if id.endswith(uri):
+                    yank.append(id)
+            for id in yank:
+                del cached_features[id]
+            self.__store__._cached_features_ = cached_features
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
-        self.__dict__["__features__"][kosh_id] = {}
+        self.__features__[None] = {}
+        self.__features__[kosh_id] = {}
 
     @lock_strategies.lock_method
     def associate(self, uri, mime_type, metadata={},
-                  id_only=True, long_sha=False, absolute_path=True,
+                  id_only=None, long_sha=False, absolute_path=True,
                   loader_kwargs=None):
         """associates a uri/mime_type with this dataset
 
@@ -737,8 +743,9 @@ class KoshDataset(KoshSinaObject):
         :type mime_type: str or list of str
         :param metadata: metadata to associate with file, defaults to {}
         :type metadata: dict, optional
-        :param id_only: do not return kosh file object, just its id
-        :type id_only: bool
+        :param id_only: do not return kosh file object (None and default), just its id (True)
+                        or the KoshSinaFile (False)
+        :type id_only: bool or None
         :param long_sha: Do we compute the long sha on this or not?
         :type long_sha: bool
         :param absolute_path: if file exists should we store its absolute_path
@@ -856,7 +863,12 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
+        # Let's rerun the list_features now so it's cached in the store and for the dataset.
+        self.list_features()
+
+        if id_only is None:
+            return
 
         if id_only:
             if single_element:
@@ -866,7 +878,7 @@ class KoshDataset(KoshSinaObject):
 
         kosh_files = []
         for Id in kosh_file_ids:
-            self.__dict__["__features__"][Id] = {}
+            self.__features__[Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
                                        kosh_type=self.__store__._sources_type,
                                        store=self.__store__,
@@ -1112,6 +1124,9 @@ class KoshDataset(KoshSinaObject):
         attributes = self.list_attributes(True)
         cloned_dataset = self.__store__.create(metadata=attributes)
         for associated in self.get_associated_data():
+            rec = associated.get_record()
+            if "uri" not in rec["data"]:
+                continue
             cloned_dataset.associate(
                 associated.uri,
                 associated.mime_type,
@@ -1242,6 +1257,17 @@ class KoshDataset(KoshSinaObject):
         :returns: the curve_set/curve_name path
         :rtype: str
         """
+        # Before anything else lets remove the cached features
+        cached_features = self.__store__._cached_features_
+        yank = []
+        for id in cached_features:
+            if id.endswith(self.id):
+                yank.append(id)
+        for id in yank:
+            del cached_features[id]
+        # put back in store
+        self.__store__._cached_features_ = cached_features
+
         # let's obtain the record
         rec = self.get_record()
         # Let's figure out the curve_set name
@@ -1285,7 +1311,7 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the curves, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
 
         return "{}/{}".format(curve_set, curve_name)
 
@@ -1316,7 +1342,7 @@ class KoshDataset(KoshSinaObject):
                         self._update_record(rec)
                     else:
                         self._update_record(rec, self.__store__._added_unsync_mem_store)
-                    self.__dict__["__features__"][None] = {}
+                    self.__features__[None] = {}
                     return
             else:
                 raise ValueError("The curve set {} does not exists".format(curve_set))
@@ -1341,7 +1367,7 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the curves, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
         return
 
     @lock_strategies.lock_method

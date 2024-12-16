@@ -5,6 +5,7 @@ import random
 import pickle
 import os
 import collections
+import hashlib
 
 
 def possible_ends(graph, start_nodes, end_nodes):
@@ -447,13 +448,13 @@ class KoshExecutionGraph(object):
         :return: updated signature
         :rtype: str
         """
-        signature = self.signature.copy()
+        signature = hashlib.sha256(self.signature.encode())
         for arg in args:
             signature.update(repr(arg).encode())
         for kw in kargs:
             signature.update(repr(kw).encode())
             signature.update(repr(kargs[kw]).encode())
-        return signature
+        return signature.hexdigest()
 
     def show_cache_file(self, input, format):
         """Given a set of input and format returns the unique signature used for cache file
@@ -464,7 +465,7 @@ class KoshExecutionGraph(object):
         :return: The unique signature
         :rtype: str
         """
-        signature = self.update_signature(input, format).hexdigest()
+        signature = self.update_signature(input, format)
         return os.path.join(self.cache_dir, signature)
 
     def save(self, cache_file, *content):

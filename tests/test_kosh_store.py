@@ -50,7 +50,7 @@ class KoshTestStore(KoshTest):
         self.assertEqual(len(ds_id_found), 1)
         self.assertEqual(ds_id_found[0], ds.id)
 
-        associated_id = ds.associate("setup.py", "py")
+        associated_id = ds.associate("setup.py", "py", id_only=True)
         associated_found = list(store.find(id=associated_id))
         print("ASS FOUND:", associated_found)
         self.assertEqual(len(associated_found), 1)

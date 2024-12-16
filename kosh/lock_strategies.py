@@ -202,13 +202,15 @@ class RFileLock(LockStrategy):
                 except Exception as e:
                     import traceback
                     error_stack = traceback.extract_stack()
+                    tb = e.__traceback__
                     num_tries -= 1
                     exceptions.append(e)
                     msg = f"\nError in parent function {error_stack[0]}.\n"
-                    msg += f"Exception {e} in child function: {func.__name__}.\n"
-                    msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} }\n'
-                    msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining...\n"
-                    msg += f"Error Stack: {error_stack}\n"
+                    msg = f"Exception {e} in child {func.__name__}. "
+                    msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
+                    msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
+                    trace = "\n\t\t".join([str(x) for x in traceback.extract_tb(tb)])
+                    msg += f"Error Stack: {trace}"
                     LOGGER.warning(msg=msg)
                     print(msg)  # For users without a logger
                     time.sleep(self.patience + random.random())  # random in case parallel calls retry at same time

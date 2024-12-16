@@ -11,12 +11,16 @@ from sina.model import generate_record_from_json
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--store", "-s", help="store", type=str, default="test.sql")
-parser.add_argument("--run-number", "-rn", help="run number", type=int, default=0)
+parser.add_argument("--run-number", "-r", help="run number", type=int, default=0)
 parser.add_argument("--datasets", "-d", help="number of datasets to create", type=int, default=2)
 parser.add_argument("--ensembles", "-e", help="number of ensembles to create", type=int, default=2)
-parser.add_argument("--lock-strategy", "-ls", help="Implement lock strategy",
+parser.add_argument("--lock-path", "-p", help="path to lock file", default=None)
+parser.add_argument("--lock-strategy", "-l", help="Implement lock strategy",
                     choices=["None", "RFileLock", "OnlyRetry"])
+parser.add_argument("--log-level", "-L", help="Log Level", type=int, default=20)
+parser.add_argument("--timeout", "-t", help="Timeout per try", type=int, default=300)
 parser.add_argument("--clear", "-c", help="Only clear store", action="store_true")
+parser.add_argument("--retries", "-R", help="Number of retries", type=int, default=10)
 
 args = parser.parse_args()
 
@@ -28,16 +32,16 @@ if args.clear:
 
 start = datetime.now()
 
-os.environ['LOCK_STRATEGIES_LOG_LEVEL'] = "20"  # 20 is logging.info
+os.environ['LOCK_STRATEGIES_LOG_LEVEL'] = str(args.log_level)  # 20 is logging.INFO, 10 is logging.DEBUG
 LOGGER = logging.getLogger()
-LOGGER.setLevel(20)
+LOGGER.setLevel(args.log_level)
 
 if args.lock_strategy == "None":
     ls = None
 elif args.lock_strategy == "RFileLock":
-    ls = kosh.lock_strategies.RFileLock()
+    ls = kosh.lock_strategies.RFileLock(num_tries=args.retries, lock_path=args.lock_path)
 elif args.lock_strategy == "OnlyRetry":
-    ls = kosh.lock_strategies.OnlyRetry()
+    ls = kosh.lock_strategies.OnlyRetry(num_tries=args.retries)
 
 store = kosh.connect(args.store, lock_strategy=ls)
 
