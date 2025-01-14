@@ -12,7 +12,6 @@ class FakeLoader(kosh.KoshLoader):
         return 2
 
     def list_features(self, *args, **kargs):
-        print("IN LIST FEATURES*********************", args, kargs)
         time.sleep(3)
         return ["fake"]
 
@@ -37,7 +36,7 @@ class KoshTestList(KoshTest):
         t = time.time()
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
-            "fake")
+            "fake", preload_features=True)
         t = time.time() - t
         # Associate should have called list_features
         self.assertTrue(t > 3)
@@ -69,7 +68,7 @@ class KoshTestList(KoshTest):
         # Now let's pretend it's an old store w/o cached_features in the store rec
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
-            "fake")
+            "fake", preload_features=True)
         self.assertEqual(len(store._cached_features_), 1)
         store._cached_features_ = {}  # reset
         self.assertEqual(len(store._cached_features_), 0)
@@ -80,7 +79,7 @@ class KoshTestList(KoshTest):
         t = time.time()
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
-            "fake")
+            "fake", preload_features=True)
         t = time.time() - t
         self.assertTrue(t > 3)
         t = time.time()

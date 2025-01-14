@@ -734,7 +734,7 @@ class KoshDataset(KoshSinaObject):
     @lock_strategies.lock_method
     def associate(self, uri, mime_type, metadata={},
                   id_only=None, long_sha=False, absolute_path=True,
-                  loader_kwargs=None):
+                  loader_kwargs=None, preload_features=False):
         """associates a uri/mime_type with this dataset
 
         :param uri: uri(s) to access content
@@ -752,6 +752,8 @@ class KoshDataset(KoshSinaObject):
         :type absolute_path: bool
         :param loader_kwargs: Extra arguments to pass to more advanced loader
         :type loader_kwargs: dict, optional
+        :param preload_features: runs list_features on associated uri to save time in future reads (default: False)
+        :type preload_features: bool
         :return: A (list) Kosh Sina File(s)
         :rtype: list of KoshSinaFile or KoshSinaFile
         """
@@ -865,7 +867,8 @@ class KoshDataset(KoshSinaObject):
         # the features cache
         self.__features__[None] = {}
         # Let's rerun the list_features now so it's cached in the store and for the dataset.
-        self.list_features()
+        if preload_features:
+            self.list_features()
 
         if id_only is None:
             return

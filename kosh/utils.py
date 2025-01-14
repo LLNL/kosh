@@ -499,6 +499,8 @@ def create_new_db(name, db='sql',
     :return store: An handle to the Kosh store created
     :rtype: KoshStoreClass
     """
+    if os.path.exists(name):
+        os.remove(name)
     from kosh import connect
     kargs["keyspace"] = keyspace
     kargs["db"] = db
