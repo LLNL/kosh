@@ -3,6 +3,7 @@ import sina
 from .dataset import KoshDataset
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
+from .utils import __check_valid_connection_type__
 from . import lock_strategies
 try:
     import orjson
@@ -63,6 +64,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :returns: list of uris (to be) removed.
         :rtype: list
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         missings = super(
             KoshEnsemble,
             self).cleanup_files(
@@ -133,6 +135,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :return: KoshDataset
         :rtype: KoshDataset
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         if sina_type == self.__store__._ensembles_type:
             raise ValueError("You cannot create an ensemble from an ensemble")
 
@@ -176,6 +179,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
                               e.g., ensemble_tags={"even_or_odd": "even", "data_type": "test data"}
         :type ensemble_tags: dict
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         # Step1 make sure the dataset does not belong to another ensemble
         if isinstance(dataset, KoshDataset):
             dataset_id = dataset.id
@@ -245,6 +249,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         :param dataset: The dataset to remove
         :type dataset: KoshDataset or str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         # Step1 make sure the dataset does not belong to another ensemble
         if isinstance(dataset, KoshDataset):
             dataset_id = dataset.id
@@ -306,6 +311,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
     @lock_strategies.lock_method
     def clone(self, *atts, **keys):
         """We cannot clone an ensemble"""
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         raise NotImplementedError("Ensembles objects cannot clone themselves")
 
     @lock_strategies.lock_method

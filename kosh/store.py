@@ -13,7 +13,7 @@ import warnings
 import time
 import re
 from .loaders import KoshFileLoader, PGMLoader, KoshSinaLoader
-from .utils import compute_fast_sha, merge_datasets_handler
+from .utils import compute_fast_sha, merge_datasets_handler, __check_valid_connection_type__
 from .loaders import JSONLoader
 from .loaders import NpyLoader
 from .loaders import NumpyTxtLoader
@@ -59,7 +59,7 @@ except ImportError:
 def connect(database, keyspace=None, database_type=None,
             allow_connection_pooling=False, read_only=False,
             delete_all_contents=False, execution_options={},
-            lock_strategy=None, **kargs):
+            connection_type="write", lock_strategy=None, **kargs):
     """Connect to a Sina store.
 
 Given a uri/path (and, if required, the name of a keyspace),
@@ -81,6 +81,8 @@ figures out which backend is required.
 :type read_only: bool
 :param execution_options: execution options keyword to pass to sina store record_dao at creation time
 :type execution_options: dict
+:param connection_type: whether to create a write, append, or read only store
+:type connection_type: str
 :param kargs: Any extra arguments you wish to pass to the KoshStore function
 :type kargs: dict, key=value
 :param delete_all_contents: Deletes all data after opening the db
@@ -100,14 +102,19 @@ figures out which backend is required.
                 raise ValueError(
                     "You cannot specify `db` and `database_type` with different values")
             database_type = db
+        if connection_type not in ['write', 'append', 'read']:
+            raise ValueError(
+                "`connection_type` must be one of ['write', 'append', 'read']")
+        if connection_type == 'read':
+            read_only = True
         sina_store = sina_connect(database=database,
                                   keyspace=keyspace,
                                   database_type=database_type,
                                   allow_connection_pooling=allow_connection_pooling,
-                                  read_only=read_only)
+                                  read_only=read_only, connection_type=connection_type)
         # sina_store._record_dao.session.connection(execution_options=execution_options)
 
-        if not read_only:
+        if not read_only and connection_type == 'write':
             if delete_all_contents:
                 try:
                     sina_store.delete_all_contents(force="SKIP PROMPT")
@@ -122,7 +129,7 @@ figures out which backend is required.
         store = KoshStore(database, sync=sync, keyspace=keyspace, read_only=read_only,
                           db=database_type,
                           allow_connection_pooling=allow_connection_pooling,
-                          execution_options=execution_options,
+                          execution_options=execution_options, connection_type=connection_type,
                           lock_strategy=lock_strategy,
                           **kargs)
         return store
@@ -135,7 +142,7 @@ class KoshStore(object):
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
                  read_only=False, allow_connection_pooling=False, ensemble_predicate=None,
-                 execution_options={}, lock_strategy=None):
+                 execution_options={}, connection_type='write', lock_strategy=None):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -168,6 +175,8 @@ class KoshStore(object):
         :type ensemble_predicate: str
         :param execution_options: execution options keyword to pass to sina store record_dao at creation time
         :type execution_options: dict
+        :param connection_type: whether to create a write, append, or read only store
+        :type connection_type: str
         :param lock_strategy: The LockStrategy to apply to class methods
         :type lock_strategy: LockStrategy
         :raises ConnectionRefusedError: Could not connect to cassandra
@@ -181,7 +190,13 @@ class KoshStore(object):
             if db_uri is not None and "://" in db_uri and use_lock_file:
                 warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
                 use_lock_file = False
+            if connection_type not in ['write', 'append', 'read']:
+                raise ValueError(
+                        "`connection_type` must be one of ['write', 'append', 'read']")
+            self.__connection_type__ = connection_type
             self.use_lock_file = use_lock_file
+            if connection_type == 'read':
+                read_only = True
             if read_only:
                 sync = False
             self.__read_only__ = read_only
@@ -197,7 +212,7 @@ class KoshStore(object):
                 if db_uri is not None and not os.path.exists(db_uri):
                     if "://" in db_uri:
                         self.__sina_store = sina_connect(
-                            db_uri, read_only=read_only)
+                            db_uri, read_only=read_only, connection_type=connection_type)
                         self.__sina_store._record_dao.session.connection(execution_options=execution_options)
                     else:
                         raise ValueError(
@@ -211,14 +226,16 @@ class KoshStore(object):
                     self.__sina_store = sina_connect(database=db_pth,
                                                      read_only=read_only,
                                                      database_type=db,
-                                                     allow_connection_pooling=allow_connection_pooling)
+                                                     allow_connection_pooling=allow_connection_pooling,
+                                                     connection_type=connection_type)
                     self.__sina_store._record_dao.session.connection(execution_options=execution_options)
                     self.unlock()
             elif db.lower().startswith('cass'):
                 self.__sina_store = sina_connect(
                     keyspace=keyspace, database=db_uri,
                     database_type='cassandra', read_only=read_only,
-                    allow_connection_pooling=allow_connection_pooling)
+                    allow_connection_pooling=allow_connection_pooling,
+                    connection_type=connection_type)
             from sina.model import Record
             from sina.utils import DataRange
             global Record, DataRange
@@ -243,7 +260,8 @@ class KoshStore(object):
             if "associated_stores" in rec["data"]:
                 for store in rec["data"]["associated_stores"]["value"]:
                     try:
-                        self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync))
+                        self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync,
+                                                                     connection_type=connection_type))
                     except Exception:  # most likely a sqlalchemy.exc.DatabaseError
                         warnings.warn("Could not open associated store: {}".format(store))
 
@@ -333,6 +351,7 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         # We add a loader we need to clear the cache
         self._cached_loaders = collections.OrderedDict()
 
@@ -358,6 +377,7 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         # We deleted a loader we need to clear the cache
         existing_cached = self._cached_loaders.values()
         empty_types = []
@@ -399,6 +419,7 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         self.delete_loader(loader, permanently=True)
 
     @lock_strategies.lock_method
@@ -482,6 +503,7 @@ class KoshStore(object):
         :type force: str
         :returns: whether the deletion happened.
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         ret = self.__sina_store.delete_all_contents(force=force)
         update_store_and_get_info_record(self.__sina_store.records)
         create_kosh_users(self.__sina_store.records)
@@ -495,7 +517,7 @@ class KoshStore(object):
         :param loader: Loader to save
         :type loader: KoshLoader
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         pickled = kosh_pickler.dumps(loader)
         rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
         if rec is not None:
@@ -544,6 +566,7 @@ class KoshStore(object):
         :param Id: unique Id or kosh_obj
         :type Id: str
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         if not isinstance(Id, six.string_types):
             Id = Id.id
         rec = self.get_record(Id)
@@ -578,6 +601,7 @@ class KoshStore(object):
         :return: KoshEnsemble
         :rtype: KoshEnsemble
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         return self.create(name=name, id=id, metadata=metadata, schema=schema, sina_type=self._ensembles_type, **kargs)
 
     @lock_strategies.lock_method
@@ -603,6 +627,7 @@ class KoshStore(object):
         :return: KoshDataset
         :rtype: KoshDataset
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         if "datasetId" in kargs:
             if id is None:
                 warnings.warn(
@@ -1310,7 +1335,7 @@ class KoshStore(object):
         :param groups: kosh specific groups to add to this user
         :type groups: list
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_users = self.__record_handler__.find_with_type(
             self._users_type)
         users = [rec["data"]["username"]["value"] for rec in existing_users]
@@ -1331,7 +1356,7 @@ class KoshStore(object):
         :param group: ugroup to add
         :type group: str
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_groups = self.__record_handler__.find_with_type(
             self._groups_type)
         groups_names = [rec["data"]["name"]["value"]
@@ -1362,7 +1387,7 @@ class KoshStore(object):
         :param groups: kosh specific groups to add to this user
         :type groups: list
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         users_filter = self.__record_handler__.find_with_type(
             self._users_type, ids_only=True)
         names_filter = list(
@@ -1453,6 +1478,7 @@ class KoshStore(object):
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         out = []
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
@@ -1726,7 +1752,7 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         # First let's convert to abs path if necessary
         if absolute_path:
             if os.path.exists(target):
@@ -1808,6 +1834,7 @@ class KoshStore(object):
         :returns: list of uris (to be) removed.
         :rtype: list
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         missings = []
         datasets = self.find()
         for dataset in datasets:
@@ -1843,6 +1870,7 @@ class KoshStore(object):
                            the association in both stores.
         :type reciprocal: bool
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         if not isinstance(store, KoshStore):
             raise TypeError("store must be a KoshStore or path to one")
 
@@ -1872,6 +1900,7 @@ class KoshStore(object):
                            the dissociation in both stores.
         :type reciprocal: bool
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         if not isinstance(store, (six.string_types, KoshStore)):
             raise TypeError("store must be a KoshStore or path to one")
 
@@ -2066,7 +2095,7 @@ class KoshStore(object):
         :param mk_dirs: Make destination directories if they don't exist
         :type mk_dirs: bool, optional
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         self._mv_cp(src, dst, "mv", stores, destination_stores, dataset_record_type,
                     dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
@@ -2096,7 +2125,7 @@ class KoshStore(object):
         :param mk_dirs: Make destination directories if they don't exist
         :type mk_dirs: bool, optional
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         self._mv_cp(src, dst, "cp", stores, destination_stores, dataset_record_type,
                     dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
