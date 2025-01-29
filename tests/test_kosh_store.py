@@ -367,6 +367,112 @@ class KoshTestStore(KoshTest):
         os.remove(db_3)
         os.remove(db_2)
 
+    def test_append_store(self):
+        store, db = self.connect(connection_type="append")
+        store2, db = self.connect(connection_type="append")
+
+        #################
+        #     Store     #
+        #################
+
+        class FooLoader(kosh.KoshLoader):
+
+            def extract(self):
+                return []
+
+            def list_features(self):
+                return []
+
+        store.add_loader(FooLoader)
+
+        with self.assertRaises(RuntimeError):
+            store.delete_loader(FooLoader)
+
+        with self.assertRaises(RuntimeError):
+            store.remove_loader(FooLoader)
+
+        with self.assertRaises(RuntimeError):
+            store.delete_all_contents()
+
+        ds = store.create(id="main dataset")
+
+        with self.assertRaises(RuntimeError):
+            store.delete("main dataset")
+
+        ens = store.create_ensemble(id="main_ensemble")
+
+        store.add_user("main user")
+
+        store.add_group("main group")
+
+        store.add_user_to_group("main user", ["main group 2"])
+
+        tests_path = os.path.dirname(__file__)
+
+        store.import_dataset(os.path.join(tests_path, "baselines/sina/sina_curve_rec.json"))
+
+        store.associate(store2)
+
+        with self.assertRaises(RuntimeError):
+            store.dissociate(store2)
+
+        with self.assertRaises(RuntimeError):
+            store.reassociate(os.path.join(tests_path, "./baselines/sina/sina_curve_rec.json"))
+
+        with self.assertRaises(RuntimeError):
+            store.cleanup_files()
+
+        store.cp(os.path.join(tests_path, "./baselines/sina/sina_curve_rec.json"),
+                 os.path.join(tests_path, "baselines/sina/sina_curve_rec_copy.json"))
+
+        with self.assertRaises(RuntimeError):
+            store.mv(os.path.join(tests_path, "baselines/sina/sina_curve_rec_copy.json"),
+                     "test.json")
+
+        ###################
+        #     Dataset     #
+        ###################
+
+        with self.assertRaises(RuntimeError):
+            ds.cleanup_files()
+
+        ds.associate(os.path.join(tests_path, "./baselines/sina/sina_curve_rec.json"), mime_type="json")
+
+        with self.assertRaises(RuntimeError):
+            ds.dissociate(os.path.join(tests_path, "./baselines/sina/sina_curve_rec.json"))
+
+        with self.assertRaises(RuntimeError):
+            ds.reassociate(os.path.join(tests_path, "./baselines/sina/sina_curve_rec.json"))
+
+        ens.add(ds)
+
+        with self.assertRaises(RuntimeError):
+            ds.leave_ensemble(ens)
+
+        ds.join_ensemble(ens)
+
+        ds2 = ds.clone()
+
+        ds2.add_curve([1, 2, 3, 4], "my_curves", "time")
+
+        with self.assertRaises(RuntimeError):
+            ds2.remove_curve_or_curve_set("my_curves")
+
+        ####################
+        #     Ensemble     #
+        ####################
+
+        with self.assertRaises(RuntimeError):
+            ens.cleanup_files()
+
+        ds3 = ens.create()
+
+        with self.assertRaises(RuntimeError):
+            ens.remove(ds3)
+
+        with self.assertRaises(NotImplementedError):
+            ens.clone()
+
 
 if __name__ == "__main__":
     A = KoshTestStore()

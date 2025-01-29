@@ -676,3 +676,13 @@ def update_json_file_with_records_and_relationships(file, output_dict):
             except AttributeError:
                 f.write(orjson.dumps(file_dict))
     return output_dict
+
+
+def __check_valid_connection_type__(connection_type, connection_types_allowed):
+    """Checks if the `connection_type` is in `connection_types_allowed` for different stores
+
+    :param connection_types_allowed: The connection types allowed for this store type
+    :type connection_types_allowed: lst
+    """
+    if connection_type not in connection_types_allowed:
+        raise RuntimeError(f"This functionality is allowed for {connection_types_allowed} only stores.")
