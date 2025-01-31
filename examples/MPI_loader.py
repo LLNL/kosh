@@ -2,44 +2,58 @@ import kosh
 import numpy as np
 import h5py
 from mpi4py import MPI
-
+print("finished imports")
 
 
 # MPI Communication with Kosh data management
-
+# Initialize MPI
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+nprocs = comm.Get_size()
+print("Set up comm")
 
 # This example shows ways to read in and operate on datasets that are too large to fit in memory.
 
 
-# Create large dataset
-
-# Create an empty array with 5386 rows and 5 columns
-data = np.zeros((539786, 5))
-
-# Generate random normal values for each column, setting location (mean) to the column index
-# Column 0 will have close to a mean of zero, column 1 will have close to a mean of 1, etc.
-for i in range(5):
-    data[:, i] = np.random.normal(loc=i, scale=1, size=539786)
-
-# Save to hdf5 file
+# All ranks need this information
 h5_file = "my_data.h5"
 dataset_name = "normal"
-with h5py.File(h5_file, "w") as f:
-    f.create_dataset(dataset_name, data=data)
+data = np.empty((0, 5))
 
+# Create large dataset on rank 0
+if rank == 0:
+    # Create an empty array with 5386 rows and 5 columns
+    data = np.zeros((53786, 5))
+    # Generate random normal values for each column, setting location (mean) to the column index
+    # Column 0 will have close to a mean of zero, column 1 will have close to a mean of 1, etc.
+    for i in range(5):
+        data[:, i] = np.random.normal(loc=i, scale=1, size=53786)
+    print(f"Array size: {data.shape}")
+
+    # Save to hdf5 file
+    with h5py.File(h5_file, "w") as f:
+        f.create_dataset(dataset_name, data=data)
+    print("Done creating h5 file")
+
+comm.Barrier()
 # We can store and organize all our datasets in a Kosh store
 store_path = "data_slicing.sql"
-store = kosh.connect(store_path, delete_all_contents=True)
+store = kosh.connect(store_path, read_only=True)
+print(f"Rank {rank} Created store: {store}")
 dset  = store.create()
 
 # Associate file to Kosh dataset
-dset.associate(h5_file, 'hdf5' )
+dset.associate(h5_file, 'hdf5')
+print(f"Added data to Kosh dataset: {dset}")
 
 # HDF5 already allows us to load slices of the data without reading in the entire dataset. 
 # Kosh's Default HDF5 Loader allows us to do the same thing with Kosh datasets pointing to HDF5 files.
 
 
 # Using MPI communication 3 ways with Kosh tools
+
+
+
 
 # 1. MPI Function with default HDF5 loader
 
@@ -86,11 +100,6 @@ def get_global_stats(local_data, total_size, comm):
 
 # Let's use these functions with our Kosh store and dataset
 
-# Initialize MPI
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-nprocs = comm.Get_size()
-
 # Get the total size of the dataset
 total_size = next(dset[dataset_name].describe_entries())["size"][0]
 print(f"Total data size: {total_size}")
@@ -98,7 +107,7 @@ print(f"Total data size: {total_size}")
 start_index, end_index = get_slice(rank, nprocs, total_size)
 
 # Read the local portion of the dataset
-local_data = kosh_dset[feature_name][slice(start_index, end_index)]
+local_data = dset[dataset_name][slice(start_index, end_index)]
 
 # Each process now has its own portion of the dataset
 print(f"Rank {rank} has data size: {local_data.shape}")
@@ -113,6 +122,8 @@ global_min, global_max, global_mean = get_global_stats(local_data,
 print("Data stats: min, max, mean\n")
 for i in range(len(global_min)):
     print(f"Column {i}: {global_min[i]}, {global_max[i]}, {global_mean[i]}")
+
+
 
 
 # 2. MPI Function with a custom Kosh loader
@@ -240,6 +251,46 @@ class NumpyTxtLoader(kosh.KoshLoader):
             feature_index = self.list_features().index(self.feature)
             return data[:, feature_index]
 
+# Let's try using this loader with the getitem functionality.
+
+# Create txt file using the same dataset as in the previous example
+txt_name = 'array.out'
+if rank == 0:
+    txt_data = np.savetxt(txt_name, data, delimiter=',')
+
+# We will use the same store as before, and add another Kosh dataset
+dset2  = store.create()
+
+# Associate the files to the Kosh dataset with array size in the metadata
+data_shape = comm.bcast(data.shape, root=0)
+metadata = {'size': data_shape[0]}
+dset2.associate(txt_name, mime_type='numpy/txt', metadata=metadata)
+
+# Get the total size of the dataset
+total_size = getattr(dset2, "size")[0]
+print(f"Total data size: {total_size}")
+
+start_index, end_index = get_slice(rank, nprocs, total_size)
+
+# Read the local portion of the dataset
+local_data = dset2["features"][slice(start_index, end_index)]
+
+# Each process now has its own portion of the dataset
+print(f"Rank {rank} has data size: {local_data.shape}")
+
+global_min, global_max, global_mean = get_global_stats(local_data,
+                                                       total_size,
+                                                       comm)
+
+# Each process was able to communicate the local statsistics, and process 0 did
+# the final communication to compute the global statistics for each column.
+
+print("Data stats: min, max, mean\n")
+for i in range(len(global_min)):
+    print(f"Column {i}: {global_min[i]}, {global_max[i]}, {global_mean[i]}")
+
+
+
 # 3. Using a Kosh operator for MPI functions with parallel enabled loader
 
 # In a Kosh operator, the __getitem_propogate__ function will propogate the required
@@ -248,9 +299,68 @@ class NumpyTxtLoader(kosh.KoshLoader):
 # __getitem_propogate__ needs to also receive the index of the input to which we will
 # propogate the corresponding key.
 
-# Let's continue our example with an HDF5 data file but this time the MPI functions will
-# take place in a Kosh operator, and using the global min and max we can return normalized
-# dataset chunks to each process.
+# Let's continue our example with the default HDF5 loader, but this time the MPI functions will
+# take place in a Kosh operator. The Kosh operator allows for multiple input files. 
+
+# We will create a few arrays with varying row sizes, but all with 5 columns. Only do the work
+# on rank 0 so we don't create duplicate files.
+if rank == 0:
+    for n in range(3):
+        size = (n + 1) * 60
+        # Create an empty array with 5386 rows and 5 columns
+        data = np.zeros((size, 5))
+
+        # Generate random normal values for each column, setting location (mean) to the column index
+        # Column 0 will have close to a mean of zero, column 1 will have close to a mean of 1, etc.
+        for i in range(5):
+            data[:, i] = np.random.normal(loc=i, scale=1, size=size)
+
+        # Save to hdf5 file
+        h5_file = f"my_data{n}.h5"
+        dataset_name = f"normal{n}"
+        with h5py.File(h5_file, "w") as f:
+            f.create_dataset(dataset_name, data=data)
+
+# We will use the same store as before, and add another Kosh dataset
+dset3  = store.create()
+
+# Associate the files to the Kosh dataset
+dset3.associate(["my_data0.h5", "my_data1.h5", "my_data2.h5"], 'hdf5')
+
+# We need a function to assign data to each processor from multiple files
+
+def distribute_data(total_size, nprocs, rank):
+
+    # Calculate the start and end indices for each process
+    start_idx = rank * total_size // nprocs
+    end_idx = (rank + 1) * total_size // nprocs
+
+    # Create a list to hold the local data sizes and corresponding file indices
+    local_data_info = []
+    current_size = 0
+
+    for i, size in enumerate(sizes):
+        if current_size + size > start_idx and current_size < end_idx:
+            # Calculate the number of rows to read for this dataset
+            if current_size < start_idx:
+                # Calculate the starting row for this dataset
+                start_row = start_idx - current_size
+            else:
+                start_row = 0
+            
+            if current_size + size > end_idx:
+                # Calculate the number of rows to read
+                end_row = end_idx - current_size
+            else:
+                end_row = size
+            
+            local_data_info.append((i, start_row, end_row))  # Store the index and row range
+        current_size += size
+
+    return local_data_info
+
+# Now we can create a custom Kosh operator that can distribute data evenly across the
+# processors and return the min and max of all the columns.
 
 class MPINormalize(kosh.KoshOperator):
 
@@ -267,18 +377,21 @@ class MPINormalize(kosh.KoshOperator):
 
     def operate(self, *inputs, **kargs):
 
-        # It's possible to give operators multiple Kosh datasets
-        # This operator is assuming only one
-        kosh_dset = inputs[0]
+        # Get the sizes of each kosh dataset
+        input_sizes = []
+        desc = list(self.describe_entries())
+        for i in range(len(inputs)):
+            input_sizes.append(desc[i]["size"][0])
 
-        # Get the total size of the dataset
-        total_size = next(kosh_dset.describe_entries())["size"][0]
+        total_size = sum(input_sizes)
 
-        # Each process will load the portion of the data assigned to it
-        start_index, end_index = get_slice(rank, nprocs, total_size)
+        local_data_info = distribute_data(total_size, nprocs, rank)
 
-        # Read the local portion of the dataset
-        local_data = kosh_dset[feature_name][slice(start_index, end_index)]
+        # Each process can now read its assigned datasets
+        local_data = np.empty((0, 5), dtype=float)
+        for index, start, stop in local_data_info:
+            data = dset3[f"normal{index}"]
+            local_data = np.concatenate(local_data, data, axis=0)
 
         # With MPI we calculate statistics for each column in the dataset
         global_min, global_max, _ = get_global_stats(local_data,
@@ -287,10 +400,10 @@ class MPINormalize(kosh.KoshOperator):
 
         # Using the min and max we normalize each column of data
         for f in range(len(global_min)):
-            data[:, f] = (data[:, f] - global_min[f]) / \
+            local_data[:, f] = (local_data[:, f] - global_min[f]) / \
                 (global_max[f] - global_min[f])
 
-        return data
+        return local_data
 
     def __getitem_propogate__(self, key, input_index):
 
@@ -307,68 +420,3 @@ print(sliced_data)
 
 # WARNING: You must be aware when creating custom loaders that you might not get
 # the result you are expecting. See the Advanced Data Slicing example
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-##########################################################################################
-
-####################### Use this capability in a Kosh operator ###########################
-
-##########################################################################################
-
-
-
-class ParallelDataPrep(kosh.KoshOperator):
-    types = {"range": ["numpy", ]}
-
-    def __init__(self, *inputs, **kargs):
-        super(ParallelDataPrep, self).__init__(*inputs, **kargs)
-
-    def operate(self, *inputs, **args):
-
-        # Initialize MPI
-        comm = MPI.COMM_WORLD
-        rank = comm.Get_rank()
-        nprocs = comm.Get_size()
-
-    def __getitem__(self, key):
-        if isinstance(key, slice):
-            # Return a slice of the dataset
-            return self.dataset[key]
-        else:
-            # Return a single item from the dataset
-            return self.dataset[key]
-
-
-
-# # Make sure our custom loader is picked up
-# del store.loaders["hdf5"]
-# store.add_loader(MySlicingLoader)
-# loader = MySlicingLoader(store_path, dset[dataset_name])
-
-# # Get the total size of the dataset
-# total_size = loader.get_data_size()
-
-# # Calculate the chunk size for each rank
-# chunk_size = total_size // size
-# remainder = total_size % size
-
-# # Calculate start and end indices for each rank
-# start_index = rank * chunk_size + min(rank, remainder)
-# end_index = start_index + chunk_size + (1 if rank < remainder else 0)
-
