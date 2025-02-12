@@ -155,18 +155,19 @@ class RFileLock(LockStrategy):
         self.timeout = timeout
         self._lock = FileLock(lock_path, timeout=timeout)
         self.pid = os.getpid()
+        # Keeps track of number of nested functions
         if self.pid not in pid_map:
             pid_map[self.pid] = 0
         self.functions = []
 
     def lock(self):
-        self.functions.append('lock')
         LOGGER.info(msg=f"    {self.pid = } entering lock with {self.timeout = } secs & count {pid_map[self.pid]}...")
         exceptions = []
         for i in range(self.num_tries):
             try:
                 if pid_map[self.pid] == 0:
                     self._lock.acquire()
+                # Entering nested function
                 pid_map[self.pid] += 1
                 return
 
@@ -181,7 +182,9 @@ class RFileLock(LockStrategy):
         raise exceptions[0]
 
     def unlock(self):
+        # Exiting nested function
         pid_map[self.pid] -= 1
+        # Back to original function
         if pid_map[self.pid] <= 0:
             self._lock.release()
             self.functions = []
@@ -211,7 +214,7 @@ class RFileLock(LockStrategy):
                     num_tries -= 1
                     exceptions.append(e)
                     msg = f"\nError in parent function {error_stack[0]}.\n"
-                    msg += f"Exception {e} in child {func.__name__}. "
+                    msg += f"Exception {e} in child function {func.__name__}. "
                     msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
                     msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
                     trace = "\n\t\t".join([str(x) for x in traceback.extract_tb(tb)])
@@ -235,11 +238,23 @@ class OnlyRetry(RFileLock):
     def __init__(self, num_tries=10, patience=1):
         self.num_tries = num_tries
         self.patience = patience
+        self.pid = os.getpid()
+        # Keeps track of number of nested functions
+        if self.pid not in pid_map:
+            pid_map[self.pid] = 0
+        self.functions = []
 
     def __enter__(self):
+        # Entering nested function
+        pid_map[self.pid] += 1
         pass
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Exiting nested function
+        pid_map[self.pid] -= 1
+        # Back to original function
+        if pid_map[self.pid] <= 0:
+            self.functions = []
         pass
 
     def lock(self):
