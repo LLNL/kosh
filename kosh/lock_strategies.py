@@ -5,7 +5,6 @@ import functools
 import os
 import logging
 import random
-import sys
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(int(os.environ.get('LOCK_STRATEGIES_LOG_LEVEL', 30)))   # 30 is logging.WARNING
@@ -158,8 +157,10 @@ class RFileLock(LockStrategy):
         self.pid = os.getpid()
         if self.pid not in pid_map:
             pid_map[self.pid] = 0
+        self.functions = []
 
     def lock(self):
+        self.functions.append('lock')
         LOGGER.info(msg=f"    {self.pid = } entering lock with {self.timeout = } secs & count {pid_map[self.pid]}...")
         exceptions = []
         for i in range(self.num_tries):
@@ -183,12 +184,14 @@ class RFileLock(LockStrategy):
         pid_map[self.pid] -= 1
         if pid_map[self.pid] <= 0:
             self._lock.release()
+            self.functions = []
 
     def threadsafe_call(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kargs):
             exceptions = []
             num_tries = self.num_tries
+            self.functions.append(str(func))
             while num_tries > 0:
                 try:
                     LOGGER.info(msg=f'Entering function: {func} with {*args,} & { {k: v for k, v in kargs.items()} }')
@@ -200,26 +203,28 @@ class RFileLock(LockStrategy):
                     return result
 
                 except Exception as e:
+                    if any(func_error == "RETRIES COMPLETE" for func_error in self.functions):
+                        raise
                     import traceback
                     error_stack = traceback.extract_stack()
                     tb = e.__traceback__
                     num_tries -= 1
                     exceptions.append(e)
                     msg = f"\nError in parent function {error_stack[0]}.\n"
-                    msg = f"Exception {e} in child {func.__name__}. "
+                    msg += f"Exception {e} in child {func.__name__}. "
                     msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
                     msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
                     trace = "\n\t\t".join([str(x) for x in traceback.extract_tb(tb)])
-                    msg += f"Error Stack: {trace}"
+                    msg += f"\nError Stack:\n\t\t{trace}"
                     LOGGER.warning(msg=msg)
                     print(msg)  # For users without a logger
                     time.sleep(self.patience + random.random())  # random in case parallel calls retry at same time
+            self.functions.append("RETRIES COMPLETE")
             exception_reprs = '\n'.join([repr(e) for e in exceptions])
             msg = f"Function {func.__name__} failed after {self.num_tries} attempts. "
             msg += f"Exception Traceback(s): \n{exception_reprs}"
             LOGGER.exception(msg=msg)
-            sys.exit(1)
-            # raise exceptions[0]
+            raise exceptions[0]
         return wrapper
 
 
