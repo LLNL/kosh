@@ -2,7 +2,6 @@ import kosh
 import numpy as np
 import h5py
 from mpi4py import MPI
-print("finished imports")
 
 
 # MPI Communication with Kosh data management
@@ -10,7 +9,6 @@ print("finished imports")
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 nprocs = comm.Get_size()
-print("Set up comm")
 
 # This example shows ways to read in and operate on datasets that are too large to fit in memory.
 
@@ -33,18 +31,15 @@ if rank == 0:
     # Save to hdf5 file
     with h5py.File(h5_file, "w") as f:
         f.create_dataset(dataset_name, data=data)
-    print("Done creating h5 file")
 
-comm.Barrier()
+
 # We can store and organize all our datasets in a Kosh store
 store_path = "data_slicing.sql"
 store = kosh.connect(store_path, read_only=True)
-print(f"Rank {rank} Created store: {store}")
 dset  = store.create()
 
 # Associate file to Kosh dataset
 dset.associate(h5_file, 'hdf5')
-print(f"Added data to Kosh dataset: {dset}")
 
 # HDF5 already allows us to load slices of the data without reading in the entire dataset. 
 # Kosh's Default HDF5 Loader allows us to do the same thing with Kosh datasets pointing to HDF5 files.
@@ -101,8 +96,11 @@ def get_global_stats(local_data, total_size, comm):
 # Let's use these functions with our Kosh store and dataset
 
 # Get the total size of the dataset
-total_size = next(dset[dataset_name].describe_entries())["size"][0]
-print(f"Total data size: {total_size}")
+total_size = 0
+if rank == 0:
+    total_size = next(dset[dataset_name].describe_entries())["size"][0]
+total_size = comm.bcast(total_size, root=0)
+print(f"Rank {rank} has total data size: {total_size}")
 
 start_index, end_index = get_slice(rank, nprocs, total_size)
 
@@ -119,11 +117,15 @@ global_min, global_max, global_mean = get_global_stats(local_data,
 # Each process was able to communicate the local statsistics, and process 0 did
 # the final communication to compute the global statistics for each column.
 
-print("Data stats: min, max, mean\n")
+if rank == 0: 
+    print("Data stats: min, max, mean\n")
 for i in range(len(global_min)):
-    print(f"Column {i}: {global_min[i]}, {global_max[i]}, {global_mean[i]}")
+    if rank == 0:
+        print(f"Column {i}: {global_min[i]}, {global_max[i]}, {global_mean[i]}")
+    else:
+        print(f"Rank {rank} global_min {global_min[i]}")
 
-
+comm.Barrier()
 
 
 # 2. MPI Function with a custom Kosh loader
@@ -256,18 +258,19 @@ class NumpyTxtLoader(kosh.KoshLoader):
 # Create txt file using the same dataset as in the previous example
 txt_name = 'array.out'
 if rank == 0:
-    txt_data = np.savetxt(txt_name, data, delimiter=',')
+    txt_data = np.savetxt(txt_name, data)
 
 # We will use the same store as before, and add another Kosh dataset
-dset2  = store.create()
-
-# Associate the files to the Kosh dataset with array size in the metadata
+#  with array size in the metadata
 data_shape = comm.bcast(data.shape, root=0)
 metadata = {'size': data_shape[0]}
-dset2.associate(txt_name, mime_type='numpy/txt', metadata=metadata)
+dset2  = store.create("array", metadata=metadata, features_separator=',')
+
+# Associate the files to the Kosh dataset
+dset2.associate(txt_name, mime_type='numpy/txt')
 
 # Get the total size of the dataset
-total_size = getattr(dset2, "size")[0]
+total_size = getattr(dset2, "size")
 print(f"Total data size: {total_size}")
 
 start_index, end_index = get_slice(rank, nprocs, total_size)
@@ -288,7 +291,7 @@ global_min, global_max, global_mean = get_global_stats(local_data,
 print("Data stats: min, max, mean\n")
 for i in range(len(global_min)):
     print(f"Column {i}: {global_min[i]}, {global_max[i]}, {global_mean[i]}")
-
+comm.Barrier()
 
 
 # 3. Using a Kosh operator for MPI functions with parallel enabled loader
@@ -317,21 +320,26 @@ if rank == 0:
 
         # Save to hdf5 file
         h5_file = f"my_data{n}.h5"
-        dataset_name = f"normal{n}"
+        dataset_name = "normal"
         with h5py.File(h5_file, "w") as f:
             f.create_dataset(dataset_name, data=data)
 
 # We will use the same store as before, and add another Kosh dataset
 dset3  = store.create()
+dset4 = store.create()
+dset5 = store.create()
 
 # Associate the files to the Kosh dataset
-dset3.associate(["my_data0.h5", "my_data1.h5", "my_data2.h5"], 'hdf5')
+dset3.associate("my_data0.h5", 'hdf5')
+dset4.associate("my_data1.h5", 'hdf5')
+dset5.associate("my_data2.h5", 'hdf5')
 
 # We need a function to assign data to each processor from multiple files
 
-def distribute_data(total_size, nprocs, rank):
+def distribute_data(sizes, nprocs, rank):
 
     # Calculate the start and end indices for each process
+    total_size = sum(sizes)
     start_idx = rank * total_size // nprocs
     end_idx = (rank + 1) * total_size // nprocs
 
@@ -367,7 +375,7 @@ class MPINormalize(kosh.KoshOperator):
     types = {"numpy": ["numpy", ]}
 
     def __init__(self, *args, **options):
-        super(KoshCluster, self).__init__(*args, **options)
+        super(MPINormalize, self).__init__(*args, **options)
         self.options = options
 
         # Initialize MPI
@@ -379,19 +387,22 @@ class MPINormalize(kosh.KoshOperator):
 
         # Get the sizes of each kosh dataset
         input_sizes = []
-        desc = list(self.describe_entries())
-        for i in range(len(inputs)):
-            input_sizes.append(desc[i]["size"][0])
+        total_size = 0
+        if rank == 0:
+            desc = list(self.describe_entries())
+            for i in range(len(inputs)):
+                input_sizes.append(desc[i]["size"][0])
+            total_size = sum(input_sizes)
+        input_sizes = comm.bcast(input_sizes, root=0)
+        total_size = comm.bcast(total_size, root=0)
 
-        total_size = sum(input_sizes)
-
-        local_data_info = distribute_data(total_size, nprocs, rank)
+        local_data_info = distribute_data(input_sizes, nprocs, rank)
 
         # Each process can now read its assigned datasets
         local_data = np.empty((0, 5), dtype=float)
         for index, start, stop in local_data_info:
-            data = dset3[f"normal{index}"]
-            local_data = np.concatenate(local_data, data, axis=0)
+            data = inputs[index][slice(start, stop)]
+            local_data = np.concatenate((local_data, data), axis=0)
 
         # With MPI we calculate statistics for each column in the dataset
         global_min, global_max, _ = get_global_stats(local_data,
@@ -405,18 +416,61 @@ class MPINormalize(kosh.KoshOperator):
 
         return local_data
 
-    def __getitem_propogate__(self, key, input_index):
 
-        start = key.start
-        stop = key.stop
-
-        return slice(start, stop, key.step)
-
-MPIN = MPINormalize(kosh_dset[feature_name])
-
-sliced_data = MPIN[:, 2]
-print(sliced_data)
+scaled_local = MPINormalize(dset3['normal'], dset4['normal'], dset5['normal'])[:]
+print(f"Rank {rank} local data: shape {scaled_local.shape}, min {scaled_local.min(axis=0)}, max {scaled_local.max(axis=0)}, mean {scaled_local.mean(axis=0)}")
         
 
+
+# class distributed_stats(kosh.KoshOperator):
+
+#     types = {"numpy": ["numpy", ]}
+
+#     def __init__(self, *args, **options):
+#         super(KoshCluster, self).__init__(*args, **options)
+#         self.options = options
+
+#     def operate(self, *inputs, **kargs):
+
+#         # Get the sizes of each kosh dataset
+#         input_sizes = []
+#         desc = list(self.describe_entries())
+#         for i in range(len(inputs)):
+#             input_sizes.append(desc[i]["size"][0])
+
+#         total_size = sum(input_sizes)
+
+#         local_data_info = distribute_data(total_size, nprocs, rank)
+
+#         # Each process can now read its assigned datasets
+#         local_data = np.empty((0, 5), dtype=float)
+#         for index, start, stop in local_data_info:
+#             data = dset3[f"normal{index}"]
+#             local_data = np.concatenate(local_data, data, axis=0)
+
+#         # With MPI we calculate statistics for each column in the dataset
+#         global_min, global_max, _ = get_global_stats(local_data,
+#                                                      total_size,
+#                                                      comm)
+
+#         # Using the min and max we normalize each column of data
+#         for f in range(len(global_min)):
+#             local_data[:, f] = (local_data[:, f] - global_min[f]) / \
+#                 (global_max[f] - global_min[f])
+
+#         return local_data
+
+
+# # Initialize MPI
+# self.comm = MPI.COMM_WORLD
+# self.rank = comm.Get_rank()
+# self.nprocs = comm.Get_size()
+
+
+
+# MPIN = MPINormalize(kosh_dset[feature_name])
+
+# sliced_data = MPIN[:, 2]
+# print(sliced_data)
 # WARNING: You must be aware when creating custom loaders that you might not get
 # the result you are expecting. See the Advanced Data Slicing example
