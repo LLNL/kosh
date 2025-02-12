@@ -164,6 +164,10 @@ for i in range(args.datasets):
     LOGGER.info(msg='kosh_gpu.py: ds = store.create()')
     ds = store.create(id=f"run_{args.run_number}_dataset_{i}",
                       metadata=metadata)
+
+    LOGGER.info(msg='getattr(ds, "test", -1)')
+    test = getattr(ds, 'test', -1)
+
     for j in range(args.datasets):
         j_start = datetime.now()
         print(f'\tInitial Datasets Start j: {j+1} of {args.datasets}')
@@ -407,6 +411,9 @@ for i in range(args.ensembles):
     store.tar(f"{ens_ID}.tar", "-c", src=os.path.abspath(ens_ID))
     LOGGER.info(msg='kosh_gpu.py: store.delete()')
     store.delete(ds.id)
+    # second delete is used to test if lock strategies get stuck in loop
+    # LOGGER.info(msg='kosh_gpu.py: store.delete()')
+    # store.delete(ds.id)
 
     print(f'Records End i: {i+1} of {args.ensembles}: {datetime.now() - i_start}')
 

@@ -39,7 +39,7 @@ class KoshTestStore(KoshTest):
         yaml_path = os.path.join(self.test_pth, "parallel", "kosh_scaling_maestro.yaml")
         pgen_path = os.path.join(self.test_pth, "parallel", "kosh_scaling_pgen.py")
 
-        # maestro run tests/kosh_scaling_maestro.yaml --pgen tests/kosh_scaling_pgen.py -y
+        # maestro run tests/parallel/kosh_scaling_maestro.yaml --pgen tests/parallel/kosh_scaling_pgen.py -y
         # With --lock-strategy RFileLock
         #     2 parallel runs with --ensembles 2 --datasets 2
         #         Total Time to complete: 0:01:02.995092
