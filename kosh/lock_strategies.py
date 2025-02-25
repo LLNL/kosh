@@ -5,7 +5,6 @@ import functools
 import os
 import logging
 import random
-import sys
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(int(os.environ.get('LOCK_STRATEGIES_LOG_LEVEL', 30)))   # 30 is logging.WARNING
@@ -156,8 +155,10 @@ class RFileLock(LockStrategy):
         self.timeout = timeout
         self._lock = FileLock(lock_path, timeout=timeout)
         self.pid = os.getpid()
+        # Keeps track of number of nested functions
         if self.pid not in pid_map:
             pid_map[self.pid] = 0
+        self.functions = []
 
     def lock(self):
         LOGGER.info(msg=f"    {self.pid = } entering lock with {self.timeout = } secs & count {pid_map[self.pid]}...")
@@ -166,6 +167,7 @@ class RFileLock(LockStrategy):
             try:
                 if pid_map[self.pid] == 0:
                     self._lock.acquire()
+                # Entering nested function
                 pid_map[self.pid] += 1
                 return
 
@@ -180,15 +182,19 @@ class RFileLock(LockStrategy):
         raise exceptions[0]
 
     def unlock(self):
+        # Exiting nested function
         pid_map[self.pid] -= 1
+        # Back to original function
         if pid_map[self.pid] <= 0:
             self._lock.release()
+            self.functions = []
 
     def threadsafe_call(self, func):
         @functools.wraps(func)
         def wrapper(*args, **kargs):
             exceptions = []
             num_tries = self.num_tries
+            self.functions.append(str(func))
             while num_tries > 0:
                 try:
                     LOGGER.info(msg=f'Entering function: {func} with {*args,} & { {k: v for k, v in kargs.items()} }')
@@ -200,26 +206,28 @@ class RFileLock(LockStrategy):
                     return result
 
                 except Exception as e:
+                    if any(func_error == "RETRIES COMPLETE" for func_error in self.functions):
+                        raise
                     import traceback
                     error_stack = traceback.extract_stack()
                     tb = e.__traceback__
                     num_tries -= 1
                     exceptions.append(e)
                     msg = f"\nError in parent function {error_stack[0]}.\n"
-                    msg = f"Exception {e} in child {func.__name__}. "
+                    msg += f"Exception {e} in child function {func.__name__}. "
                     msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
                     msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
                     trace = "\n\t\t".join([str(x) for x in traceback.extract_tb(tb)])
-                    msg += f"Error Stack: {trace}"
+                    msg += f"\nError Stack:\n\t\t{trace}"
                     LOGGER.warning(msg=msg)
                     print(msg)  # For users without a logger
                     time.sleep(self.patience + random.random())  # random in case parallel calls retry at same time
+            self.functions.append("RETRIES COMPLETE")
             exception_reprs = '\n'.join([repr(e) for e in exceptions])
             msg = f"Function {func.__name__} failed after {self.num_tries} attempts. "
             msg += f"Exception Traceback(s): \n{exception_reprs}"
             LOGGER.exception(msg=msg)
-            sys.exit(1)
-            # raise exceptions[0]
+            raise exceptions[0]
         return wrapper
 
 
@@ -230,11 +238,23 @@ class OnlyRetry(RFileLock):
     def __init__(self, num_tries=10, patience=1):
         self.num_tries = num_tries
         self.patience = patience
+        self.pid = os.getpid()
+        # Keeps track of number of nested functions
+        if self.pid not in pid_map:
+            pid_map[self.pid] = 0
+        self.functions = []
 
     def __enter__(self):
+        # Entering nested function
+        pid_map[self.pid] += 1
         pass
 
     def __exit__(self, exc_type, exc_value, traceback):
+        # Exiting nested function
+        pid_map[self.pid] -= 1
+        # Back to original function
+        if pid_map[self.pid] <= 0:
+            self.functions = []
         pass
 
     def lock(self):

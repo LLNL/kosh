@@ -10,6 +10,7 @@ from .utils import compute_fast_sha
 from .utils import compute_long_sha
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
+from .utils import __check_valid_connection_type__
 from . import lock_strategies
 import kosh
 import six
@@ -165,6 +166,7 @@ class KoshDataset(KoshSinaObject):
         :returns: list of uris (to be) removed or updated
         :rtype: list
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         bads = []
         for associated in self.find(**search_keys):
             clean = 'n'
@@ -626,6 +628,7 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         self.__store__.reassociate(target, source=source, absolute_path=absolute_path)
 
     @lock_strategies.lock_method
@@ -687,7 +690,7 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
-
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         if absolute_path and os.path.exists(uri):
             uri = os.path.abspath(uri)
         rec = self.get_record()
@@ -757,7 +760,7 @@ class KoshDataset(KoshSinaObject):
         :return: A (list) Kosh Sina File(s)
         :rtype: list of KoshSinaFile or KoshSinaFile
         """
-
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         rec = self.get_record()
         # Need to remember we touched associated files
         now = time.time()
@@ -1077,6 +1080,7 @@ class KoshDataset(KoshSinaObject):
         :param ensemble: The ensemble to leave
         :type ensemble: str or KoshEnsemble
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
@@ -1096,6 +1100,7 @@ class KoshDataset(KoshSinaObject):
         :param ensemble: The ensemble to join
         :type ensemble: str or KoshEnsemble
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble, requestorId=self.id)
@@ -1124,6 +1129,7 @@ class KoshDataset(KoshSinaObject):
         :returns: The cloned dataset or its id
         :rtype: KoshDataset or str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         attributes = self.list_attributes(True)
         cloned_dataset = self.__store__.create(metadata=attributes)
         for associated in self.get_associated_data():
@@ -1260,6 +1266,7 @@ class KoshDataset(KoshSinaObject):
         :returns: the curve_set/curve_name path
         :rtype: str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         # Before anything else lets remove the cached features
         cached_features = self.__store__._cached_features_
         yank = []
@@ -1328,6 +1335,7 @@ class KoshDataset(KoshSinaObject):
                           name.
         :type curve_set: str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         original_curve_set = curve_set
         rec = self.get_record()
         if curve_set is None:
