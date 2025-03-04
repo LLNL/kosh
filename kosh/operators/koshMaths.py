@@ -1,4 +1,3 @@
-import numpy as np
 from .core import KoshOperator
 
 
@@ -46,6 +45,7 @@ class KoshLNorm(KoshOperator):
         self.loaders_used = loaders_used
 
     def operate(self, *inputs, **kargs):
+        import numpy as np
 
         features = {}
         features[0] = {}

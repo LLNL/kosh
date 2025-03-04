@@ -2,8 +2,6 @@ import os
 import gc
 import sys
 import uuid
-import sina.utils
-from sina.model import Relationship
 import collections
 if not sys.platform.startswith("win"):
     import fcntl
@@ -24,7 +22,6 @@ from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
 from .utils import create_kosh_users
 from .utils import update_store_and_get_info_record, get_store_info_record
 from .utils import get_store_info_record_attribute
-from sina import connect as sina_connect
 from inspect import isfunction, ismethod
 import kosh
 import six
@@ -32,7 +29,6 @@ import types
 import sys
 from .kosh_command import KoshCmd, process_cmd
 from . import lock_strategies
-from sqlalchemy.exc import ResourceClosedError
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -92,6 +88,8 @@ figures out which backend is required.
 :return: a KoshStore object connected to the specified database
 :rtype: KoshStoreClass
 """
+    from sina import connect as sina_connect
+    from sqlalchemy.exc import ResourceClosedError
     if lock_strategy is None:
         lock_strategy = lock_strategies.NoLocking()
 
@@ -182,6 +180,8 @@ class KoshStore(object):
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
         """
+        from sina import connect as sina_connect
+        from sina.utils import Negation
         if lock_strategy is None:
             lock_strategy = lock_strategies.NoLocking()
         self.lock_strategy = lock_strategy
@@ -253,7 +253,7 @@ class KoshStore(object):
                 rec["data"]["reserved_types"]["value"]
             kosh_reserved = list(self._kosh_reserved_record_types)
             kosh_reserved.remove(self._sources_type)
-            self._kosh_datasets_and_sources = sina.utils.Negation(kosh_reserved)
+            self._kosh_datasets_and_sources = Negation(kosh_reserved)
 
             # Associated stores
             self._associated_stores_ = []
@@ -536,7 +536,7 @@ class KoshStore(object):
         :param Id: record id
         :type Id: str
         :return: sina record
-        :rtpye: sina.model.Record
+        :rtype: sina.model.Record
         """
         if (not self.__sync__) and Id in self.__sync__dict__:
             record = self.__sync__dict__[Id]
@@ -779,7 +779,8 @@ class KoshStore(object):
         :type requestorId: str
         :return:
         """
-        if isinstance(Id, sina.model.Record):  # Sina record by itself
+        from sina.model import Record
+        if isinstance(Id, Record):  # Sina record by itself
             Id = Id.id
 
         if loader is None:
@@ -881,6 +882,7 @@ class KoshStore(object):
         :rtype: generator
         """
 
+        from sina.model import Record
         if 'id_pool' in keys:
             if isinstance(keys['id_pool'], str):
                 ids_to_add = [keys['id_pool']]
@@ -893,7 +895,7 @@ class KoshStore(object):
 
         atts_to_remove = []
         for attr in atts:
-            if isinstance(attr, (sina.model.Record, kosh.dataset.KoshDataset)):  # Sina record or Kosh dataset by itself
+            if isinstance(attr, (Record, kosh.dataset.KoshDataset)):  # Sina record or Kosh dataset by itself
                 ids_to_add.append(attr.id)
                 atts_to_remove.append(attr)
             elif isinstance(attr, types.GeneratorType):  # Multiple records from Sina.find() or Kosh.find()
@@ -951,7 +953,7 @@ class KoshStore(object):
         :return: generator of matching objects in store
         :rtype: generator
         """
-
+        from sina.utils import Negation, not_, exists
         mode = self.__sync__
         if mode:
             # we will not update any rec in here, turnin off sync
@@ -979,7 +981,7 @@ class KoshStore(object):
         if isinstance(record_types, six.string_types):
             record_types = [record_types, ]
         if record_types not in [None, (None, None)] and not isinstance(
-                record_types, (list, tuple, sina.utils.Negation)):
+                record_types, (list, tuple, Negation)):
             raise ValueError("`types` must be None, str, list or sina.utils.Negation")
 
         if 'file_uri' in keys and 'file' in keys:
@@ -1005,7 +1007,7 @@ class KoshStore(object):
             "query_order", ("data", "file_uri", "types"))
 
         if record_types == (None, None):
-            record_types = sina.utils.not_(self._kosh_reserved_record_types)
+            record_types = not_(self._kosh_reserved_record_types)
             if sina_kargs["id_pool"] is not None:
                 record_types = None
 
@@ -1021,7 +1023,7 @@ class KoshStore(object):
 
         # Maybe user is trying to get an attribute data
         for att in atts:
-            sina_data[att] = sina.utils.exists()
+            sina_data[att] = exists()
 
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
@@ -1527,6 +1529,7 @@ class KoshStore(object):
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
+        from sina.model import Relationship, generate_record_from_json
         if isinstance(datasets, str):
             with open(datasets) as f:
                 from_file = orjson.loads(f.read())
@@ -1547,7 +1550,7 @@ class KoshStore(object):
         if ingest_funcs is not None:
             temp_store = connect(None)
             temp_store.get_sina_records().insert(
-                [sina.model.generate_record_from_json(record) for record in records_in])
+                [generate_record_from_json(record) for record in records_in])
             temp_datasets = list(temp_store.find())
             if isinstance(ingest_funcs, (list, tuple)):
                 for ingest_func in ingest_funcs:
@@ -1646,7 +1649,7 @@ class KoshStore(object):
             if isinstance(match_rec, dict):
                 if 'id' not in match_rec:
                     match_rec['id'] = uuid.uuid4().hex
-                match_rec = sina.model.generate_record_from_json(match_rec)
+                match_rec = generate_record_from_json(match_rec)
 
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:

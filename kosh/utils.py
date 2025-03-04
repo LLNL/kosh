@@ -1,27 +1,17 @@
 from __future__ import absolute_import
 import collections
-import pkg_resources
 import os
 import kosh
 import hashlib
-import numpy
 import random
-import networkx as nx
-from .wrapper import KoshScriptWrapper  # noqa
 import warnings
-from sina.model import Record
-from kosh.exec_graphs import find_network_ends, populate
 import pickle
+from .wrapper import KoshScriptWrapper # noqa
 from . import lock_strategies
 try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
-
-try:
-    default_nx_layout = nx.planar_layout
-except AttributeError:  # planar is available from nx version 2.5
-    default_nx_layout = nx.circular_layout
 
 
 class KoshPickler(object):
@@ -200,7 +190,7 @@ def draw_execution_graph(G,
                          output_format=None,
                          png_name="kosh_execution_graph.png",
                          clear=True,
-                         layout=default_nx_layout):
+                         layout=None):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph or KoshExecutionGraph
     :type G: networkx.Graph
@@ -211,12 +201,16 @@ def draw_execution_graph(G,
     :param clear: clear matplotlib figure after saving
     :type clear: bool
     :param layout: A dictionary with nodes as keys and positions as values.
-                   If not specified a {} layout positioning will be computed.
+                   If not specified a planar layout positioning will be computed.
                    See networkx.drawing.layout for functions that compute node positions.
     :type layout: dict or function
     :returns: None but draws the matplotlib plt is updated and possibly saved
     :rtype: None
-    """.format(default_nx_layout.__name__)
+    """
+    import networkx as nx
+    if layout is None:
+        layout = nx.planar_layout
+    from kosh.exec_graphs import find_network_ends
     if not isinstance(layout, dict):
         layout = layout(G)
 
@@ -285,6 +279,7 @@ def compute_fast_sha(uri, n_samples=10):
     :return sha: hexdigested sha
     :rtype: str
     """
+    import numpy
     if not os.path.exists(uri):
         sha = hashlib.sha256(uri.encode())
         return sha.hexdigest()
@@ -368,6 +363,7 @@ def get_store_info_record(records):
     :returns: sina record for store info
     :rtype: Record
     """
+    from sina.model import Record
     # First let's see if this store contains a dedicated record
     # describing this store specs
     store_info = list(records.find_with_type("__kosh_storeinfo__"))
@@ -469,6 +465,7 @@ def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), 
     :param users: list of usernames to add
     :type users: list
     """
+    from sina.model import Record
     store_info = list(record_handler.find_with_type(
         ["__kosh_storeinfo__", ]))[0]
 
@@ -522,6 +519,7 @@ def version(comparable=False):
     :returns: version string or tuple
     :rtype: str or tuple
     """
+    import pkg_resources
     try:
         __version__ = pkg_resources.get_distribution("kosh").version
     except Exception:
@@ -571,6 +569,8 @@ def get_graph(input_type, loader, transformers):
     :returns: execution graph
     :rtype: networkx.OrderDiGraph
     """
+    import networkx as nx
+    from kosh.exec_graphs import populate
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
@@ -635,6 +635,9 @@ def record_to_dataframe(rec_uri):
 def datasets_in_place_of_records(func):
     """This decorator will convert all Record input or output to KoshDataset
     This allows a user to use sina functions that expect Record with Kosh datasets instead"""
+
+    from sina.model import Record
+
     def wrapper(*args, **kwargs):
         new_args = [x.get_record() if isinstance(x, kosh.KoshDataset) else x for x in args]
         new_kwargs = {}

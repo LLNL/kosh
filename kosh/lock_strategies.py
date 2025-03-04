@@ -4,7 +4,6 @@ import time
 import functools
 import os
 import logging
-import random
 
 LOGGER = logging.getLogger()
 LOGGER.setLevel(int(os.environ.get('LOCK_STRATEGIES_LOG_LEVEL', 30)))   # 30 is logging.WARNING
@@ -161,6 +160,7 @@ class RFileLock(LockStrategy):
         self.functions = []
 
     def lock(self):
+        import random
         LOGGER.info(msg=f"    {self.pid = } entering lock with {self.timeout = } secs & count {pid_map[self.pid]}...")
         exceptions = []
         for i in range(self.num_tries):
@@ -190,6 +190,8 @@ class RFileLock(LockStrategy):
             self.functions = []
 
     def threadsafe_call(self, func):
+        import random
+
         @functools.wraps(func)
         def wrapper(*args, **kargs):
             exceptions = []

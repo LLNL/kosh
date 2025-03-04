@@ -1,4 +1,3 @@
-import numpy
 from .core import KoshLoader
 from io import open
 import six
@@ -8,6 +7,7 @@ class NpyLoader(KoshLoader):
     types = {"npy": ["numpy", ]}
 
     def open(self, mode='c'):
+        import numpy
         return numpy.load(self.uri, mmap_mode=mode)
 
     def extract(self, feature='ndarray', format='numpy'):
@@ -79,6 +79,7 @@ class NumpyTxtLoader(KoshLoader):
         return self[:]
 
     def __getitem__(self, key):
+        import numpy
         self._setup_via_metadata()
         original_key = key
         if isinstance(key, tuple):

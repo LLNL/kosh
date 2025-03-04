@@ -4,7 +4,6 @@ import hashlib
 import pickle
 import six
 from kosh.exec_graphs import KoshExecutionGraph
-import numpy
 from ..core_sina import KoshSinaObject, KoshSinaFile
 from ..utils import get_graph, find_curveset_and_curve_name
 from ..dataset import KoshDataset
@@ -402,6 +401,7 @@ class KoshSinaLoader(KoshLoader):
             return sorted(curves, key=lambda x: (x[0], "" if x[1] is None else x[1]))
 
     def extract(self, *args, **kargs):
+        import numpy
         features = self.feature
         if not isinstance(features, list):
             features = [self.feature, ]

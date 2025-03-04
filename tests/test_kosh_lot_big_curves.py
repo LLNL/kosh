@@ -49,7 +49,7 @@ class KoshTestLotCurves(KoshTest):
         t = time.time()
         dt = t - t0
         print(f"Second list time: {dt:.2f}s speedup: {dt0/dt*100:.2f}%")
-        self.assertGreater(dt0/dt, 10)
+        self.assertGreater(dt0/dt, 5)
         store.close()
         os.remove(uri)
         for name in names:

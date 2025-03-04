@@ -1,15 +1,3 @@
-import numpy as np
-import scipy.cluster.hierarchy as sch
-import matplotlib.pyplot as plt
-import pandas as pd
-import tqdm
-import hdbscan
-import sklearn.cluster
-from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-import scipy
-from scipy.optimize import brute, basinhopping, minimize
-from typing import Union
 import copy
 
 
@@ -30,6 +18,8 @@ class Cluster(object):
         (n_samples, n_features_1*n_features_2* ... *n_features_m)
         :type flatten: bool
         """
+
+        import numpy as np
 
         if flatten:
             nsamples = data.shape[0]
@@ -61,6 +51,7 @@ class Cluster(object):
         """
         Scale or normalize data, or provide custom scaling function.
         """
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
         if isinstance(self.scaling_function, type('')):
             if self.scaling_function == "standard":
@@ -129,12 +120,17 @@ class Cluster(object):
         as the last column
         :rtype: pandas df
         """
+        from scipy.optimize import brute, minimize
+        from scipy.spatial.distance import squareform
+        import sklearn.cluster
+        import numpy as np
+        from pandas import DataFrame
 
         self.eps = eps
         # Check for custom distance function
         if callable(distance_function):
             dd = distance_function(self.data)
-            sq_dist = scipy.spatial.distance.squareform(dd)
+            sq_dist = squareform(dd)
 
             if (Nclusters > 0):
                 def dbs_clust_func(distance_threshold):
@@ -218,12 +214,12 @@ class Cluster(object):
         self.cluster_labels = dbs_clust.labels_
 
         # Create dataframe with cluster labels
-        if isinstance(self.data, pd.DataFrame):
+        if isinstance(self.data, DataFrame):
             self.data = self.pd_data
             self.pd_data['clust_labels'] = self.cluster_labels
             self.pd_data.rename(columns=str, inplace=True)
         else:
-            self.pd_data = pd.DataFrame(self.data)
+            self.pd_data = DataFrame(self.data)
             self.pd_data['clust_labels'] = self.cluster_labels
             self.pd_data.rename(columns=str, inplace=True)
 
@@ -259,23 +255,25 @@ class Cluster(object):
         :rtype: pandas df
         """
 
+        from hdbscan import HDBSCAN
+        from pandas import DataFrame
         # print("Fitting model to data.")
-        hdbs_clust = hdbscan.HDBSCAN(algorithm='best',
-                                     alpha=1.0,
-                                     approx_min_span_tree=True,
-                                     gen_min_span_tree=False,
-                                     leaf_size=40,
-                                     metric=distance_function,
-                                     min_cluster_size=min_cluster_size,
-                                     min_samples=min_samples, p=None).fit(self.data)
+        hdbs_clust = HDBSCAN(algorithm='best',
+                             alpha=1.0,
+                             approx_min_span_tree=True,
+                             gen_min_span_tree=False,
+                             leaf_size=40,
+                             metric=distance_function,
+                             min_cluster_size=min_cluster_size,
+                             min_samples=min_samples, p=None).fit(self.data)
 
         # Save cluster labels into dataframe
         self.cluster_labels = hdbs_clust.labels_
-        if isinstance(self.data, pd.DataFrame):
+        if isinstance(self.data, DataFrame):
             self.data = self.pd_data
             self.pd_data['clust_labels'] = self.cluster_labels
         else:
-            self.pd_data = pd.DataFrame(self.data)
+            self.pd_data = DataFrame(self.data)
             self.pd_data['clust_labels'] = self.cluster_labels
 
         # Save probabilities into dataframe
@@ -312,6 +310,9 @@ class Cluster(object):
         as the last column
         :rtype: pandas df
         """
+        from scipy.optimize import brute, basinhopping
+        import scipy.cluster.hierarchy as sch
+        from pandas import DataFrame
 
         # Create hierarchy
         try:
@@ -353,12 +354,12 @@ class Cluster(object):
         self.cluster_labels = clust_labels - 1
 
         # Create pandas dataframe for data and cluster labels
-        if isinstance(self.data, pd.DataFrame):
+        if isinstance(self.data, DataFrame):
             self.pd_data = self.data
             self.pd_data['clust_labels'] = self.cluster_labels
             self.pd_data.rename(columns=str, inplace=True)
         else:
-            self.pd_data = pd.DataFrame(self.data)
+            self.pd_data = DataFrame(self.data)
             self.pd_data['clust_labels'] = self.cluster_labels
             self.pd_data.rename(columns=str, inplace=True)
 
@@ -374,6 +375,8 @@ class Cluster(object):
         :return: condensed distance matrix
         :rtype: ndarray
         """
+
+        import scipy.cluster.hierarchy as sch
 
         if isinstance(distance_function, type('')):
             # For string option
@@ -436,9 +439,11 @@ class Cluster(object):
         :returns: subsample of original dataset or indices of subsample
         :rtype: pandas dataframe or numpy array
         """
-
+        import tqdm
+        import numpy as np
+        from pandas import DataFrame
         batch_data = np.copy(self.data)
-        data_pd = pd.DataFrame(batch_data)
+        data_pd = DataFrame(batch_data)
 
         # Create an array to keep track of original indices
         global_indices = np.arange(len(batch_data))
@@ -533,7 +538,7 @@ class Cluster(object):
             # Update the data with the retained samples
             batch_data = clusteredDataArrs[:, :self.nFeatures]
             # Update the pandas dataframe with global indices
-            data_pd = pd.DataFrame(batch_data)
+            data_pd = DataFrame(batch_data)
             data_pd['global_ind'] = clusteredDataArrs[:, -1].astype('int')
             # data_pd.rename(columns=str)
 
@@ -581,6 +586,9 @@ class Cluster(object):
         :returns: subsample of original dataset or indices of subsample
         :rtype: pandas dataframe or numpy array
         """
+        from sklearn.neighbors import NearestNeighbors
+        from scipy.spatial.distance import squareform
+        import numpy as np
 
         if self.method in ['DBSCAN', 'HAC']:
 
@@ -643,7 +651,7 @@ class Cluster(object):
                     tot_dist.append(float(dist))
                 elif clust_data.shape[0] > 2:
                     dist = self.computeDistance(clust_data, distance_function)
-                    sq_dist = scipy.spatial.distance.squareform(dist)
+                    sq_dist = squareform(dist)
                     local_index = np.where(
                         clust_data.index == sample_indices[0])[0][0]
                     tot_dist.append(float(sum(sq_dist[local_index])))
@@ -691,7 +699,8 @@ class Cluster(object):
 
     @staticmethod
     def compute_hopkins_statistic(
-            data_frame: Union[np.ndarray, pd.DataFrame],
+            # data_frame: Union[np.ndarray, pd.DataFrame],
+            data_frame,
             sampling_size: int) -> float:
         """Assess the clusterability of a dataset. A score between
         0 and 1, a score around 0.5 express no clusterability and a
@@ -720,17 +729,20 @@ class Cluster(object):
         DAMAGE.
         """
         from sklearn.neighbors import BallTree
+        from pandas import DataFrame
+        import numpy as np
 
-        def get_nearest_sample(df: pd.DataFrame,
-                               uniformly_selected_observations: pd.DataFrame):
+        def get_nearest_sample(df: DataFrame,
+                               uniformly_selected_observations: DataFrame):
             tree = BallTree(df, leaf_size=2)
             dist, _ = tree.query(uniformly_selected_observations, k=1)
             uniformly_df_distances_to_nearest_neighbors = dist
             return uniformly_df_distances_to_nearest_neighbors
 
         def simulate_df_with_same_variation(
-                df: pd.DataFrame, sampling_size: int
-        ) -> pd.DataFrame:
+                df: DataFrame, sampling_size: int
+        ) -> DataFrame:
+            import numpy as np
             max_data_frame = df.max()
             min_data_frame = df.min()
             uniformly_selected_values_0 = np.random.uniform(
@@ -751,12 +763,12 @@ class Cluster(object):
                         uniformly_selected_observations,
                         uniformly_selected_values_i)
                     uniformly_selected_observations = np.column_stack(to_stack)
-            uniformly_selected_observations_df = pd.DataFrame(
+            uniformly_selected_observations_df = DataFrame(
                 uniformly_selected_observations)
             return uniformly_selected_observations_df
 
         def dist_samp_to_nn(
-                df: pd.DataFrame, data_frame_sample):
+                df: DataFrame, data_frame_sample):
             tree = BallTree(df, leaf_size=2)
             dist, _ = tree.query(data_frame_sample, k=2)
             data_frame_sample_distances_to_nearest_neighbors = dist[:, 1]
@@ -771,7 +783,7 @@ class Cluster(object):
             return data_frame_sample
 
         if isinstance(data_frame, np.ndarray):
-            data_frame = pd.DataFrame(data_frame)
+            data_frame = DataFrame(data_frame)
 
         data_frame_sample = sample_observation_from_dataset(
             data_frame, sampling_size)
@@ -826,7 +838,8 @@ class Cluster(object):
 
         return 1 - stat
 
-    def lossPlot(self, val_range=np.linspace(1e-4, 1.5, 10),
+    def lossPlot(self, val_range=[0.0001, 0.16676, 0.33341, 0.50007,
+                 0.66672, 0.83338, 1.00003333, 1.167, 1.333, 1.5],
                  val_type="raw", distance_function='euclidean',
                  draw_plot=False, min_samples=2, n_jobs=1):
         """Calculates sample size and estimated information loss
@@ -855,6 +868,12 @@ class Cluster(object):
         list [val_range, loss estimate, sample size]
         :rtype: plt object or list of 3 arrays
         """
+        from sklearn.neighbors import NearestNeighbors
+        from scipy.spatial.distance import squareform
+        import tqdm
+        import numpy as np
+        import matplotlib.pyplot as plt
+
         val_range = list(val_range)
 
         sample_size = []
@@ -915,7 +934,7 @@ class Cluster(object):
                     tot_dist.append(dist.astype(float))
                 elif dataN.shape[0] > 2:
                     dist = self.computeDistance(dataN, distance_function)
-                    sq_dist = scipy.spatial.distance.squareform(dist)
+                    sq_dist = squareform(dist)
                     np.random.seed(3)
                     eps_c = ival / 2.0
                     neighbors_model = NearestNeighbors(
@@ -991,6 +1010,7 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
     :type flatten: bool
     """
 
+    import numpy as np
     from mpi4py import MPI
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
@@ -1184,6 +1204,8 @@ def makeBatchClusterParallel(data, comm,  global_ind, flatten=False,
 
 def numpyParallelReader(inputs, input_sizes, comm):
 
+    import numpy as np
+
     rank = comm.Get_rank()
     nprocs = comm.Get_size()
 
@@ -1244,6 +1266,7 @@ def scaleDataParallel(data, comm, scaling_function,
                       nfeatures, scale_vars=[], revert=False,
                       verbose=False, gather_to=0):
 
+    import numpy as np
     from mpi4py import MPI
     rank = comm.Get_rank()
     # nprocs = comm.Get_size()
@@ -1352,6 +1375,8 @@ def DoCluster(data, options, parallel, eps, comm, indices):
 
 
 def GetSubsetDistance(data, options, Nsubset=250):
+
+    import numpy as np
     # Compute the distances between samples on a random subset of the data.
     from kosh.sampling_methods.cluster_sampling import Cluster
 
@@ -1375,6 +1400,7 @@ def GetSubsetDistance(data, options, Nsubset=250):
 
 def GetMaxLoss(data, options, parallel=False, comm=None, indices=None, Nsubset=250):
 
+    import numpy as np
     from mpi4py import MPI
 
     if data is None:
@@ -1405,6 +1431,7 @@ def GetMaxLoss(data, options, parallel=False, comm=None, indices=None, Nsubset=2
 def SubsampleWithLoss(data, target_loss, options, parallel=False, comm=None, indices=None):
 
     from mpi4py import MPI
+    import numpy as np
 
     rank = comm.Get_rank()
     primary = options.get("gather_to", 0)
