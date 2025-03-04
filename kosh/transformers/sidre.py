@@ -5,7 +5,6 @@ except ImportError:
     has_conduit = False
 from .utils import get_ids_for_rank, get_mpi_tools
 from .core import KoshTransformer
-import numpy
 
 
 class SidreFeatureMetrics(KoshTransformer):
@@ -21,6 +20,7 @@ class SidreFeatureMetrics(KoshTransformer):
         super(SidreFeatureMetrics, self).__init__(*args, **kargs)
 
     def transform(self, input_, format):
+        import numpy
         rank, size, comm = get_mpi_tools()
         from mpi4py import MPI
         if rank != 0:

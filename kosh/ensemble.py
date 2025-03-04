@@ -1,5 +1,4 @@
 import warnings
-import sina
 from .dataset import KoshDataset
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
@@ -179,6 +178,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
                               e.g., ensemble_tags={"even_or_odd": "even", "data_type": "test data"}
         :type ensemble_tags: dict
         """
+        from sina.model import Relationship
         __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         # Step1 make sure the dataset does not belong to another ensemble
         if isinstance(dataset, KoshDataset):
@@ -232,7 +232,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
             else:
                 ensemble_tags = {'INHERIT_ATTRIBUTES': False}
         # Ok We are clear let's create the relationship
-        rel = sina.model.Relationship(
+        rel = Relationship(
             self.id, dataset_id, self.__store__._ensemble_predicate)
         # Add ensemble tags
         if ensemble_tags is not None:

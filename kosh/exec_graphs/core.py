@@ -1,4 +1,3 @@
-import networkx as nx
 from kosh import kosh_cache_dir
 import kosh
 import random
@@ -19,6 +18,7 @@ def possible_ends(graph, start_nodes, end_nodes):
     :returns: list of possible end nodes
     :rtype: list
     """
+    import networkx as nx
     ok_ends = []  # Matching end nodes for each start
     for start in start_nodes:
         ok_ends_this_start = []
@@ -163,6 +163,7 @@ class KoshExecutionGraph(object):
         return len(self._graph)
 
     def __init__(self, *inputs, **kw):
+        import networkx as nx
         graphs = []
         # Get a new seed
         self.seed = random.random()
@@ -258,6 +259,7 @@ class KoshExecutionGraph(object):
         :return a new ordered graph with new seed
         :rtype: networkx.DiGraph
         """
+        import networkx as nx
         try:
             G = nx.OrderedDiGraph()
         except AttributeError:
@@ -319,6 +321,7 @@ class KoshExecutionGraph(object):
         :param format: desired output format
         :type format: str
         """
+        import networkx as nx
         G = self._graph
         start_nodes, _ = self.start_nodes, self.end_nodes
 

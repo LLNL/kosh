@@ -1,6 +1,5 @@
 from __future__ import print_function, division
 import sys
-import numpy
 
 
 def get_mpi_tools():
@@ -43,6 +42,7 @@ def get_ids_for_rank(total):
 
 
 def send_or_gather(data, dest=0, tag=0, verbose=False):
+    import numpy
     out = None
     rank, size, comm = get_mpi_tools()
     if rank != dest:

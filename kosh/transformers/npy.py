@@ -1,6 +1,5 @@
 from .core import KoshTransformer, kosh_cache_dir
 import os
-import numpy
 from .utils import get_ids_for_rank, MPIPrint, get_mpi_tools
 import time
 
@@ -39,6 +38,7 @@ class KoshSimpleNpCache(KoshTransformer):
         :param content: content to save to cache
         :type content: object
         """
+        import numpy
         cache_file = os.path.join(self.cache_dir, signature)
         numpy.savez(cache_file, *arrays)
 
@@ -49,6 +49,7 @@ class KoshSimpleNpCache(KoshTransformer):
         :return: data
         :rtpye: object
         """
+        import numpy
         cache_file = os.path.join(self.cache_dir, signature) + ".npz"
         npz = numpy.load(cache_file)
         out = [npz[x] for x in npz.files]
@@ -112,6 +113,7 @@ class Shuffle(KoshSimpleNpCache):
         :rtype: ndarray
         """
 
+        import numpy
         numpy.random.seed = self.random_state
         return numpy.take(input, numpy.random.permutation(input.shape[self.axis]),
                           axis=self.axis)
@@ -156,6 +158,7 @@ class Take(KoshSimpleNpCache):
         :return: input taken over transformer's axis and indices
         :rtype: ndarray
         """
+        import numpy
         rank, size, comm = get_mpi_tools()
         my_ids = get_ids_for_rank(self.indices)
 
@@ -241,6 +244,7 @@ class Delta(KoshSimpleNpCache):
         :return: input taken over transformer's axis and indices
         :rtype: ndarray
         """
+        import numpy
         args1 = make_slices_args(input.ndim, self.axis, 0, -1)
         args2 = make_slices_args(input.ndim, self.axis, 1, None)
         delta = input[args2] - input[args1]

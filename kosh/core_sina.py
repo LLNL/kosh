@@ -2,8 +2,6 @@ import uuid
 import warnings
 import time
 from .schema import KoshSchema
-from sina.model import Record
-from sina import get_version
 from .utils import KoshPickler
 from . import lock_strategies
 
@@ -11,7 +9,10 @@ from . import lock_strategies
 kosh_pickler = KoshPickler()
 
 
-sina_version = float(".".join(get_version().split(".")[:2]))
+def __getattr__(name):
+    if name == "sina_version":
+        from sina import get_version
+        return float(".".join(get_version().split(".")[:2]))
 
 
 class KoshSinaObject(object):
@@ -24,6 +25,7 @@ class KoshSinaObject(object):
     def __init__(self, Id, store, kosh_type,
                  record_handler, protected=[], metadata={}, schema=None,
                  record=None):
+        from sina.model import Record
         """__init__ sina object base class
 
         :param Id: id to use for unique identification, if None is passed set for you via uui4()

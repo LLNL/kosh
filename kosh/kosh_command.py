@@ -6,7 +6,6 @@ import argparse
 from kosh.utils import merge_datasets_handler  # noqa
 import kosh
 import sys
-from sina.utils import DataRange
 import shlex
 from subprocess import Popen, PIPE
 import os
@@ -109,6 +108,7 @@ def parse_metadata(terms):
     :return: Dictionary with name as key and matching sina find object as value
     :rtype: dict
     """
+    from sina.utils import DataRange
     metadata = {}
     for term in terms:
         found = False

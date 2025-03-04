@@ -1,4 +1,3 @@
-import pandas as pd
 from .core import KoshLoader
 
 
@@ -27,6 +26,8 @@ class PandasLoader(KoshLoader):
              "pandas/stata": ["DataFrame", ]}
 
     def _load_dataframe(self):
+
+        import pandas as pd
 
         kwargs = self.obj.loader_kwargs
 

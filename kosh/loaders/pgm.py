@@ -1,5 +1,4 @@
 from .core import KoshLoader
-import numpy
 
 
 def read_chunk(f, end='\n'):
@@ -36,6 +35,7 @@ class PGMLoader(KoshLoader):
         :return: numpy array
         :rtype: numpy.ndarray
         """
+        import numpy
         with open(self.uri, "rb") as f:
             magic = f.read(2).decode()
             if magic == 'P2':  # ASCII encoded

@@ -2,8 +2,6 @@ import os
 import uuid
 import time
 import warnings
-import sina
-from sina.model import Record
 from .core_sina import KoshSinaObject, kosh_pickler
 from .utils import get_graph
 from .utils import compute_fast_sha
@@ -760,6 +758,7 @@ class KoshDataset(KoshSinaObject):
         :return: A (list) Kosh Sina File(s)
         :rtype: list of KoshSinaFile or KoshSinaFile
         """
+        from sina.model import Record
         __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         rec = self.get_record()
         # Need to remember we touched associated files
@@ -923,6 +922,7 @@ class KoshDataset(KoshSinaObject):
         :return: list of matching objects associated with dataset
         :rtype: list
         """
+        from sina.utils import exists
 
         if self._associated_data_ is None:
             return
@@ -955,7 +955,7 @@ class KoshDataset(KoshSinaObject):
             "query_order", ("data", "file_uri", "types"))
         sina_data = keys.pop("data", {})
         for att in atts:
-            sina_data[att] = sina.utils.exists()
+            sina_data[att] = exists()
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
 
@@ -981,7 +981,7 @@ class KoshDataset(KoshSinaObject):
                             "mime_type", None)) != sina_kargs["data"][key]:
                         match_it = False
                         break
-                elif key not in tags or sina_kargs["data"][key] != sina.utils.exists():
+                elif key not in tags or sina_kargs["data"][key] != exists():
                     match_it = False
                     break
             if match_it:

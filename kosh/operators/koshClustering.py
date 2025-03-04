@@ -1,12 +1,3 @@
-import numpy as np
-import pandas as pd
-import tqdm
-import matplotlib.pyplot as plt
-from ..sampling_methods.cluster_sampling import Cluster
-from ..sampling_methods.cluster_sampling import SubsampleWithLoss
-from ..sampling_methods.cluster_sampling import ParallelClustering
-from ..sampling_methods.cluster_sampling import SerialClustering
-from ..sampling_methods.cluster_sampling import GetMaxLoss
 from .core import KoshOperator
 
 
@@ -220,7 +211,9 @@ def _koshAutoEPS_(inputs, options, target_loss, input_sizes, comm, parallel):
     """
     Finds the appropriate epsilon value for clustering based on the target_loss.
     """
+    import numpy as np
 
+    from ..sampling_methods.cluster_sampling import SubsampleWithLoss
     gather_to = options.get("gather_to", 0)
     data_source = options.get("data_source", -1)
     verbose = options.get("verbose", False)
@@ -254,6 +247,8 @@ def _koshParallelClustering_(inputs, options, comm, input_sizes):
     The surviving data are randomly mixed and reduced, and the process continues
     until convergence.
     """
+    from ..sampling_methods.cluster_sampling import ParallelClustering
+    from ..sampling_methods.cluster_sampling import GetMaxLoss
     gather_to = options.get("gather_to")
     verbose = options.get("verbose")
     non_dim_return = options.get("non_dim_return")
@@ -298,6 +293,7 @@ def _koshParallelReader_(inputs, comm, input_sizes, gather_to, data_source, verb
         print("Total data size: %s" % total_data_size)
 
     def get_indices(rank, nprocs):
+        import numpy as np
         # Divide all data as evenly as possible between ranks
         # Some will have this much data
         size_div = total_data_size // nprocs
@@ -366,7 +362,10 @@ def _koshSerialClustering_(inputs, options):
     """
     Reads in all the datasets and reduces data with cluster sampling.
     """
-
+    from ..sampling_methods.cluster_sampling import SerialClustering
+    from ..sampling_methods.cluster_sampling import GetMaxLoss
+    import numpy as np
+    from pandas import DataFrame
     data = inputs[0][:]
     for input_ in inputs[1:]:
         data = np.append(data, input_[:], axis=0)
@@ -381,7 +380,7 @@ def _koshSerialClustering_(inputs, options):
     if format == 'numpy':
         reduced_data = np.array(out)
     elif format == 'pandas':
-        reduced_data = pd.DataFrame(out)
+        reduced_data = DataFrame(out)
     else:
         print("Error: no valid output format given; numpy|pandas")
 
@@ -432,6 +431,8 @@ class KoshHopkins(KoshOperator):
         self.options = options
 
     def operate(self, *inputs, **kargs):
+        import numpy as np
+        from ..sampling_methods.cluster_sampling import Cluster
 
         data = inputs[0][:]
         for input_ in inputs[1:]:
@@ -571,6 +572,12 @@ class KoshClusterLossPlot(KoshOperator):
         """Calculates sample size and estimated information loss
         for a range of distance values.
         """
+        from ..sampling_methods.cluster_sampling import SerialClustering
+        from ..sampling_methods.cluster_sampling import ParallelClustering
+        from ..sampling_methods.cluster_sampling import GetMaxLoss
+        import numpy as np
+        from tqdm import tqdm
+        import matplotlib.pyplot as plt
         try:
             from mpi4py import MPI
         except ImportError:
@@ -639,7 +646,7 @@ class KoshClusterLossPlot(KoshOperator):
             # Collect sample size and loss for each distance value
             sample_sizes = []
             loss_list = []
-            for ival in tqdm.tqdm(val_range):
+            for ival in tqdm(val_range):
                 # Save eps value in options
                 self.options["eps"] = ival
 
@@ -678,7 +685,7 @@ class KoshClusterLossPlot(KoshOperator):
             # Collect sample size and loss for each distance value
             sample_sizes = []
             loss_list = []
-            for ival in tqdm.tqdm(val_range):
+            for ival in tqdm(val_range):
                 # Save eps value in options
                 self.options["eps"] = ival
 
