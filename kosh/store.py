@@ -1539,8 +1539,15 @@ class KoshStore(object):
         if isinstance(datasets, str):
             with open(datasets) as f:
                 from_file = orjson.loads(f.read())
-                records_in = from_file.get("records", [])
-                relationships_in = from_file.get("relationships", [])
+                if isinstance(from_file, list):
+                    records_in = []
+                    relationships_in = []
+                    for entry in from_file:
+                        records_in.append(entry.get("records", []))
+                        relationships_in.append(entry.get("relationships", []))
+                else:
+                    records_in = from_file.get("records", [])
+                    relationships_in = from_file.get("relationships", [])
         elif isinstance(datasets, dict):
             from_file = datasets
             records_in = from_file["records"]
@@ -1577,12 +1584,21 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            if "id" not in record:
+                if "local_id" in record:
+                    record["id"] = record["local_id"]
+                else:  # Cannot import a rec w/o id
+                    warnings.warn(f"Skipped record w/o id or local_id: {record}")
+                    continue
             if 'user_defined' not in record.keys():
                 record["user_defined"] = {}
             record["user_defined"]['kosh_information'] = {}
             for section in skip_sina_record_sections:
                 record[section] = {}
-            data = record["data"]
+            if "data" in record:
+                data = record["data"]
+            else:
+                data = {}
             if record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
             else:
