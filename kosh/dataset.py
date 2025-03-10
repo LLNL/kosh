@@ -63,6 +63,16 @@ class KoshDataset(KoshSinaObject):
     @lock_strategies.lock_method
     def __str__(self):
         """string representation"""
+        import reprlib
+        if self.__store__.verbose_attributes:
+            def reprtool(item):
+                return item
+        else:
+            def reprtool(item):
+                if isinstance(item, str):
+                    return reprlib.repr(item)[1:-1]
+                else:
+                    return reprlib.repr(item)
         st = ""
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.id)
@@ -81,7 +91,7 @@ class KoshDataset(KoshSinaObject):
                 if a == "_associated_data_" or "_ENSEMBLE_TAG_" in a:  # Remove associated data and ensemble tags
                     continue
                 if not self.is_ensemble_attribute(a):
-                    st += "\t{}: {}\n".format(a, atts[a])
+                    st += "\t{}: {}\n".format(a, reprtool(atts[a]))
         if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
                 len(self._associated_data_))
@@ -126,7 +136,7 @@ class KoshDataset(KoshSinaObject):
             for ignore in ['creator', 'id', 'name']:
                 eas.remove(ignore)
             eas.sort()
-            st += f"\t\t{eas}\n"
+            st += f"\t\t{reprtool(eas)}\n"
 
             ensemble_tags = self.list_ensemble_tags(ensemble.id)
             ensemble_tags.sort()

@@ -1,6 +1,7 @@
 import uuid
 import warnings
 import time
+import reprlib
 from .schema import KoshSchema
 from .utils import KoshPickler
 from . import lock_strategies
@@ -442,10 +443,19 @@ class KoshSinaObject(object):
     @lock_strategies.lock_method
     def __str__(self):
         """String for printing"""
+        if self.__dict__["__store__"].verbose_attributes:
+            def reprtool(item):
+                return item
+        else:
+            def reprtool(item):
+                if isinstance(item, str):
+                    return reprlib.repr(item)[1:-1]
+                else:
+                    return reprlib.repr(item)
         st = "Id: {}".format(self.id)
         for att in sorted(self.listattributes()):
             if att != 'id':
-                st += "\n\t{}: {}".format(att, getattr(self, att))
+                st += "\n\t{}: {}".format(att, reprtool(getattr(self, att)))
         return st
 
 

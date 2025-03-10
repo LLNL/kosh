@@ -429,3 +429,39 @@ KOSH ENSEMBLE
 
         # Passes both
         ens.add(ds, inherit_attributes=False, ensemble_tags={"color": "green",  "number": 10})
+
+    def test_long_string_as_attribute_without_verbosity(self):
+        store, db_uri = self.connect(verbose_attributes=False)
+        ens = store.create_ensemble()
+        long_string = (
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
+            "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+            "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris "
+            "nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in "
+            "reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+            "nulla pariatur. Excepteur sint occaecat cupidatat non proident, "
+            "sunt in culpa qui officia deserunt mollit anim id est laborum."
+        ) * 10
+        ens.long_string = long_string
+        self.assertLess(len(ens.__str__()), len(long_string))
+        self.assertEqual(len(ens.long_string), len(long_string))
+        store.close()
+        os.remove(db_uri)
+
+    def test_long_string_as_attribute_with_verbosity(self):
+        store, db_uri = self.connect(verbose_attributes=True)
+        ens = store.create_ensemble()
+        long_string = (
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
+            "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+            "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris "
+            "nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in "
+            "reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+            "nulla pariatur. Excepteur sint occaecat cupidatat non proident, "
+            "sunt in culpa qui officia deserunt mollit anim id est laborum."
+        ) * 10
+        ens.long_string = long_string
+        self.assertGreater(len(ens.__str__()), len(long_string))
+        self.assertEqual(len(ens.long_string), len(long_string))
+        store.close()
+        os.remove(db_uri)
