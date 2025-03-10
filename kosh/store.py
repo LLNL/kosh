@@ -55,7 +55,8 @@ except ImportError:
 def connect(database, keyspace=None, database_type=None,
             allow_connection_pooling=False, read_only=False,
             delete_all_contents=False, execution_options={},
-            connection_type="write", lock_strategy=None, **kargs):
+            connection_type="write", lock_strategy=None,
+            verbose=False, **kargs):
     """Connect to a Sina store.
 
 Given a uri/path (and, if required, the name of a keyspace),
@@ -129,6 +130,7 @@ figures out which backend is required.
                           allow_connection_pooling=allow_connection_pooling,
                           execution_options=execution_options, connection_type=connection_type,
                           lock_strategy=lock_strategy,
+                          verbose=verbose,
                           **kargs)
         return store
 
@@ -140,7 +142,8 @@ class KoshStore(object):
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
                  read_only=False, allow_connection_pooling=False, ensemble_predicate=None,
-                 execution_options={}, connection_type='write', lock_strategy=None):
+                 execution_options={}, connection_type='write', lock_strategy=None,
+                 verbose_attributes=False):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -179,12 +182,15 @@ class KoshStore(object):
         :type lock_strategy: LockStrategy
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
+        :param verbose_attributes: Should we print attribute values of over length 30?
+        :type verbose_attributes: bool
         """
         from sina import connect as sina_connect
         from sina.utils import Negation
         if lock_strategy is None:
             lock_strategy = lock_strategies.NoLocking()
         self.lock_strategy = lock_strategy
+        self.verbose_attributes = verbose_attributes
 
         with lock_strategy:
             if db_uri is not None and "://" in db_uri and use_lock_file:
