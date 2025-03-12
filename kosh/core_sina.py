@@ -1,28 +1,32 @@
 import uuid
 import warnings
 import time
+import reprlib
 from .schema import KoshSchema
-from sina.model import Record
-from sina import get_version
 from .utils import KoshPickler
+from . import lock_strategies
 
 
 kosh_pickler = KoshPickler()
 
 
-sina_version = float(".".join(get_version().split(".")[:2]))
+def __getattr__(name):
+    if name == "sina_version":
+        from sina import get_version
+        return float(".".join(get_version().split(".")[:2]))
 
 
 class KoshSinaObject(object):
     """KoshSinaObject Base class for sina objects
     """
-
+    @lock_strategies.lock_method
     def get_record(self):
         return self.__store__.get_record(self.id)
 
     def __init__(self, Id, store, kosh_type,
                  record_handler, protected=[], metadata={}, schema=None,
                  record=None):
+        from sina.model import Record
         """__init__ sina object base class
 
         :param Id: id to use for unique identification, if None is passed set for you via uui4()
@@ -40,56 +44,59 @@ class KoshSinaObject(object):
         :param record: sina record to prevent looking it up again and again in sina
         :type record: Record
         """
-        self.__dict__["__store__"] = store
-        self.__dict__["__schema__"] = schema
-        self.__dict__["__record_handler__"] = record_handler
-        self.__dict__["__protected__"] = [
-            "id", "__type__", "__protected__",
-            "__record_handler__", "__store__", "id", "__schema__"] + protected
-        self.__dict__["__type__"] = kosh_type
-        if Id is None:
-            Id = uuid.uuid4().hex
-            record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
-            if store.__sync__:
-                store.lock()
-                store.__record_handler__.insert(record)
-                store.unlock()
+        with store.lock_strategy:
+            self.__dict__["__store__"] = store
+            self.__dict__["__schema__"] = schema
+            self.__dict__["__record_handler__"] = record_handler
+            self.__dict__["__protected__"] = [
+                "id", "__type__", "__protected__",
+                "__record_handler__", "__store__", "id", "__schema__"] + protected
+            self.__dict__["__type__"] = kosh_type
+            self.__dict__["lock_strategy"] = store.lock_strategy
+            if Id is None:
+                Id = uuid.uuid4().hex
+                record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
+                if store.__sync__:
+                    store.lock()
+                    store.__record_handler__.insert(record)
+                    store.unlock()
+                else:
+                    record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                    self.__store__.__sync__dict__[Id] = record
+                self.__dict__["id"] = Id
             else:
-                record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
-                self.__store__.__sync__dict__[Id] = record
-            self.__dict__["id"] = Id
-        else:
-            self.__dict__["id"] = Id
-            if record is None:
-                try:
-                    record = self.get_record()
-                except BaseException:  # record exists nowhere
-                    record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
-                    if store.__sync__:
-                        store.lock()
-                        store.__record_handler__.insert(record)
-                        store.unlock()
-                    else:
-                        self.__store__.__sync__dict__[Id] = record
-                        record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
-            else:
-                deleted_items = False
-                for att in self.__dict__["__protected__"]:
-                    if att in record["data"]:
-                        del record["data"][att]
-                        deleted_items = True
-                if deleted_items:
-                    if store.__sync__:
-                        self._update_record(record)
-                    else:
-                        self.__store__.__sync__dict__[Id] = record
+                self.__dict__["id"] = Id
+                if record is None:
+                    try:
+                        record = self.get_record()
+                    except BaseException:  # record exists nowhere
+                        record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
+                        if store.__sync__:
+                            store.lock()
+                            store.__record_handler__.insert(record)
+                            store.unlock()
+                        else:
+                            self.__store__.__sync__dict__[Id] = record
+                            record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                else:
+                    deleted_items = False
+                    for att in self.__dict__["__protected__"]:
+                        if att in record["data"]:
+                            del record["data"][att]
+                            deleted_items = True
+                    if deleted_items:
+                        if store.__sync__:
+                            self._update_record(record)
+                        else:
+                            self.__store__.__sync__dict__[Id] = record
 
-        metadata_copy = metadata.copy()
-        for key in metadata:
-            if att in self.__dict__["__protected__"]:
-                del metadata_copy[key]
-        self.update(metadata_copy)
+            metadata_copy = metadata.copy()
+            for key in metadata:
+                if key in self.__dict__["__protected__"]:
+                    del metadata_copy[key]
+            self.update(metadata_copy)
 
+    @lock_strategies.lock_method
     def __getattr__(self, name):
         """__getattr__ get an attribute
 
@@ -108,6 +115,12 @@ class KoshSinaObject(object):
                 rels = self.get_sina_store().relationships.find(
                     None, "is a member of ensemble", self.id)
                 return [str(x.subject_id) for x in rels]
+            if name == "__features__":
+                record = self.get_record()
+                try:
+                    return KoshPickler().loads(record["user_defined"]["__features__"])
+                except Exception:
+                    return {None: {}}
             if name == "_associated_data_":
                 from kosh.dataset import KoshDataset
                 record = self.get_record()
@@ -144,14 +157,16 @@ class KoshSinaObject(object):
                 schema = kosh_pickler.loads(record["data"]["schema"]["value"])
                 self.__dict__["__schema__"] = schema
             return self.__dict__["__schema__"]
-        elif name == 'alias_feature':
+        elif name in ['alias_feature', 'loader_kwargs']:
             if name in record["data"]:
-                return kosh_pickler.loads(record["data"]["alias_feature"]["value"])
+                return kosh_pickler.loads(record["data"][name]["value"])
             else:
                 return {}
         if name not in record["data"]:
             if name == "mime_type":
                 return record["type"]
+            elif name == "uri":
+                return ""
             else:
                 raise AttributeError(
                     "Object {} does not have {} attribute".format(self.id,
@@ -164,14 +179,17 @@ class KoshSinaObject(object):
                 value = self.__store__.get_record(value)["data"]["username"]["value"]
         return value
 
+    @lock_strategies.lock_method
     def get_sina_store(self):
         """Returns the sina store object"""
         return self.__store__.get_sina_store()
 
+    @lock_strategies.lock_method
     def get_sina_records(self):
         """Returns sina store's records"""
         return self.__record_handler__
 
+    @lock_strategies.lock_method
     def update(self, attributes):
         """update many attributes at once to limit db writes
         :param: attributes: dictionary with attributes to update
@@ -190,6 +208,7 @@ class KoshSinaObject(object):
                 update_db = False
             rec = self.___setattr___(name, value, rec, update_db=update_db)
 
+    @lock_strategies.lock_method
     def __setattr__(self, name, value):
         """set an attribute
         We are calling the ___setattr___
@@ -197,6 +216,7 @@ class KoshSinaObject(object):
         """
         self.___setattr___(name, value)
 
+    @lock_strategies.lock_method
     def ___setattr___(self, name, value, record=None,
                       update_db=True, force=False):
         """__setattr__ set an attribute on an object
@@ -219,10 +239,16 @@ class KoshSinaObject(object):
         if name == "schema":
             assert isinstance(value, KoshSchema)
             value.validate(self)
+        elif name == "__features__":
+            value = kosh_pickler.dumps(value)
+            record["user_defined"]["__features__"] = value
+        elif name in ['alias_feature', 'loader_kwargs']:
+            if isinstance(value, dict):
+                value = kosh_pickler.dumps(value)
+            else:  # Pre-pickled at dataset level
+                value = value
         elif self.schema is not None:
             self.schema.validate_attribute(name, value)
-        elif name == 'alias_feature':
-            value = kosh_pickler.dumps(value)
 
         # For datasets we need to check if the att comes from ensemble
         from kosh.dataset import KoshDataset
@@ -233,43 +259,45 @@ class KoshSinaObject(object):
                 self.id, self.__store__._ensemble_predicate, None)
             for relationship in relationships:
                 ensemble = self.__store__.open(relationship.object_id)
-                if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
-                    if value != getattr(ensemble, name):
-                        raise KeyError(
-                            "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
-                                name, relationship.object_id))
-                    else:
-                        warnings.warn(
-                            "The attribute {} is controlled by ensemble: {}"
-                            ". You should NOT set this attribute at the dataset level"
-                            ". Values match so we will accept it here".format(
-                                name, relationship.object_id), UserWarning)
+                ens_tags = self.list_ensemble_tags(ensemble.id, dictionary=True, obscure=False)
+                inherit_attributes = ens_tags.get(f"{ensemble.id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES", True)
+                if inherit_attributes:
+                    if name in ensemble.list_attributes() and name not in ensemble.__dict__["__ok_duplicates__"]:
+                        if value != getattr(ensemble, name):
+                            raise KeyError(
+                                "The attribute {} is controlled by ensemble: {} and cannot be set here".format(
+                                    name, relationship.object_id))
+                        else:
+                            warnings.warn(
+                                "The attribute {} is controlled by ensemble: {}"
+                                ". You should NOT set this attribute at the dataset level"
+                                ". Values match so we will accept it here".format(
+                                    name, relationship.object_id), UserWarning)
 
         # For Ensembles we need to set it on all members
         from kosh.ensemble import KoshEnsemble
         if isinstance(self, KoshEnsemble):
             # First we make a pass to collect all other ensembles datasets are
             # part of
-            other_ensembles = set()
             for dataset in self.get_members():
-                for e in dataset.get_ensembles():
-                    other_ensembles.add(e)
-            for ensemble in other_ensembles:
-                if ensemble.id == self.id:
-                    continue
-                for att in ensemble.list_attributes():
-                    if att in self.__dict__["__ok_duplicates__"]:
-                        continue
-                    if att == name:
-                        raise NameError("A member of this ensemble belongs to ensemble {} "
-                                        "which already controls attribute {}".format(ensemble.id, att))
-            for dataset in self.get_members():
-                dataset.___setattr___(
-                    name=name,
-                    value=value,
-                    record=None,
-                    update_db=update_db,
-                    force=True)
+                for ensemble in dataset.get_ensembles():
+                    ens_tags = dataset.list_ensemble_tags(ensemble.id, dictionary=True, obscure=False)
+                    inherit_attributes = ens_tags.get(f"{ensemble.id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES", True)
+                    if inherit_attributes:
+                        if ensemble.id != self.id:
+                            for att in ensemble.list_attributes():
+                                if att in self.__dict__["__ok_duplicates__"]:
+                                    continue
+                                if att == name:
+                                    raise NameError("A member of this ensemble belongs to ensemble {} "
+                                                    "which already controls attribute {}".format(ensemble.id, att))
+
+                        dataset.___setattr___(
+                            name=name,
+                            value=value,
+                            record=None,
+                            update_db=update_db,
+                            force=True)
 
         # Did it change on db since we last read it?
         last_modif_att = "{name}_last_modified".format(name=name)
@@ -305,6 +333,7 @@ class KoshSinaObject(object):
             self._update_record(record)
         return record
 
+    @lock_strategies.lock_method
     def _update_record(self, record, store=None):
         """Updates a record in the sina store
         :param record: The record to update
@@ -317,23 +346,14 @@ class KoshSinaObject(object):
         id_ = record.id
         rels = store.relationships.find(id_, None, None)
         rels += store.relationships.find(None, None, id_)
-        try:
-            # if rec exists let's get it
-            old_record = store.records.get(id_)
-        except Exception:
-            old_record = None  # new record
-        store.records.delete(id_)
-        try:
+        if not self.__store__.__sync__:
+            store.records.delete(id_)
             store.records.insert(record)
-        except Exception as err:
-            # Let's put back in place the old record
-            if old_record is not None:
-                store.records.insert(old_record)
-            raise err
-
-        store.relationships.insert(rels)
+            store.relationships.insert(rels)
+        store.records.update(record)
         self.__store__.unlock()
 
+    @lock_strategies.lock_method
     def __delattr__(self, name):
         """__delattr__ deletes an attribute
 
@@ -354,36 +374,53 @@ class KoshSinaObject(object):
         if self.__store__.__sync__:
             self._update_record(record)
 
+    @lock_strategies.lock_method
     def sync(self):
         """sync this object with database"""
         self.__store__.sync([self.id, ])
 
-    def list_attributes(self, dictionary=False):
+    @lock_strategies.lock_method
+    def list_attributes(self, dictionary=False, ensemble_id=None):
         __doc__ = self.listattributes.__doc__.replace("listattributes", "list_attributes")  # noqa
-        return self.listattributes(dictionary=dictionary)
+        return self.listattributes(dictionary=dictionary, ensemble_id=ensemble_id)
 
-    def listattributes(self, dictionary=False):
+    @lock_strategies.lock_method
+    def listattributes(self, dictionary=False, ensemble_id=None):
         """listattributes list all non protected attributes
 
-        :parm dictionary: return a dictionary of value/pair rather than just attributes names
+        :param dictionary: return a dictionary of value/pair rather than just attributes names
         :type dictionary: bool
+        :param ensemble_id: Provide ensemble ID(s) to return ensemble tags
+        :type ensemble_id: str, lst
 
         :return: list of attributes set on object
         :rtype: list
         """
         record = self.get_record()
         attributes = list(record["data"].keys()) + ['id', ]
+
+        no_tags = [a for a in attributes if "_ENSEMBLE_TAG_" not in a]  # Remove ensemble tags
+        ens_tags = []
+        if ensemble_id is not None:
+            if isinstance(ensemble_id, str):
+                ensemble_id = [ensemble_id]
+            for ens_id in ensemble_id:
+                ens_tags += sorted([a for a in attributes if f"{ens_id}_ENSEMBLE_TAG_" in a])
+        attributes = sorted(no_tags)
+
         for att in self.__protected__:
             if att in attributes and att != "id":
                 attributes.remove(att)
+        attributes += ens_tags
         if dictionary:
             out = {}
             for att in attributes:
                 out[att] = getattr(self, att)
             return out
         else:
-            return sorted(attributes)
+            return attributes
 
+    @lock_strategies.lock_method
     def __getattributes__(self):
         """__getattributes__ return dictionary with pairs of attribute/value
 
@@ -393,7 +430,7 @@ class KoshSinaObject(object):
         record = self.get_record()
         attributes = {}
         for a in record["data"]:
-            if a == 'alias_feature':
+            if a in ['alias_feature', 'loader_kwargs']:
                 continue
             attributes[a] = record["data"][a]["value"]
             if a == "creator":
@@ -403,18 +440,29 @@ class KoshSinaObject(object):
                     attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
 
+    @lock_strategies.lock_method
     def __str__(self):
         """String for printing"""
+        if self.__dict__["__store__"].verbose_attributes:
+            def reprtool(item):
+                return item
+        else:
+            def reprtool(item):
+                if isinstance(item, str):
+                    return reprlib.repr(item)[1:-1]
+                else:
+                    return reprlib.repr(item)
         st = "Id: {}".format(self.id)
         for att in sorted(self.listattributes()):
             if att != 'id':
-                st += "\n\t{}: {}".format(att, getattr(self, att))
+                st += "\n\t{}: {}".format(att, reprtool(getattr(self, att)))
         return st
 
 
 class KoshSinaFile(KoshSinaObject):
     """KoshSinaFile file representation in Kosh via Sina"""
 
+    @lock_strategies.lock_method
     def open(self, *args, **kargs):
         """open opens the file
         :return: handle to file in open mode

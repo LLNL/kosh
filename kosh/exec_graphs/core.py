@@ -1,10 +1,10 @@
-import networkx as nx
 from kosh import kosh_cache_dir
 import kosh
 import random
 import pickle
 import os
 import collections
+import hashlib
 
 
 def possible_ends(graph, start_nodes, end_nodes):
@@ -18,6 +18,7 @@ def possible_ends(graph, start_nodes, end_nodes):
     :returns: list of possible end nodes
     :rtype: list
     """
+    import networkx as nx
     ok_ends = []  # Matching end nodes for each start
     for start in start_nodes:
         ok_ends_this_start = []
@@ -162,6 +163,7 @@ class KoshExecutionGraph(object):
         return len(self._graph)
 
     def __init__(self, *inputs, **kw):
+        import networkx as nx
         graphs = []
         # Get a new seed
         self.seed = random.random()
@@ -257,6 +259,7 @@ class KoshExecutionGraph(object):
         :return a new ordered graph with new seed
         :rtype: networkx.DiGraph
         """
+        import networkx as nx
         try:
             G = nx.OrderedDiGraph()
         except AttributeError:
@@ -318,6 +321,7 @@ class KoshExecutionGraph(object):
         :param format: desired output format
         :type format: str
         """
+        import networkx as nx
         G = self._graph
         start_nodes, _ = self.start_nodes, self.end_nodes
 
@@ -447,13 +451,13 @@ class KoshExecutionGraph(object):
         :return: updated signature
         :rtype: str
         """
-        signature = self.signature.copy()
+        signature = hashlib.sha256(self.signature.encode())
         for arg in args:
             signature.update(repr(arg).encode())
         for kw in kargs:
             signature.update(repr(kw).encode())
             signature.update(repr(kargs[kw]).encode())
-        return signature
+        return signature.hexdigest()
 
     def show_cache_file(self, input, format):
         """Given a set of input and format returns the unique signature used for cache file
@@ -464,7 +468,7 @@ class KoshExecutionGraph(object):
         :return: The unique signature
         :rtype: str
         """
-        signature = self.update_signature(input, format).hexdigest()
+        signature = self.update_signature(input, format)
         return os.path.join(self.cache_dir, signature)
 
     def save(self, cache_file, *content):

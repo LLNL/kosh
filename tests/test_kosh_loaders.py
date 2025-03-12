@@ -106,7 +106,7 @@ class KoshTestLoaders(KoshTest):
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         ds.associate(
             "tests/baselines/images/LLNLiconWHITE.png", "png")
-        features = sorted(ds.list_features())
+        features = sorted(ds.list_features(use_cache=False))
         self.assertEqual(features, ["image", ])
         ds.get("image")
         # Duplicate features names URI should be added
@@ -176,8 +176,8 @@ class KoshTestLoaders(KoshTest):
         store, kosh_db = self.connect()
         ds = store.create(metadata={"key1": 1, "key2": "A"})
         kosh_id = ds.associate(
-            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5")
-        features = sorted(ds.list_features())
+            "tests/baselines/node_extracts2/node_extracts2.hdf5", "hdf5", id_only=True)
+        features = sorted(ds.list_features(use_cache=False))
         self.assertEqual(features,
                          ['cycles', 'direction', 'elements', 'node', 'node/metrics_0',
                           'node/metrics_1', 'node/metrics_10', 'node/metrics_11',
@@ -187,10 +187,7 @@ class KoshTestLoaders(KoshTest):
                              'zone', 'zone/metrics_0', 'zone/metrics_1', 'zone/metrics_2',
                           'zone/metrics_3', 'zone/metrics_4'])
         features = sorted(
-            ds.list_features(
-                None,
-                group="node",
-                use_cache=False))
+            ds.list_features(None, group="node", use_cache=False))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
@@ -198,16 +195,13 @@ class KoshTestLoaders(KoshTest):
                              'metrics_7', 'metrics_8', 'metrics_9', ])
 
         features = sorted(
-            ds.list_features(
-                ds._associated_data_[0],
-                group="node",
-                use_cache=False))
+            ds.list_features(ds._associated_data_[0], use_cache=False, group="node"))
         self.assertEqual(features,
                          ['metrics_0', 'metrics_1', 'metrics_10', 'metrics_11',
                           'metrics_12', 'metrics_2', 'metrics_3',
                           'metrics_4', 'metrics_5', 'metrics_6',
                              'metrics_7', 'metrics_8', 'metrics_9', ])
-        data = ds.get("node/metrics_1")
+        data = ds.get("node/metrics_1", use_cache=False)
         self.assertEqual(data.shape, (2, 18))
         self.assertTrue(numpy.allclose(data[:], numpy.array([[60.208866, 91.235115, 25.287159,
                                                               52.169613, 50.000668, 13.444662,
@@ -287,7 +281,7 @@ class KoshTestLoaders(KoshTest):
         store, kosh_db = self.connect()
         ds = store.create()
         ds.associate(name, "npy")
-        self.assertEqual(ds.list_features(), ["ndarray", ])
+        self.assertEqual(ds.list_features(use_cache=False), ["ndarray", ])
         data = ds.get("ndarray")
         self.assertEqual(data.shape, (2, 3))
         self.assertTrue(numpy.allclose(a, data))
@@ -312,7 +306,7 @@ class KoshTestLoaders(KoshTest):
                 pth,
                 "example_columns_no_header.txt"),
             "numpy/txt")
-        self.assertEqual(ds.list_features(), ["features"])
+        self.assertEqual(ds.list_features(use_cache=False), ["features"])
         d1 = ds["features"]
         all = d1[:]
         self.assertEqual(all.shape, (25, 6))
@@ -365,7 +359,7 @@ class KoshTestLoaders(KoshTest):
             metadata={
                 "features_line": 0})
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=False), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self._check_feature_values(ds)
         ds.dissociate(
@@ -380,7 +374,7 @@ class KoshTestLoaders(KoshTest):
             metadata={
                 "features_line": 2})
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=False), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self._check_feature_values(ds)
         ds.dissociate(
@@ -396,7 +390,7 @@ class KoshTestLoaders(KoshTest):
                 "features_line": 5,
                 "skiprows": 6})
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=False), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self._check_feature_values(ds)
         ds.dissociate(os.path.join(pth, "example_non_hashed_header_rows.txt"))
@@ -406,14 +400,15 @@ class KoshTestLoaders(KoshTest):
                 "example_tab_separated_column_names.txt"),
             "numpy/txt",
             metadata={
-                "features_line": 0})
+                "features_line": 0},
+            id_only=True)
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=False), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         asso = store._load(id_)
         asso.features_separator = " "
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=True), [
                 "time", "zeros", "ones", "twos", "threes", "fours"])
         self.assertEqual(
             ds.list_features(use_cache=False), [
@@ -432,15 +427,16 @@ class KoshTestLoaders(KoshTest):
                 "example_column_names_in_header_via_constant_width.txt"),
             "numpy/txt",
             metadata={
-                "features_line": 0, "columns_width": 10})
+                "features_line": 0, "columns_width": 10},
+            id_only=True)
         self.assertEqual(
-            ds.list_features(), [
+            ds.list_features(use_cache=False), [
                 "time", "zeros col", "ones  col", "twos col", "threes col", "fours"])
         store.close()
         os.remove(kosh_db)
 
     def _check_feature_values(self, ds):
-        for i, feature in enumerate(ds.list_features()[1:]):
+        for i, feature in enumerate(ds.list_features(use_cache=False)[1:]):
             z = ds[feature][3:23:4]
             self.assertEqual(z.shape, (5,))
             z = numpy.average(z)
@@ -526,6 +522,51 @@ class KoshTestLoaders(KoshTest):
         ds1.range_max = 12
         self.assertTrue(numpy.allclose(
             ds1["node/metrics_9"][:], m9[:, 4:12:2]))
+
+    def testPandas(self):
+        store, db_uri = self.connect()
+
+        ds = store.create()
+        pth = "tests/baselines/csv"
+
+        assoc = ds.associate(
+            os.path.join(
+                pth,
+                "my_csv_file.csv"),
+            mime_type="pandas/csv",
+            id_only=False,
+            loader_kwargs={'index_col': 0})
+
+        self.assertEqual(ds.list_features(use_cache=False),
+                         ['id', 'name', 'creator',
+                          'mynewattribute', 'myotherattribute',
+                          'myparam10', 'myparam20', 'myparam30',
+                          'myparam40', 'myparam50', 'myparam60'])
+
+        # Single column
+        d1 = ds.get_execution_graph("creator", Id=assoc.id)[:]
+        self.assertEqual(d1.shape, (25, 1))
+
+        # Whole DataFrame
+        df = ds.open(Id=assoc.id)
+        self.assertEqual(df.shape, (25, 11))
+
+        # Updating loader_kwargs
+        assoc.loader_kwargs = {'index_col': None}
+
+        # Single column
+        d1 = ds.get_execution_graph("Unnamed: 0", Id=assoc.id)[:]
+        self.assertEqual(d1.shape, (25, 1))
+
+        # Whole DataFrame
+        df = ds.open(Id=assoc.id)
+        self.assertEqual(df.shape, (25, 12))
+
+        self.assertEqual(ds.list_features(use_cache=False),
+                         ['Unnamed: 0', 'id', 'name', 'creator',
+                          'mynewattribute', 'myotherattribute',
+                          'myparam10', 'myparam20', 'myparam30',
+                          'myparam40', 'myparam50', 'myparam60'])
 
 
 if __name__ == "__main__":

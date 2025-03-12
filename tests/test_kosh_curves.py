@@ -136,7 +136,7 @@ class KoshTestCurves(KoshTest):
         store, kosh_db = self.connect()
         ds = store.create()
         ds.add_curve([1, 2, 3], "curve_set/with/slash", "curve/with/slash")
-        f = ds.list_features()
+        f = ds.list_features(verbose=True)
         self.assertEqual(f, ['curve_set/with/slash',
                          'curve_set/with/slash/curve/with/slash'])
         self.assertTrue(numpy.allclose(
@@ -144,7 +144,7 @@ class KoshTestCurves(KoshTest):
         self.assertTrue(numpy.allclose(
             ds[('curve_set/with/slash', 'curve/with/slash')][:], [1, 2, 3]))
         ds.add_curve([1, 2, 3, 4], "curve_set/with", "slash/curve/with/slash")
-        f = ds.list_features()
+        f = ds.list_features(verbose=True)
         self.assertEqual(f,
                          [('curve_set/with',
                            None),

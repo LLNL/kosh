@@ -7,7 +7,7 @@ sys.path.append("/usr/gapps/pydv/current")  # noqa
 
 class UltraLoader(KoshLoader):
     """Kosh Loader for ultra files"""
-    types = {"ultra": ["numpy", ]}
+    types = {"ultra": ["dict", "numpy"]}
 
     def __init__(self, obj, **kargs):
         super(UltraLoader, self).__init__(obj, **kargs)
@@ -34,31 +34,44 @@ class UltraLoader(KoshLoader):
         """Load variables from an ultra file
         :param variable: variables to load
         :type variable: list or str
-        :return list of dictionary conatining 'time and 'val' for each variable
-        :rtype: list of dict or dict
+        :return Dictionary containing 'x-axis' and 'y-axis' for each variable
+        :rtype: dict
         """
         if self.curves is None:
             self.load_curves()
-        if not isinstance(variable, (list, tuple)):  # only one variable requested
+        if not isinstance(variable, (list, tuple)) and variable is not None:  # only one variable requested
             variable = [variable, ]
 
-        variables = [{}, ] * len(variable)
+        variables = {}
 
-        # curve.x is time, curve.y is data
-        for c in self.curves:
-            name = c.name.split()[0]
-            if name in variable:
-                variables[variable.index(name)]['time'] = c.x
-                variables[variable.index(name)]['val'] = c.y
+        if variable is None:  # all curves
+            for c in self.curves:
+                name = c.name
+                variables[name] = {}
+                variables[name]['x-axis'] = c.x
+                variables[name]['y-axis'] = c.y
+        else:
+            for var in variable:
+                for c in self.curves:
+                    name = c.name
+                    if name == var:
+                        variables[name] = {}
+                        variables[name]['x-axis'] = c.x
+                        variables[name]['y-axis'] = c.y
+                        break
 
-        if len(variables) > 1:
-            return variables
-        else:  # only one variable read in
-            return variables[0]
+        return variables
 
     def extract(self, *args, **kargs):
         """Extract a feature"""
         return self.load_from_ultra(self.feature)
+
+    def open(self):
+        """open/load matching ultra file
+
+        :return: Dictionary containing 'x-axis' and 'y-axis' for each variable
+        """
+        return self.load_from_ultra(None)
 
     def list_features(self):
         """List features available in ultra file"""
@@ -82,11 +95,12 @@ class UltraLoader(KoshLoader):
         if self.curves is None:
             self.load_curves()
         for c in self.curves:
-            if c.name.split()[0] == feature:
+            if c.name == feature:
                 info["size"] = len(c.x)
                 info["first_time"] = c.x[0]
                 info["last_time"] = c.x[-1]
                 info["min"] = min(c.y)
                 info["max"] = max(c.y)
                 info["type"] = c.y.dtype
+                break
         return info

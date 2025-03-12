@@ -56,7 +56,6 @@ class KoshTestListFeatureVerbose(KoshTest):
         with redirect_stdout(f):
             ds.list_features(verbose=True)
         out = f.getvalue()
-        print("OUT:", out)
         self.assertTrue("No module named " in out and "missing_module" in out)
         store.close()
         os.remove(uri)
@@ -69,8 +68,9 @@ class KoshTestListFeatureVerbose(KoshTest):
         ds.associate(perm_file.name, "fake_txt")
         os.chmod(perm_file.name, 0o000)
         f = StringIO()
+        ds.list_features(verbose=True, use_cache=False)
         with redirect_stdout(f):
-            ds.list_features(verbose=True)
+            ds.list_features(verbose=True, use_cache=False)
         out = f.getvalue()
         self.assertTrue("Permission denied" in out)
         store.close()

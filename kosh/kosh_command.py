@@ -6,7 +6,6 @@ import argparse
 from kosh.utils import merge_datasets_handler  # noqa
 import kosh
 import sys
-from sina.utils import DataRange
 import shlex
 from subprocess import Popen, PIPE
 import os
@@ -109,6 +108,7 @@ def parse_metadata(terms):
     :return: Dictionary with name as key and matching sina find object as value
     :rtype: dict
     """
+    from sina.utils import DataRange
     metadata = {}
     for term in terms:
         found = False
@@ -253,8 +253,8 @@ Available commands are:
             except Exception:
                 pass
             sys.argv.pop(help_index)
-        args, _ = parser.parse_known_args(sys.argv + ["-s", "blah"])
-        if args.version:
+        args, opts = parser.parse_known_args(sys.argv + ["-s", "blah"])
+        if args.version or ("-v" in opts and "tar" not in opts):
             print("Kosh version:", kosh.__version__)
             sys.exit(0)
         # Ok now we parse only the rest to catch the command
