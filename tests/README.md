@@ -18,12 +18,12 @@ The MariaDB URI can be controlled via env variable KOSH_TEST_MARIADB and the loc
 ## Running parallel and serial tests locally
 Some tests will fail if not run with adequate resources.
 ~~~
-srun -n4 -p pdebug pytest --with-mpi tests/clusters/test_kosh_cluster*.py
+srun -n4 -p pdebug pytest --with-mpi tests/parallel/test_kosh_cluster*.py
 ~~~
 
 The rest of the tests can be run with these commands:
 ~~~
-pytest tests/clusters/test_kosh_cluster*.py
+pytest tests/parallel/test_kosh_cluster*.py
 ~~~
 ~~~
 pytest -s --cov=kosh tests/non_parallel/test_kosh_*.py

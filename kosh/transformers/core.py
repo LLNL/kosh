@@ -27,7 +27,7 @@ class KoshTransformer(KoshExecutionGraph):
                         value is stored in self._verbose
         :type verbose: bool
         """
-        self.signature = hashlib.sha256(repr(self.__class__).encode())
+        self.signature = hashlib.sha256(repr(self.__class__).encode()).hexdigest()
         self.signature = self.update_signature(*args, **kargs)
         self.cache_dir = cache_dir
         self._verbose = verbose
@@ -53,7 +53,7 @@ class KoshTransformer(KoshExecutionGraph):
         if self.cache:
             if signature is None:
                 use_signature = self.update_signature(
-                    input, format).hexdigest()
+                    input, format)
             else:
                 use_signature = signature
 
@@ -70,7 +70,7 @@ class KoshTransformer(KoshExecutionGraph):
             except Exception:
                 if signature is None:
                     signature = self.update_signature(
-                        input, format).hexdigest()
+                        input, format)
                 result = self.transform(input, format)
                 if self.cache > 0:  # Ok user wants to cache results
                     if not os.path.exists(self.cache_dir):

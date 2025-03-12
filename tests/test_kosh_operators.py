@@ -3,6 +3,7 @@ import numpy
 import kosh
 from koshbase import KoshTest
 import collections
+import h5py
 
 
 class StringsLoader(kosh.loaders.KoshLoader):
@@ -160,6 +161,72 @@ class KoshTestOperators(KoshTest):
             os.remove(filename)
         store.close()
         os.remove(db_uri)
+
+    def test_L_Norm(self):
+
+        store, db_uri = self.connect()
+        dir = os.path.dirname(__file__)
+        dataset = store.create()
+
+        # hdf5
+        h5file = h5py.File(os.path.join(dir, 'myfile.hdf5'), 'w')
+        grp = h5file.create_group("my/values")
+        x0_dset = numpy.linspace(-14, 14)
+        y0_dset = numpy.sin(x0_dset)
+        x1_dset = numpy.linspace(-15, 15)
+        y1_dset = numpy.cos(x1_dset)
+
+        # XY Paired
+        grp.create_dataset("my_dataset_xy", data=numpy.array([x0_dset, y0_dset]))
+
+        # XY Separated
+        grp.create_dataset("my_dataset_x0", data=x0_dset)
+        grp.create_dataset("my_dataset_y0", data=y0_dset)
+        grp.create_dataset("my_dataset_x1", data=x1_dset)
+        grp.create_dataset("my_dataset_y1", data=y1_dset)
+
+        dataset.associate(os.path.join(dir, 'myfile.hdf5'),
+                          mime_type="hdf5",
+                          absolute_path=False)
+
+        # ultra
+        dataset.associate(os.path.join(dir, "../examples/my_ult_file.ult"),
+                          mime_type="ultra",
+                          absolute_path=False)
+
+        # 2 2-D Arrays
+        x, y0, y1, LNormY = kosh.operators.KoshLNorm(dataset['Gaussian (a: 5.0 w: 5.0 c: 0.0)'],
+                                                     dataset["my/values/my_dataset_xy"],
+                                                     power=1, left=None, right=None, period=None)[:]
+        self.assertEqual(x.shape, (60, ))
+        self.assertEqual(y0.shape, (60, ))
+        self.assertEqual(y1.shape, (60, ))
+        self.assertEqual(LNormY.shape, ())
+
+        x, y0, y1, LNormY = kosh.operators.KoshLNorm(dataset['Gaussian (a: 5.0 w: 5.0 c: 0.0)'],
+                                                     dataset["my/values/my_dataset_xy"],
+                                                     power=1, overlap_only=True)[:]
+        self.assertEqual(x[0], -14)
+        self.assertEqual(x[-1], 12.272727272727257)
+
+        # 4 1-D Arrays
+        x, y0, y1, LNormY = kosh.operators.KoshLNorm(dataset["my/values/my_dataset_x0"],
+                                                     dataset["my/values/my_dataset_y0"],
+                                                     dataset["my/values/my_dataset_x1"],
+                                                     dataset["my/values/my_dataset_y1"],
+                                                     power=1, left=None, right=None, period=None)[:]
+        self.assertEqual(x.shape, (100, ))
+        self.assertEqual(y0.shape, (100, ))
+        self.assertEqual(y1.shape, (100, ))
+        self.assertEqual(LNormY.shape, ())
+
+        x, y0, y1, LNormY = kosh.operators.KoshLNorm(dataset["my/values/my_dataset_x0"],
+                                                     dataset["my/values/my_dataset_y0"],
+                                                     dataset["my/values/my_dataset_x1"],
+                                                     dataset["my/values/my_dataset_y1"],
+                                                     power=1, overlap_only=True)[:]
+        self.assertEqual(x[0], -14)
+        self.assertEqual(x[-1], 14)
 
 
 if __name__ == "__main__":

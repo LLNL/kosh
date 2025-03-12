@@ -1,6 +1,5 @@
 # Kosh transformer for scikit learn models
 from .core import KoshTransformer
-import numpy
 
 
 class Splitter(KoshTransformer):
@@ -196,6 +195,7 @@ class SKL(KoshTransformer):
         :type format: str
         :return: input taken over transformer's axis and indices
         """
+        import numpy
         estimator = self.skl_class.fit(input)
         if format is not None and "estimator" in format.lower():
             return estimator

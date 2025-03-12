@@ -26,7 +26,7 @@ class KoshOperator(KoshExecutionGraph):
         :type verbose: bool
         """
         self.cache_dir = kargs.pop("cache_dir", kosh_cache_dir)
-        self.signature = hashlib.sha256(repr(self.__class__).encode())
+        self.signature = hashlib.sha256(repr(self.__class__).encode()).hexdigest()
         self.signature = self.update_signature(*args, **kargs)
         self.use_cache = kargs.pop("use_cache", False)
         self._verbose = kargs.pop("verbose", False)
@@ -58,7 +58,7 @@ class KoshOperator(KoshExecutionGraph):
 
             if signature is None:
                 use_signature = self.update_signature(
-                    inputs, format).hexdigest()
+                    inputs, format)
             else:
                 use_signature = signature
 
@@ -75,7 +75,7 @@ class KoshOperator(KoshExecutionGraph):
             except Exception:
                 if signature is None:
                     signature = self.update_signature(
-                        inputs, format).hexdigest()
+                        inputs, format)
                 result = self.operate(*inputs, format=format)
                 if self.cache > 0:  # Ok user wants to cache results
                     if not os.path.exists(self.cache_dir):

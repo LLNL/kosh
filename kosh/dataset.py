@@ -2,14 +2,14 @@ import os
 import uuid
 import time
 import warnings
-import sina
-from sina.model import Record
-from .core_sina import KoshSinaObject
+from .core_sina import KoshSinaObject, kosh_pickler
 from .utils import get_graph
 from .utils import compute_fast_sha
 from .utils import compute_long_sha
 from .utils import cleanup_sina_record_from_kosh_sync
 from .utils import update_json_file_with_records_and_relationships
+from .utils import __check_valid_connection_type__
+from . import lock_strategies
 import kosh
 import six
 try:
@@ -37,31 +37,42 @@ class KoshDataset(KoshSinaObject):
         :param kosh_type: type of Kosh object (dataset, file, project, ...)
         :type kosh_type: str
         """
-        if kosh_type is None:
-            kosh_type = store._dataset_record_type
-        super(KoshDataset, self).__init__(id, kosh_type=kosh_type,
-                                          protected=[
-                                              "__name__", "__creator__", "__store__",
-                                              "_associated_data_", "__features__"],
-                                          record_handler=store.__record_handler__,
-                                          store=store, schema=schema, record=record)
-        self.__dict__["__record_handler__"] = store.__record_handler__
-        self.__dict__["__features__"] = {None: {}}
-        if record is None:
-            record = self.get_record()
-        try:
-            self.__dict__["__creator__"] = record["data"]["creator"]["value"]
-        except Exception:
-            pass
-        try:
-            self.__dict__["__name__"] = record["data"]["name"]["value"]
-        except Exception:
-            pass
-        if schema is not None or "schema" in record["data"]:
-            self.validate()
+        with store.lock_strategy:
+            if kosh_type is None:
+                kosh_type = store._dataset_record_type
+            super(KoshDataset, self).__init__(id, kosh_type=kosh_type,
+                                              protected=[
+                                                "__name__", "__creator__", "__store__",
+                                                "_associated_data_", "__features__"],
+                                              record_handler=store.__record_handler__,
+                                              store=store, schema=schema, record=record)
+            self.__dict__["__record_handler__"] = store.__record_handler__
+            if record is None:
+                record = self.get_record()
+            try:
+                self.__dict__["__creator__"] = record["data"]["creator"]["value"]
+            except Exception:
+                pass
+            try:
+                self.__dict__["__name__"] = record["data"]["name"]["value"]
+            except Exception:
+                pass
+            if schema is not None or "schema" in record["data"]:
+                self.validate()
 
+    @lock_strategies.lock_method
     def __str__(self):
         """string representation"""
+        import reprlib
+        if self.__store__.verbose_attributes:
+            def reprtool(item):
+                return item
+        else:
+            def reprtool(item):
+                if isinstance(item, str):
+                    return reprlib.repr(item)[1:-1]
+                else:
+                    return reprlib.repr(item)
         st = ""
         st += "KOSH DATASET\n"
         st += "\tid: {}\n".format(self.id)
@@ -77,10 +88,10 @@ class KoshDataset(KoshSinaObject):
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
             for a in sorted(atts):
-                if a == "_associated_data_":
+                if a == "_associated_data_" or "_ENSEMBLE_TAG_" in a:  # Remove associated data and ensemble tags
                     continue
                 if not self.is_ensemble_attribute(a):
-                    st += "\t{}: {}\n".format(a, atts[a])
+                    st += "\t{}: {}\n".format(a, reprtool(atts[a]))
         if self._associated_data_ is not None:
             st += "--- Associated Data ({})---\n".format(
                 len(self._associated_data_))
@@ -121,21 +132,30 @@ class KoshDataset(KoshSinaObject):
         st += "\n--- Ensemble Attributes ---\n"
         for ensemble in ensembles:
             st += "\t--- Ensemble {} ---\n".format(ensemble.id)
-            for a in sorted(atts):
-                if a == "_associated_data_":
-                    continue
-                if self.is_ensemble_attribute(a, ensemble):
-                    st += "\t\t{}: {}\n".format(a, atts[a])
+            eas = ensemble.list_attributes()
+            for ignore in ['creator', 'id', 'name']:
+                eas.remove(ignore)
+            eas.sort()
+            st += f"\t\t{reprtool(eas)}\n"
+
+            ensemble_tags = self.list_ensemble_tags(ensemble.id)
+            ensemble_tags.sort()
+            if ensemble_tags:
+                ensemble_tags = [et.replace(f"{ensemble.id}_ENSEMBLE_TAG_", "") for et in ensemble_tags]
+                st += "\t\t--- Ensemble Tags ---\n"
+                st += f"\t\t\t{ensemble_tags}\n"
         if self.alias_feature is not {}:
             st += '--- Alias Feature Dictionary ---'
             for key, val in self.alias_feature.items():
                 st += f"\n\t{key}: {val}"
         return st
 
+    @lock_strategies.lock_method
     def _repr_pretty_(self, p, cycle):
         """Pretty display in Ipython"""
         p.text(self.__str__())
 
+    @lock_strategies.lock_method
     def cleanup_files(self, dry_run=False, interactive=False,
                       clean_fastsha=False, **search_keys):
         """Cleanup the dataset from references to dead files
@@ -154,6 +174,7 @@ class KoshDataset(KoshSinaObject):
         :returns: list of uris (to be) removed or updated
         :rtype: list
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         bads = []
         for associated in self.find(**search_keys):
             clean = 'n'
@@ -196,6 +217,7 @@ class KoshDataset(KoshSinaObject):
                         associated.fast_sha = fast_sha
         return bads
 
+    @lock_strategies.lock_method
     def check_integrity(self):
         """Runs a sanity check on the dataset:
         1- Are associated files reachable?
@@ -203,6 +225,7 @@ class KoshDataset(KoshSinaObject):
         """
         return self.cleanup_files(dry_run=True, clean_fastsha=True)
 
+    @lock_strategies.lock_method
     def open(self, Id=None, loader=None, *args, **kargs):
         """open an object associated with a dataset
 
@@ -225,6 +248,7 @@ class KoshDataset(KoshSinaObject):
                     Id=Id))
         return self.__store__.open(Id, loader, *args, **kargs)
 
+    @lock_strategies.lock_method
     def list_features(self, Id=None, loader=None,
                       use_cache=True, verbose=False, *args, **kargs):
         """list_features list features available if multiple associated data lead to duplicate feature name
@@ -242,9 +266,6 @@ class KoshDataset(KoshSinaObject):
         :return: list of features available
         :rtype: list
         """
-        if use_cache and self.__dict__["__features__"].get(
-                Id, {}).get(loader, None) is not None:
-            return self.__dict__["__features__"][Id][loader]
         # Ok no need to sync any of this we will not touch the code
         saved_sync = self.__store__.is_synchronous()
         if saved_sync:
@@ -260,13 +281,15 @@ class KoshDataset(KoshSinaObject):
             for associated in associated_data:
                 if verbose:
                     asso = self.__store__._load(associated)
-                    print("Finding features for {}".format(asso.uri))
+                    print("Finding features for {}".format(asso))
                 if loader is None:
-                    ld, _ = self.__store__._find_loader(associated, requestorId=self.id, verbose=verbose)
+                    ld, _ = self.__store__._find_loader(associated,
+                                                        requestorId=self.id, verbose=verbose, use_cache=use_cache)
                 else:
                     if (associated, self.id) not in self.__store__._cached_loaders:
                         self.__store__._cached_loaders[associated, self.id] = loader(
                             self.__store__._load(associated), requestorId=self.id), None
+                        # self.__store__.update_cached_loaders()
                     ld, _ = self.__store__._cached_loaders[associated, self.id]
                 loaders.append(ld)
                 try:
@@ -283,17 +306,13 @@ class KoshDataset(KoshSinaObject):
                     ld = loaders[index]
                     if ld is None:
                         continue
-                    sp = associated.split("__uri__")
-                    if len(sp) > 1:
-                        uri = sp[1]
-                    else:
-                        uri = ld.uri
+                    asso = self.__store__._load(associated)
                     these_features = ld._list_features(
                         *args, use_cache=use_cache, **kargs)
                     for feature in these_features:
                         if features.count(feature) > 1:  # duplicate
                             ided_features.append(
-                                "{feature}_@_{uri}".format(feature=feature, uri=uri))
+                                "{feature}_@_{uri}".format(feature=feature, uri=asso.uri))
                         else:  # not duplicate name
                             ided_features.append(feature)
                 features = ided_features
@@ -306,18 +325,19 @@ class KoshDataset(KoshSinaObject):
                 ld = loader
             else:
                 ld, _ = self.__store__._find_loader(Id, requestorId=self.id, verbose=verbose)
-            features = ld._list_features(*args, use_cache=use_cache, **kargs)
-        features_id = self.__dict__["__features__"].get(Id, {})
+            features = ld._list_features(*args, use_cache=use_cache, verbose=verbose, **kargs)
+        features_id = self.__features__.get(Id, {})
         features_id[loader] = features
-        self.__dict__["__features__"][Id] = features_id
+        self.__features__[Id] = features_id
         if saved_sync:
             # we need to restore sync mode
             self.__store__.__sync__dict__ = backup
             self.__store__.synchronous()
         return features
 
+    @lock_strategies.lock_method
     def get_execution_graph(self, feature=None, Id=None,
-                            loader=None, transformers=[], *args, **kargs):
+                            loader=None, transformers=[], use_cache=True, *args, **kargs):
         """get data for a specific feature
         :param feature: feature (variable) to read, defaults to None
         :type feature: str, optional if loader does not require this
@@ -328,6 +348,8 @@ class KoshDataset(KoshSinaObject):
         :type loader: kosh.loaders.KoshLoader
         :param transformers: A list of transformers to use after the data is loaded
         :type transformers: kosh.transformer.KoshTranformer
+        :param use_cache: use cache to find features
+        :type use_cache: bool
         :returns: [description]
         :rtype: [type]
         """
@@ -362,7 +384,7 @@ class KoshDataset(KoshSinaObject):
             elif isinstance(val, str):
                 alias_feature_flattened[i].extend([val])
 
-        def find_features(self, a):
+        def find_features(self, a, use_cache=True):
 
             a_original = a
 
@@ -371,7 +393,7 @@ class KoshDataset(KoshSinaObject):
                 a, _ = a.split("__uri__")
             a_obj = self.__store__._load(a)
             if loader is None:
-                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id)
+                ld, _ = self.__store__._find_loader(a_original, requestorId=self.id, use_cache=use_cache)
                 if ld is None:  # unknown mimetype probably
                     return _, None, _, _
             else:
@@ -382,7 +404,7 @@ class KoshDataset(KoshSinaObject):
 
             # Dataset with curve have themselves as uri
             obj_uri = getattr(ld.obj, "uri", "self")
-            ld_features = ld._list_features()
+            ld_features = ld._list_features(use_cache=use_cache)
 
             return a_original, ld, obj_uri, ld_features
 
@@ -391,13 +413,13 @@ class KoshDataset(KoshSinaObject):
             if Id is None:
                 for a in self._associated_data_:
 
-                    a_original, ld, obj_uri, ld_features = find_features(self, a)
+                    a_original, ld, obj_uri, ld_features = find_features(self, a, use_cache=use_cache)
                     if ld is None:  # No features
                         continue
 
                     if isinstance(ld, kosh.loaders.core.KoshSinaLoader):
                         # ok we have to be careful list_features can be returned two ways
-                        if isinstance(ld_features[0], tuple) and isinstance(feature_, six.string_types):
+                        if isinstance(ld_features[0], (list, tuple)) and isinstance(feature_, six.string_types):
                             # we need to convert the feature to str
                             possibilities = kosh.utils.find_curveset_and_curve_name(feature_, self.get_record())
                             if len(possibilities) > 1:
@@ -405,11 +427,11 @@ class KoshDataset(KoshSinaObject):
                                     feature_, possibilities))
                             feature_ = possibilities[0]
                             features[index] = feature_
-                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, tuple):
+                        elif isinstance(ld_features[0], six.string_types) and isinstance(feature_, (list, tuple)):
                             feature_ = "/".join(feature_)
                             features[index] = feature_
 
-                    if ("_@_" not in feature_ and feature_ in ld_features) or\
+                    if ("_@_" not in feature_ and (feature_ in ld_features or list(feature_) in ld_features)) or\
                             feature_ is None or\
                             (feature_[:-len(obj_uri) - 3] in ld_features and
                              feature_[-len(obj_uri):] == obj_uri):
@@ -429,7 +451,7 @@ class KoshDataset(KoshSinaObject):
                         poss = []
                         for a in self._associated_data_:
 
-                            a_original, ld, obj_uri, ld_features = find_features(self, a)
+                            a_original, ld, obj_uri, ld_features = find_features(self, a, use_cache=use_cache)
                             if ld is None:  # No features
                                 continue
 
@@ -452,16 +474,16 @@ class KoshDataset(KoshSinaObject):
             elif Id == self.id:
                 # Ok asking for data not associated externally
                 # Likely curve
-                ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
-                if feature_ in ld._list_features():
+                ld, _ = self.__store__._find_loader(Id, requestorId=self.id, use_cache=use_cache)
+                if feature_ in ld._list_features(use_cache=use_cache):
                     possible_ids = [Id, ]
                 else:  # ok not a curve maybe a file?
                     rec = self.get_record()
                     for uri in rec["files"]:
                         if "mimetype" in rec["files"][uri]:
                             full_id = "{}__uri__{}".format(Id, uri)
-                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id)
-                            if ld is not None and feature_ in ld.list_features():
+                            ld, _ = self.__store__._find_loader(full_id, requestorId=self.id, use_cache=use_cache)
+                            if ld is not None and feature_ in ld._list_features(use_cache=use_cache):
                                 possible_ids = [full_id, ]
             elif Id not in self._associated_data_:
                 raise RuntimeError(
@@ -498,30 +520,27 @@ class KoshDataset(KoshSinaObject):
                 tmp = None
                 try:
                     if loader is None:
-                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id)
+                        ld, _ = self.__store__._find_loader(Id, requestorId=self.id, use_cache=use_cache)
                         mime_type = ld._mime_type
                     else:
                         if (Id, self.id) not in self.__store__._cached_loaders:
                             a_obj = self.__store__._load(Id)
                             self.__store__._cached_loaders[Id, self.id] = loader(a_obj, requestorId=self.id)
+                            # self.__store__.update_cached_loaders()
                             mime_type = a_obj.mime_type
                         ld = self.__store__._cached_loaders[Id, self.id]
                     # Essentially make a copy
                     # Because we want to attach the feature to it
                     # But let's not lose the cached list_features
-                    saved_listed_features = ld.__dict__[
-                        "_KoshLoader__listed_features"]
                     ld_uri = getattr(ld, "uri", None)
                     ld = ld.__class__(
                         ld.obj, mime_type=ld._mime_type, uri=ld_uri, requestorId=self.id)
-                    ld.__dict__[
-                        "_KoshLoader__listed_features"] = saved_listed_features
                     # Ensures there is a possible path to format
                     get_graph(mime_type, ld, transformers)
                     final_features = []
                     obj_uri = getattr(ld.obj, "uri", "")
                     for feature_ in features:
-                        if (feature_[:-len(obj_uri) - 3] in ld._list_features()
+                        if (feature_[:-len(obj_uri) - 3] in ld._list_features(use_cache=use_cache)
                                 and feature_[-len(obj_uri):] == obj_uri):
                             final_features.append(
                                 feature_[:-len(obj_uri) - 3])
@@ -545,6 +564,7 @@ class KoshDataset(KoshSinaObject):
         else:
             return out
 
+    @lock_strategies.lock_method
     def get(self, feature=None, format=None, Id=None, loader=None,
             group=False, transformers=[], *args, **kargs):
         """get data for a specific feature
@@ -578,6 +598,7 @@ class KoshDataset(KoshSinaObject):
         else:
             return G.traverse(format=format, *args, **kargs)
 
+    @lock_strategies.lock_method
     def __getitem__(self, feature):
         """Shortcut to access a feature or list of
         :param feature: feature(s) to access in dataset
@@ -587,6 +608,7 @@ class KoshDataset(KoshSinaObject):
         """
         return self.get_execution_graph(feature)
 
+    @lock_strategies.lock_method
     def __dir__(self):
         """__dir__ list functions and attributes associated with dataset
         :return: functions, methods, attribute associated with this dataset
@@ -599,6 +621,7 @@ class KoshDataset(KoshSinaObject):
             atts = set()
         return list(current.union(atts))
 
+    @lock_strategies.lock_method
     def reassociate(self, target, source=None, absolute_path=True):
         """This function allows to re-associate data whose uri might have changed
 
@@ -613,13 +636,16 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         self.__store__.reassociate(target, source=source, absolute_path=absolute_path)
 
+    @lock_strategies.lock_method
     def validate(self):
         """If dataset has a schema then make sure all attributes pass the schema"""
         if self.schema is not None:
             self.schema.validate(self)
 
+    @lock_strategies.lock_method
     def searchable_source_attributes(self):
         """Returns all the attributes of associated sources
         :return: List of all attributes you can use to search sources in the dataset
@@ -630,6 +656,7 @@ class KoshDataset(KoshSinaObject):
             searchable = searchable.union(source.listattributes())
         return searchable
 
+    @lock_strategies.lock_method
     def describe_feature(self, feature, Id=None, **kargs):
         """describe a feature
 
@@ -660,6 +687,7 @@ class KoshDataset(KoshSinaObject):
             loader, _ = self.__store__._find_loader(Id, requestorId=self.id)
         return loader.describe_feature(feature)
 
+    @lock_strategies.lock_method
     def dissociate(self, uri, absolute_path=True):
         """dissociates a uri/mime_type with this dataset
 
@@ -670,7 +698,7 @@ class KoshDataset(KoshSinaObject):
         :return: None
         :rtype: None
         """
-
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         if absolute_path and os.path.exists(uri):
             uri = os.path.abspath(uri)
         rec = self.get_record()
@@ -699,14 +727,25 @@ class KoshDataset(KoshSinaObject):
                 del self.__store__._cached_loaders[kosh_id, self.id]
             if (kosh_id, None) in self.__store__._cached_loaders:
                 del self.__store__._cached_loaders[kosh_id, None]
+            # We also need to clean up all features associated with the id
+            cached_features = self.__store__._cached_features_
+            yank = []
+            for id in cached_features:
+                if id.endswith(uri):
+                    yank.append(id)
+            for id in yank:
+                del cached_features[id]
+            self.__store__._cached_features_ = cached_features
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
-        self.__dict__["__features__"][kosh_id] = {}
+        self.__features__[None] = {}
+        self.__features__[kosh_id] = {}
 
+    @lock_strategies.lock_method
     def associate(self, uri, mime_type, metadata={},
-                  id_only=True, long_sha=False, absolute_path=True):
+                  id_only=None, long_sha=False, absolute_path=True,
+                  loader_kwargs=None, preload_features=False):
         """associates a uri/mime_type with this dataset
 
         :param uri: uri(s) to access content
@@ -715,19 +754,29 @@ class KoshDataset(KoshSinaObject):
         :type mime_type: str or list of str
         :param metadata: metadata to associate with file, defaults to {}
         :type metadata: dict, optional
-        :param id_only: do not return kosh file object, just its id
-        :type id_only: bool
+        :param id_only: do not return kosh file object (None and default), just its id (True)
+                        or the KoshSinaFile (False)
+        :type id_only: bool or None
         :param long_sha: Do we compute the long sha on this or not?
         :type long_sha: bool
         :param absolute_path: if file exists should we store its absolute_path
         :type absolute_path: bool
+        :param loader_kwargs: Extra arguments to pass to more advanced loader
+        :type loader_kwargs: dict, optional
+        :param preload_features: runs list_features on associated uri to save time in future reads (default: False)
+        :type preload_features: bool
         :return: A (list) Kosh Sina File(s)
         :rtype: list of KoshSinaFile or KoshSinaFile
         """
-
+        from sina.model import Record
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         rec = self.get_record()
         # Need to remember we touched associated files
         now = time.time()
+
+        if loader_kwargs is not None:
+            pickled = kosh_pickler.dumps(loader_kwargs)
+            metadata['loader_kwargs'] = pickled
 
         if isinstance(uri, six.string_types):
             uris = [uri, ]
@@ -828,7 +877,13 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the associated, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
+        # Let's rerun the list_features now so it's cached in the store and for the dataset.
+        if preload_features:
+            self.list_features()
+
+        if id_only is None:
+            return
 
         if id_only:
             if single_element:
@@ -838,7 +893,7 @@ class KoshDataset(KoshSinaObject):
 
         kosh_files = []
         for Id in kosh_file_ids:
-            self.__dict__["__features__"][Id] = {}
+            self.__features__[Id] = {}
             kosh_file = KoshSinaObject(Id=Id,
                                        kosh_type=self.__store__._sources_type,
                                        store=self.__store__,
@@ -851,6 +906,7 @@ class KoshDataset(KoshSinaObject):
         else:
             return kosh_files
 
+    @lock_strategies.lock_method
     def search(self, *atts, **keys):
         """
         Deprecated use find
@@ -860,6 +916,7 @@ class KoshDataset(KoshSinaObject):
                       DeprecationWarning)
         return self.find(*atts, **keys)
 
+    @lock_strategies.lock_method
     def find(self, *atts, **keys):
         """find associated data matching some metadata
         arguments are the metadata name we are looking for e.g
@@ -875,11 +932,13 @@ class KoshDataset(KoshSinaObject):
         :return: list of matching objects associated with dataset
         :rtype: list
         """
+        from sina.utils import exists
 
         if self._associated_data_ is None:
             return
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
+        load_type = keys.pop("load_type", "source")
         # We are only interested in ids from Sina
         sina_kargs["ids_only"] = True
 
@@ -906,7 +965,7 @@ class KoshDataset(KoshSinaObject):
             "query_order", ("data", "file_uri", "types"))
         sina_data = keys.pop("data", {})
         for att in atts:
-            sina_data[att] = sina.utils.exists()
+            sina_data[att] = exists()
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
 
@@ -932,7 +991,7 @@ class KoshDataset(KoshSinaObject):
                             "mime_type", None)) != sina_kargs["data"][key]:
                         match_it = False
                         break
-                elif key not in tags or sina_kargs["data"][key] != sina.utils.exists():
+                elif key not in tags or sina_kargs["data"][key] != exists():
                     match_it = False
                     break
             if match_it:
@@ -943,8 +1002,12 @@ class KoshDataset(KoshSinaObject):
             # We need to cleanup for "virtual association".
             # e.g comes directly from a sina rec with 'file'/'mimetype' in it.
             rec_id = rec_id.split("__uri__")[0]
-            yield rec_id if ids_only else self.__store__._load(rec_id)
+            if load_type == 'source':
+                yield rec_id if ids_only else self.__store__._load(rec_id)
+            elif load_type == 'dictionary':
+                yield rec_id if ids_only else self.__record_handler__.get(rec_id).__dict__['raw']
 
+    @lock_strategies.lock_method
     def export(self, file=None, sina_record=False):
         """Exports this dataset
         :param file: export dataset to a file
@@ -979,6 +1042,7 @@ class KoshDataset(KoshSinaObject):
         update_json_file_with_records_and_relationships(file, output_dict)
         return output_dict
 
+    @lock_strategies.lock_method
     def get_associated_data(self, ids_only=False):
         """Generator of associated data
         :param ids_only: generator will return ids if True Kosh object otherwise
@@ -992,6 +1056,7 @@ class KoshDataset(KoshSinaObject):
             else:
                 yield self.__store__._load(id)
 
+    @lock_strategies.lock_method
     def is_member_of(self, ensemble):
         """Determines if this dataset is a member of the passed ensemble
         :param ensemble: ensemble we need to determine if this dataset is part of
@@ -1006,6 +1071,7 @@ class KoshDataset(KoshSinaObject):
 
         return ensemble in self.get_ensembles(ids_only=True)
 
+    @lock_strategies.lock_method
     def get_ensembles(self, ids_only=False):
         """Returns the ensembles this dataset is part of
         :param ids_only: return ids or objects
@@ -1018,11 +1084,13 @@ class KoshDataset(KoshSinaObject):
             else:
                 yield self.__store__.open(rel.object_id, requestorId=self.id)
 
+    @lock_strategies.lock_method
     def leave_ensemble(self, ensemble):
         """Removes this dataset from an ensemble
         :param ensemble: The ensemble to leave
         :type ensemble: str or KoshEnsemble
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble)
@@ -1036,11 +1104,13 @@ class KoshDataset(KoshSinaObject):
                 "{} is not part of ensemble {}. Ignoring request to leave it.".format(
                     self.id, ensemble.id))
 
+    @lock_strategies.lock_method
     def join_ensemble(self, ensemble):
         """Adds this dataset to an ensemble
         :param ensemble: The ensemble to join
         :type ensemble: str or KoshEnsemble
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         from kosh.ensemble import KoshEnsemble
         if isinstance(ensemble, six.string_types):
             ensemble = self.__store__.open(ensemble, requestorId=self.id)
@@ -1049,6 +1119,7 @@ class KoshDataset(KoshSinaObject):
                 "cannot join `ensemble` since object `{}` does not map to an ensemble".format(ensemble))
         ensemble.add(self)
 
+    @lock_strategies.lock_method
     def clone(self, preserve_ensembles_memberships=False, id_only=False):
         """Clones the dataset, e.g makes an identical copy.
 
@@ -1068,9 +1139,13 @@ class KoshDataset(KoshSinaObject):
         :returns: The cloned dataset or its id
         :rtype: KoshDataset or str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
         attributes = self.list_attributes(True)
         cloned_dataset = self.__store__.create(metadata=attributes)
         for associated in self.get_associated_data():
+            rec = associated.get_record()
+            if "uri" not in rec["data"]:
+                continue
             cloned_dataset.associate(
                 associated.uri,
                 associated.mime_type,
@@ -1092,6 +1167,7 @@ class KoshDataset(KoshSinaObject):
         else:
             return cloned_dataset
 
+    @lock_strategies.lock_method
     def is_ensemble_attribute(self, attribute, ensembles=None, ensemble_id=False):
         """Determine if an attribute belongs to ensemble this dataset is part of
         :param attribute: The attribute to check
@@ -1129,6 +1205,54 @@ class KoshDataset(KoshSinaObject):
         else:
             return False
 
+    @lock_strategies.lock_method
+    def list_ensemble_tags(self, ensemble_id, dictionary=False, obscure=True):
+        """list all ensemble tags of specific ensemble ids
+
+        :param ensemble_id: Ensemble ID(s) of ensemble(s)
+        :type ensemble_id: str, str
+        :param dictionary: return a dictionary of value/pair rather than just tag names
+        :type dictionary: bool
+        :param obscure: Don't return backend attributes such as 'INHERIT_ATTRIBUTES'
+        :type obscure: bool
+
+        :return: list of ensemble tags for dataset of a specific ensemble
+        :rtype: list
+        """
+        ens_tags = self.list_attributes(ensemble_id=ensemble_id, dictionary=dictionary, obscure=obscure)
+        if dictionary:
+            return {key: val for key, val in ens_tags.items() if "_ENSEMBLE_TAG_" in key}
+        else:
+            return [et for et in ens_tags if "_ENSEMBLE_TAG_" in et]
+
+    @lock_strategies.lock_method
+    def add_ensemble_tags(self, ensemble_id, ensemble_tags):
+        """add ensemble tags to a specific ensemble
+
+        :param ensemble_id: Ensemble ID of ensemble
+        :type ensemble_id: str
+        :param ensemble_tags: Ensemble tags and their values to add
+        :type ensemble_tags: dict
+        """
+        for key, val in ensemble_tags.items():
+            self.___setattr___(f"{ensemble_id}_ENSEMBLE_TAG_{key}", val, force=True)
+
+    @lock_strategies.lock_method
+    def delete_ensemble_tags(self, ensemble_id, ensemble_tags):
+        """remove ensemble tags from a specific ensemble
+
+        :param ensemble_id: Ensemble ID of ensemble
+        :type ensemble_id: str
+        :param ensemble_tags: Ensemble tags to remove
+        :type ensemble_tags: list
+        """
+        if isinstance(ensemble_tags, str):
+            ensemble_tags = [ensemble_tags]
+        for et in ensemble_tags:
+            attr = f"{ensemble_id}_ENSEMBLE_TAG_{et}"
+            delattr(self, attr)
+
+    @lock_strategies.lock_method
     def add_curve(self, curve, curve_set=None, curve_name=None, independent=None, units=None, tags=None):
         """Add a curve to a dataset
         :param curve: The curve data
@@ -1152,6 +1276,18 @@ class KoshDataset(KoshSinaObject):
         :returns: the curve_set/curve_name path
         :rtype: str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write', 'append'])
+        # Before anything else lets remove the cached features
+        cached_features = self.__store__._cached_features_
+        yank = []
+        for id in cached_features:
+            if id.endswith(self.id):
+                yank.append(id)
+        for id in yank:
+            del cached_features[id]
+        # put back in store
+        self.__store__._cached_features_ = cached_features
+
         # let's obtain the record
         rec = self.get_record()
         # Let's figure out the curve_set name
@@ -1195,10 +1331,11 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the curves, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
 
         return "{}/{}".format(curve_set, curve_name)
 
+    @lock_strategies.lock_method
     def remove_curve_or_curve_set(self, curve, curve_set=None):
         """Removes a curve or curve_set from the dataset
         :param curve: name of the curve or curve_set to remove
@@ -1208,6 +1345,7 @@ class KoshDataset(KoshSinaObject):
                           name.
         :type curve_set: str
         """
+        __check_valid_connection_type__(self.__store__.__connection_type__, ['write'])
         original_curve_set = curve_set
         rec = self.get_record()
         if curve_set is None:
@@ -1225,7 +1363,7 @@ class KoshDataset(KoshSinaObject):
                         self._update_record(rec)
                     else:
                         self._update_record(rec, self.__store__._added_unsync_mem_store)
-                    self.__dict__["__features__"][None] = {}
+                    self.__features__[None] = {}
                     return
             else:
                 raise ValueError("The curve set {} does not exists".format(curve_set))
@@ -1250,5 +1388,86 @@ class KoshDataset(KoshSinaObject):
 
         # Since we changed the curves, we need to cleanup
         # the features cache
-        self.__dict__["__features__"][None] = {}
+        self.__features__[None] = {}
         return
+
+    @lock_strategies.lock_method
+    def list_attributes(self, dictionary=False, ensemble_id=None, obscure=True):
+        """listattributes list all non protected attributes
+
+        :param dictionary: return a dictionary of value/pair rather than just attributes names
+        :type dictionary: bool
+        :param ensemble_id: Provide ensemble ID(s) to return ensemble tags
+        :type ensemble_id: str, lst
+        :param obscure: Don't return backend attributes such as 'INHERIT_ATTRIBUTES'
+        :type obscure: bool
+
+        :return: list of attributes set on object
+        :rtype: list
+        """
+
+        attributes = super(KoshDataset, self).list_attributes(dictionary=dictionary, ensemble_id=ensemble_id)
+        if obscure:
+            if dictionary:
+                return {key: val for key, val in attributes.items() if '_ENSEMBLE_TAG_INHERIT_ATTRIBUTES' not in key}
+            else:
+                return [et for et in attributes if '_ENSEMBLE_TAG_INHERIT_ATTRIBUTES' not in et]
+        return attributes
+
+    @lock_strategies.lock_method
+    def to_dataframe(self, data_columns=[], *atts, **keys):
+        """Return the find object as a Pandas DataFrame.
+
+        Pass in the same arguments and keyword arguments as the find method.
+
+        find associated data matching some metadata
+        arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a special key that will return the kosh object associated
+        with this dataset for the given uri.  e.g store.find(file_uri=uri)
+
+        :param data_columns: Columns to extract. By default this will include ['id', 'mime_type', 'uri', 'associated'].
+                            If nothing is passed, will return all data.
+        :type data_columns: Union(str, list), optional
+        :return: Pandas DataFrame
+        :rtype: Pandas DataFrame
+        """
+        import pandas as pd
+        if isinstance(data_columns, str):
+            data_columns = [data_columns]
+
+        keys['load_type'] = 'dictionary'
+        keys['ids_only'] = False
+        sources = list(self.find(*atts, **keys))
+
+        attr_dict = {}
+        total_sources = len(sources)
+
+        # Always have these by default
+        defaults = ['id', 'mime_type', 'uri', 'associated']
+
+        # Acquire all data if `data_columns` was not passed
+        if not data_columns:
+            unique_keys = []
+            for i, source in enumerate(sources):
+                unique_keys.extend(list(source['data'].keys()))
+
+            data_columns = sorted(set(unique_keys))
+
+        data_columns = defaults + data_columns  # Want defaults in front
+        attr_dict = {d: [pd.NA] * total_sources for d in data_columns}
+
+        for i, source in enumerate(sources):
+            for column in data_columns:
+                if column == "id":
+                    attr_dict[column][i] = source['id']
+                else:
+                    attr_dict[column][i] = source['data'].get(column, {}).get('value', pd.NA)
+
+        df = pd.DataFrame(attr_dict)
+        return df
