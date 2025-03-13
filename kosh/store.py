@@ -491,9 +491,7 @@ class KoshStore(object):
             recs.update(store_rec)
         except Exception:  # store is likely closed already
             pass
-        print("---------------------------------------------")
         self.__sina_store.close()
-        print("*********************************************")
         gc.collect()
 
     @lock_strategies.lock_method
