@@ -72,7 +72,6 @@ class KoshTestListFeatureVerbose(KoshTest):
         with redirect_stdout(f):
             ds.list_features(verbose=True, use_cache=False)
         out = f.getvalue()
-        print("F:", f)
         self.assertTrue("Permission denied" in out)
         store.close()
         os.remove(uri)
