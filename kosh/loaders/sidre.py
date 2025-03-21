@@ -1,4 +1,3 @@
-import numpy
 from .core import KoshLoader
 
 
@@ -7,6 +6,7 @@ class SidreMeshBlueprintFieldLoader(KoshLoader):
              ["numpy", "sidre/path"]}
 
     def extract(self, *args, **kargs):
+        import numpy
         import conduit
         import conduit.relay
         if not isinstance(self.feature, list):

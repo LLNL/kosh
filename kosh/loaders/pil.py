@@ -1,5 +1,4 @@
 from .core import KoshLoader
-import numpy
 
 
 class PILLoader(KoshLoader):
@@ -38,6 +37,7 @@ class PILLoader(KoshLoader):
         :return: numpy array or raw bytes
         :rtype: numpy.ndarray or bytes
         """
+        import numpy
         if self.format == "numpy":
             return numpy.array(self.open())
         elif self.format == "bytes":

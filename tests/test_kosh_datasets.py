@@ -183,7 +183,8 @@ KOSH DATASET
         asso_id = ds_2.associate(
             "tests/baselines/node_extracts2",
             "something",
-            absolute_path=False)
+            absolute_path=False,
+            id_only=True)
         n_files_2 = len(
             list(
                 store.find(
@@ -309,8 +310,7 @@ KOSH DATASET
                 "project": "test"})
         print(ds4.id)
         ds.associate("setup.py", "ascii")
-        ass = ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
-        print("ASSO ID:", ass)
+        ds2.associate("tests/baselines/images/LLNLiconWHITE.png", "png")
         ds3.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "hdf5")
@@ -347,7 +347,7 @@ KOSH DATASET
         ds = store.create()
         ds2 = store.create()
         ds.associate("setup.py", "py")
-        asso_id = ds2.associate("setup.py", "py")
+        asso_id = ds2.associate("setup.py", "py", id_only=True)
         asso = store._load(asso_id)
         self.assertTrue(ds.id in asso.associated)
         self.assertTrue(ds2.id in asso.associated)
@@ -375,14 +375,14 @@ KOSH DATASET
         ds.associate("fake_file", "sometype", absolute_path=False)
 
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=False)
         self.assertEqual(len(features), 1)
         end = time.time()
         self.assertGreaterEqual(end - start, 1.)
 
         # Now let's run it again and make sure cache is used
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=True)
         end = time.time()
         self.assertLess(end - start, 1.)
 
@@ -395,14 +395,14 @@ KOSH DATASET
         # let's associate something to ensure cache is reset
         ds.associate("fake_file_2", "sometype")
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=False)
         end = time.time()
         self.assertEqual(len(features), 2)
         self.assertGreaterEqual(end - start, 2.)
 
         # Now let's run it again and make sure cache is used
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=True)
         end = time.time()
         self.assertLess(end - start, 1.)
 
@@ -410,7 +410,7 @@ KOSH DATASET
         ds.dissociate("fake_file", absolute_path=False)
 
         start = time.time()
-        features = ds.list_features()
+        features = ds.list_features(use_cache=False)
         end = time.time()
         self.assertEqual(len(features), 1)
 
@@ -544,6 +544,42 @@ KOSH DATASET
         ds.good = "good"
         del ds.good
         ds.good = "still good"
+        store.close()
+        os.remove(db_uri)
+
+    def test_long_string_as_attribute_without_verbosity(self):
+        store, db_uri = self.connect(verbose_attributes=False)
+        ds = store.create()
+        long_string = (
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
+            "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+            "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris "
+            "nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in "
+            "reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+            "nulla pariatur. Excepteur sint occaecat cupidatat non proident, "
+            "sunt in culpa qui officia deserunt mollit anim id est laborum."
+        ) * 10
+        ds.long_string = long_string
+        self.assertLess(len(ds.__str__()), len(long_string))
+        self.assertEqual(len(ds.long_string), len(long_string))
+        store.close()
+        os.remove(db_uri)
+
+    def test_long_string_as_attribute_with_verbosity(self):
+        store, db_uri = self.connect(verbose_attributes=True)
+        ds = store.create()
+        long_string = (
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit, "
+            "sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+            "Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris "
+            "nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in "
+            "reprehenderit in voluptate velit esse cillum dolore eu fugiat "
+            "nulla pariatur. Excepteur sint occaecat cupidatat non proident, "
+            "sunt in culpa qui officia deserunt mollit anim id est laborum."
+        ) * 10
+        ds.long_string = long_string
+        self.assertGreater(len(ds.__str__()), len(long_string))
+        self.assertEqual(len(ds.long_string), len(long_string))
         store.close()
         os.remove(db_uri)
 

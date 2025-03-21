@@ -1,3 +1,4 @@
+import importlib.metadata
 from .current_version import current_version
 import os
 # import .sampling_methods  # noqa
@@ -6,7 +7,6 @@ from .loaders import KoshLoader, KoshSinaLoader  # noqa
 from .utils import create_new_db, walk_dictionary_keys, version  # noqa
 from .schema import KoshSchema  # noqa
 from .operators import KoshOperator  # noqa
-import pkg_resources  # noqa
 from .store import KoshStore, connect  # noqa
 from .dataset import KoshDataset  # noqa
 from .transformers import typed_transformer, numpy_transformer, typed_transformer_with_format  # noqa
@@ -16,9 +16,8 @@ from .operators import typed_operator_with_kwargs, typed_operator, numpy_operato
 from .kosh_command import KoshCmd  # noqa
 
 try:
-    d = pkg_resources.get_distribution("kosh")
-    __version__ = d.version
-    metadata = list(d._get_metadata(d.PKG_INFO))
+    metadata = importlib.metadata.metadata("kosh")
+    __version__ = metadata["Version"]
     __sha__ = None
     for meta in metadata:
         if "Summary:" in meta:

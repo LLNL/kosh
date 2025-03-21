@@ -1,0 +1,30 @@
+#!/bin/bash
+#BSUB -nnodes 1
+#BSUB -W 00:10    # hours:minutes
+#BSUB -J Merlin
+#BSUB -o merlin_workers_%J.out
+#BSUB -e merlin_workers_%J.err
+#BSUB -N
+
+# Turn off core files to work aroung flux exec issue.
+ulimit -c 0
+
+YAML=kosh/tests/parallel/kosh_scaling_merlin.yaml
+echo "Specification File: $YAML"
+
+VENV_PATH=kosh/kosh_test_venv
+
+# Activate the virtual environment
+source ${VENV_PATH}/bin/activate
+
+# Show the workers command
+merlin run-workers ${YAML} --echo
+
+# Start workers to run the tasks in the broker
+merlin run-workers ${YAML}
+
+# Status
+merlin status ${YAML}
+
+# Keep the allocation alive until all workers stop
+merlin monitor ${YAML}

@@ -2,8 +2,6 @@ import os
 import gc
 import sys
 import uuid
-import sina.utils
-from sina.model import Relationship
 import collections
 if not sys.platform.startswith("win"):
     import fcntl
@@ -11,24 +9,26 @@ if not sys.platform.startswith("win"):
 import hashlib
 import warnings
 import time
-from .loaders import KoshLoader, KoshFileLoader, PGMLoader, KoshSinaLoader
-from .utils import compute_fast_sha, merge_datasets_handler
+import re
+from .loaders import KoshFileLoader, PGMLoader, KoshSinaLoader
+from .utils import compute_fast_sha, merge_datasets_handler, __check_valid_connection_type__
 from .loaders import JSONLoader
 from .loaders import NpyLoader
 from .loaders import NumpyTxtLoader
+from .loaders import PandasLoader
 from .dataset import KoshDataset
 from .ensemble import KoshEnsemble
 from .core_sina import KoshSinaFile, KoshSinaObject, kosh_pickler
 from .utils import create_kosh_users
-from .utils import update_store_and_get_info_record
-from sina import connect as sina_connect
+from .utils import update_store_and_get_info_record, get_store_info_record
+from .utils import get_store_info_record_attribute
 from inspect import isfunction, ismethod
 import kosh
 import six
 import types
 import sys
 from .kosh_command import KoshCmd, process_cmd
-
+from . import lock_strategies
 try:
     from .loaders import HDF5Loader
 except ImportError:
@@ -51,9 +51,12 @@ except ImportError:
     import json as orjson  # noqa
 
 
+@lock_strategies.lock_function
 def connect(database, keyspace=None, database_type=None,
             allow_connection_pooling=False, read_only=False,
-            delete_all_contents=False, execution_options={}, **kargs):
+            delete_all_contents=False, execution_options={},
+            connection_type="write", lock_strategy=None,
+            verbose=False, **kargs):
     """Connect to a Sina store.
 
 Given a uri/path (and, if required, the name of a keyspace),
@@ -75,41 +78,61 @@ figures out which backend is required.
 :type read_only: bool
 :param execution_options: execution options keyword to pass to sina store record_dao at creation time
 :type execution_options: dict
+:param connection_type: whether to create a write, append, or read only store
+:type connection_type: str
 :param kargs: Any extra arguments you wish to pass to the KoshStore function
 :type kargs: dict, key=value
 :param delete_all_contents: Deletes all data after opening the db
 :type delete_all_contents: bool
+:param lock_strategy: A LockStrategy object to incorporate locking mechanisms
+:type lock_strategy: LockStrategy
 :return: a KoshStore object connected to the specified database
 :rtype: KoshStoreClass
 """
-    db = kargs.pop("db", None)
-    if db is not None:
-        if database_type is not None and db != database_type:
-            raise ValueError(
-                "You cannot specify `db` and `database_type` with different values")
-        database_type = db
-    sina_store = sina_connect(database=database,
-                              keyspace=keyspace,
-                              database_type=database_type,
-                              allow_connection_pooling=allow_connection_pooling,
-                              read_only=read_only)
-    # sina_store._record_dao.session.connection(execution_options=execution_options)
+    from sina import connect as sina_connect
+    from sqlalchemy.exc import ResourceClosedError
+    if lock_strategy is None:
+        lock_strategy = lock_strategies.NoLocking()
 
-    if not read_only:
-        if delete_all_contents:
-            sina_store.delete_all_contents(force="SKIP PROMPT")
-        update_store_and_get_info_record(sina_store.records)
-        create_kosh_users(sina_store.records)
-    sina_store.close()
-    sync = kargs.pop("sync", True)
-    if read_only:
-        sync = False
-    store = KoshStore(database, sync=sync, keyspace=keyspace, read_only=read_only,
-                      db=database_type,
-                      allow_connection_pooling=allow_connection_pooling,
-                      execution_options=execution_options,
-                      **kargs)
-    return store
+    with lock_strategy:
+        db = kargs.pop("db", None)
+        if db is not None:
+            if database_type is not None and db != database_type:
+                raise ValueError(
+                    "You cannot specify `db` and `database_type` with different values")
+            database_type = db
+        if connection_type not in ['write', 'append', 'read']:
+            raise ValueError(
+                "`connection_type` must be one of ['write', 'append', 'read']")
+        if connection_type == 'read':
+            read_only = True
+        sina_store = sina_connect(database=database,
+                                  keyspace=keyspace,
+                                  database_type=database_type,
+                                  allow_connection_pooling=allow_connection_pooling,
+                                  read_only=read_only, connection_type=connection_type)
+        # sina_store._record_dao.session.connection(execution_options=execution_options)
+
+        if not read_only and connection_type == 'write':
+            if delete_all_contents:
+                try:
+                    sina_store.delete_all_contents(force="SKIP PROMPT")
+                except ResourceClosedError:
+                    pass  # Store was already empty
+            update_store_and_get_info_record(sina_store.records)
+            create_kosh_users(sina_store.records)
+        sina_store.close()
+        sync = kargs.pop("sync", True)
+        if read_only:
+            sync = False
+        store = KoshStore(database, sync=sync, keyspace=keyspace, read_only=read_only,
+                          db=database_type,
+                          allow_connection_pooling=allow_connection_pooling,
+                          execution_options=execution_options, connection_type=connection_type,
+                          lock_strategy=lock_strategy,
+                          verbose=verbose,
+                          **kargs)
+        return store
 
 
 class KoshStore(object):
@@ -118,7 +141,9 @@ class KoshStore(object):
     def __init__(self, db_uri=None, username=os.environ.get("USER", "default"), db=None,
                  keyspace=None, sync=True, dataset_record_type="dataset",
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
-                 read_only=False, allow_connection_pooling=False, ensemble_predicate=None, execution_options={}):
+                 read_only=False, allow_connection_pooling=False, ensemble_predicate=None,
+                 execution_options={}, connection_type='write', lock_strategy=None,
+                 verbose_attributes=False):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -151,148 +176,176 @@ class KoshStore(object):
         :type ensemble_predicate: str
         :param execution_options: execution options keyword to pass to sina store record_dao at creation time
         :type execution_options: dict
+        :param connection_type: whether to create a write, append, or read only store
+        :type connection_type: str
+        :param lock_strategy: The LockStrategy to apply to class methods
+        :type lock_strategy: LockStrategy
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
+        :param verbose_attributes: Should we print attribute values of over length 30?
+        :type verbose_attributes: bool
         """
-        if db_uri is not None and "://" in db_uri and use_lock_file:
-            warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
-            use_lock_file = False
-        self.use_lock_file = use_lock_file
-        self.loaders = {}
-        self.storeLoader = KoshLoader
-        self.add_loader(KoshFileLoader)
-        self.add_loader(JSONLoader)
-        self.add_loader(NpyLoader)
-        self.add_loader(NumpyTxtLoader)
-        try:
-            self.add_loader(HDF5Loader)
-        except Exception:  # no h5py module?
-            if verbose:
-                warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
-                              " Pass verbose=False when creating the store to turn this message off")
-        try:
-            self.add_loader(PILLoader)
-        except Exception:  # no PIL?
-            if verbose:
-                warnings.warn("Could not add pil loader, check if you have pillow installed."
-                              " Pass verbose=False when creating the store to turn this message off")
-        self.add_loader(PGMLoader)
-        try:
-            self.add_loader(UltraLoader)
-        except Exception:  # no pydv?
-            if verbose:
-                warnings.warn("Could not add ultra files loader, check if you have pydv installed."
-                              " Pass verbose=False when creating the store to turn this message off")
-        try:
-            self.add_loader(SidreMeshBlueprintFieldLoader)
-        except Exception:  # no conduit?
-            if verbose:
-                warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
-                              " Pass verbose=False when creating the store to turn this message off")
-        if read_only:
-            sync = False
-        self.__read_only__ = read_only
-        self.__sync__ = sync
-        self.__sync__dict__ = {}
-        self.__sync__deleted__ = {}
+        from sina import connect as sina_connect
+        from sina.utils import Negation
+        if lock_strategy is None:
+            lock_strategy = lock_strategies.NoLocking()
+        self.lock_strategy = lock_strategy
+        self.verbose_attributes = verbose_attributes
 
-        if db is None:
-            db = 'sql'
-        self._dataset_record_type = dataset_record_type
-        self.db_uri = db_uri
-        if db == "sql":
-            if db_uri is not None and not os.path.exists(db_uri):
-                if "://" in db_uri:
-                    self.__sina_store = sina_connect(
-                        db_uri, read_only=read_only)
+        with lock_strategy:
+            if db_uri is not None and "://" in db_uri and use_lock_file:
+                warnings.warn("You cannot use `lock_file` on non file-based db, turning it off", ResourceWarning)
+                use_lock_file = False
+            if connection_type not in ['write', 'append', 'read']:
+                raise ValueError(
+                        "`connection_type` must be one of ['write', 'append', 'read']")
+            self.__connection_type__ = connection_type
+            self.use_lock_file = use_lock_file
+            if connection_type == 'read':
+                read_only = True
+            if read_only:
+                sync = False
+            self.__read_only__ = read_only
+            self.__sync__ = sync
+            self.__sync__dict__ = {}
+            self.__sync__deleted__ = {}
+
+            if db is None:
+                db = 'sql'
+            self._dataset_record_type = dataset_record_type
+            self.db_uri = db_uri
+            if db == "sql":
+                if db_uri is not None and not os.path.exists(db_uri):
+                    if "://" in db_uri:
+                        self.__sina_store = sina_connect(
+                            db_uri, read_only=read_only, connection_type=connection_type)
+                        self.__sina_store._record_dao.session.connection(execution_options=execution_options)
+                    else:
+                        raise ValueError(
+                            "Kosh store could not be found at: {}".format(db_uri))
+                else:
+                    self.lock()
+                    if db_uri is not None:
+                        db_pth = os.path.abspath(db_uri)
+                    else:
+                        db_pth = None
+                    self.__sina_store = sina_connect(database=db_pth,
+                                                     read_only=read_only,
+                                                     database_type=db,
+                                                     allow_connection_pooling=allow_connection_pooling,
+                                                     connection_type=connection_type)
                     self.__sina_store._record_dao.session.connection(execution_options=execution_options)
-                else:
-                    raise ValueError(
-                        "Kosh store could not be found at: {}".format(db_uri))
+                    self.unlock()
+            elif db.lower().startswith('cass'):
+                self.__sina_store = sina_connect(
+                    keyspace=keyspace, database=db_uri,
+                    database_type='cassandra', read_only=read_only,
+                    allow_connection_pooling=allow_connection_pooling,
+                    connection_type=connection_type)
+            from sina.model import Record
+            from sina.utils import DataRange
+            global Record, DataRange
+
+            rec = update_store_and_get_info_record(self.__sina_store.records, ensemble_predicate)
+
+            self._cached_features_ = rec["user_defined"]["cached_features"]
+            self._sources_type = rec["data"]["sources_type"]["value"]
+            self._users_type = rec["data"]["users_type"]["value"]
+            self._groups_type = rec["data"]["groups_type"]["value"]
+            self._loaders_type = rec["data"]["loaders_type"]["value"]
+            self._ensembles_type = rec["data"]["ensembles_type"]["value"]
+            self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
+            self._kosh_reserved_record_types = kosh_reserved_record_types + \
+                rec["data"]["reserved_types"]["value"]
+            kosh_reserved = list(self._kosh_reserved_record_types)
+            kosh_reserved.remove(self._sources_type)
+            self._kosh_datasets_and_sources = Negation(kosh_reserved)
+
+            # Associated stores
+            self._associated_stores_ = []
+            if "associated_stores" in rec["data"]:
+                for store in rec["data"]["associated_stores"]["value"]:
+                    try:
+                        self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync,
+                                                                     connection_type=connection_type))
+                    except Exception:  # most likely a sqlalchemy.exc.DatabaseError
+                        warnings.warn("Could not open associated store: {}".format(store))
+
+            self.lock()
+            self.__dict__["__record_handler__"] = self.__sina_store.records
+            self.unlock()
+            users_filter = list(self.__record_handler__.find_with_type(
+                self._users_type, ids_only=True))
+            names_filter = list(
+                self.__record_handler__.find_with_data(
+                    username=username))
+            inter_recs = set(users_filter).intersection(set(names_filter))
+            if len(inter_recs) == 0:
+                # raise ConnectionRefusedError("Unknown user: {}".format(username))
+                # For now just letting anyone log in as anonymous
+                warnings.warn("Unknown user, you will be logged as anonymous user")
+                names_filter = self.__record_handler__.find_with_data(
+                    username="anonymous")
+                self.__user_id__ = "anonymous"
+            elif len(inter_recs) > 1:
+                raise SystemError("Internal error, more than one user match!")
             else:
-                self.lock()
-                if db_uri is not None:
-                    db_pth = os.path.abspath(db_uri)
-                else:
-                    db_pth = None
-                self.__sina_store = sina_connect(database=db_pth,
-                                                 read_only=read_only,
-                                                 database_type=db,
-                                                 allow_connection_pooling=allow_connection_pooling)
-                self.__sina_store._record_dao.session.connection(execution_options=execution_options)
-                self.unlock()
-        elif db.lower().startswith('cass'):
-            self.__sina_store = sina_connect(
-                keyspace=keyspace, database=db_uri,
-                database_type='cassandra', read_only=read_only,
-                allow_connection_pooling=allow_connection_pooling)
-        from sina.model import Record
-        from sina.utils import DataRange
-        global Record, DataRange
+                self.__user_id__ = list(inter_recs)[0]
+            self.storeLoader = KoshSinaLoader
+            self.loaders = {}
+            self.add_loader(self.storeLoader)
 
-        rec = update_store_and_get_info_record(self.__sina_store.records, ensemble_predicate)
+            # self.storeLoader = KoshLoader
+            self.add_loader(KoshFileLoader)
+            self.add_loader(JSONLoader)
+            self.add_loader(NpyLoader)
+            self.add_loader(NumpyTxtLoader)
+            self.add_loader(PandasLoader)
+            try:
+                self.add_loader(HDF5Loader)
+            except Exception:  # no h5py module?
+                if verbose:
+                    warnings.warn("Could not add hdf5 loader, check if you have h5py installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            try:
+                self.add_loader(PILLoader)
+            except Exception:  # no PIL?
+                if verbose:
+                    warnings.warn("Could not add pil loader, check if you have pillow installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            self.add_loader(PGMLoader)
+            try:
+                self.add_loader(UltraLoader)
+            except Exception:  # no pydv?
+                if verbose:
+                    warnings.warn("Could not add ultra files loader, check if you have pydv installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            try:
+                self.add_loader(SidreMeshBlueprintFieldLoader)
+            except Exception:  # no conduit?
+                if verbose:
+                    warnings.warn("Could not add sidre blueprint meshfield loader, check if you have conduit installed."
+                                  " Pass verbose=False when creating the store to turn this message off")
+            # Now let's add the loaders in the store
+            for rec_loader in self.__record_handler__.find_with_type("koshloader"):
+                loader = kosh_pickler.loads(rec_loader.data["code"]["value"])
+                self.add_loader(loader)
+            self._added_unsync_mem_store = sina_connect(None)
+            self._cached_loaders = collections.OrderedDict()
+            # self._cached_features = "cached_features"
 
-        self._sources_type = rec["data"]["sources_type"]["value"]
-        self._users_type = rec["data"]["users_type"]["value"]
-        self._groups_type = rec["data"]["groups_type"]["value"]
-        self._loaders_type = rec["data"]["loaders_type"]["value"]
-        self._ensembles_type = rec["data"]["ensembles_type"]["value"]
-        self._ensemble_predicate = rec["data"]["ensemble_predicate"]["value"]
-        self._kosh_reserved_record_types = kosh_reserved_record_types + \
-            rec["data"]["reserved_types"]["value"]
-        kosh_reserved = list(self._kosh_reserved_record_types)
-        kosh_reserved.remove(self._sources_type)
-        self._kosh_datasets_and_sources = sina.utils.Negation(kosh_reserved)
+            # Ok we need to map the KoshFileLoader back to whatever the source_type is
+            # in this store
+            ks = self.loaders["file"]
+            for loader in ks:
+                loader.types[self._sources_type] = loader.types["file"]
+            self.loaders[self._sources_type] = self.loaders["file"]
 
-        # Associated stores
-        self._associated_stores_ = []
-        if "associated_stores" in rec["data"]:
-            for store in rec["data"]["associated_stores"]["value"]:
-                try:
-                    self._associated_stores_.append(kosh.connect(store, read_only=read_only, sync=sync))
-                except Exception:  # most likely a sqlalchemy.exc.DatabaseError
-                    warnings.warn("Could not open associated store: {}".format(store))
-
-        self.lock()
-        self.__dict__["__record_handler__"] = self.__sina_store.records
-        self.unlock()
-        users_filter = list(self.__record_handler__.find_with_type(
-            self._users_type, ids_only=True))
-        names_filter = list(
-            self.__record_handler__.find_with_data(
-                username=username))
-        inter_recs = set(users_filter).intersection(set(names_filter))
-        if len(inter_recs) == 0:
-            # raise ConnectionRefusedError("Unknown user: {}".format(username))
-            # For now just letting anyone log in as anonymous
-            warnings.warn("Unknown user, you will be logged as anonymous user")
-            names_filter = self.__record_handler__.find_with_data(
-                username="anonymous")
-            self.__user_id__ = "anonymous"
-        elif len(inter_recs) > 1:
-            raise SystemError("Internal error, more than one user match!")
-        else:
-            self.__user_id__ = list(inter_recs)[0]
-        self.storeLoader = KoshSinaLoader
-        self.add_loader(self.storeLoader)
-
-        # Now let's add the loaders in the store
-        for rec_loader in self.__record_handler__.find_with_type("koshloader"):
-            loader = kosh_pickler.loads(rec_loader.data["code"]["value"])
-            self.add_loader(loader)
-        self._added_unsync_mem_store = sina_connect(None)
-        self._cached_loaders = {}
-
-        # Ok we need to map the KoshFileLoader back to whatever the source_type is
-        # in this store
-        ks = self.loaders["file"]
-        for loader in ks:
-            loader.types[self._sources_type] = loader.types["file"]
-        self.loaders[self._sources_type] = self.loaders["file"]
-
+    @lock_strategies.lock_method
     def __enter__(self):
         return self
 
+    @lock_strategies.lock_method
     def add_loader(self, loader, save=False):
         """Adds a loader to the store
 
@@ -304,8 +357,10 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         # We add a loader we need to clear the cache
         self._cached_loaders = collections.OrderedDict()
+
         for k in loader.types:
             if k in self.loaders:
                 if loader not in self.loaders[k]:
@@ -316,10 +371,11 @@ class KoshStore(object):
         if save:  # do we save it in store
             self.save_loader(loader)
 
+    @lock_strategies.lock_method
     def delete_loader(self, loader, permanently=False):
         """Removes a loader from the store and possible from its db
 
-        :param loader: The Kosh loader you want to add to the store
+        :param loader: The Kosh loader you want to remove
         :type loader: KoshLoader
         :param permanently: Do we also remove it from the db if saved there?
         :type permanently: bool
@@ -327,12 +383,29 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
-        # We add a loader we need to clear the cache
-        self._cached_loaders = collections.OrderedDict()
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
+        # We deleted a loader we need to clear the cache
+        existing_cached = self._cached_loaders.values()
+        empty_types = []
         for k in loader.types:
             if k in self.loaders:
                 if loader in self.loaders[k]:
                     self.loaders[k].remove(loader)
+                    if len(self.loaders[k]) == 0:
+                        # ok we took them all out
+                        empty_types.append(k)
+                    __listed_features_cache = self._cached_features_
+                    yank = []
+                    for id in __listed_features_cache.keys():
+                        for ld, _ in existing_cached:
+                            if isinstance(ld, loader) and id.startswith(ld.signature):
+                                yank.append(id)
+                    for id in yank:
+                        del __listed_features_cache[id]
+                    self._cached_features_ = __listed_features_cache
+        for k in empty_types:
+            del self.loaders[k]
+        self._cached_loaders = collections.OrderedDict()
 
         if permanently:  # Remove it from saved in db as well
             pickled = kosh_pickler.dumps(loader)
@@ -342,6 +415,7 @@ class KoshStore(object):
                 self.__record_handler__.delete(rec)
                 self.unlock()
 
+    @lock_strategies.lock_method
     def remove_loader(self, loader):
         """Removes a loader from the store and its db
 
@@ -351,8 +425,10 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         self.delete_loader(loader, permanently=True)
 
+    @lock_strategies.lock_method
     def lock(self):
         """Attempts to lock the store, helps when many concurrent requests are made to the store"""
         if not self.use_lock_file or "://" in self.db_uri:
@@ -366,6 +442,7 @@ class KoshStore(object):
             except Exception:
                 time.sleep(0.1)
 
+    @lock_strategies.lock_method
     def unlock(self):
         """Unlocks the store so other can access it"""
         if not self.use_lock_file or "://" in self.db_uri:
@@ -380,8 +457,10 @@ class KoshStore(object):
         except Exception:
             pass
 
+    @lock_strategies.lock_method
     def __del__(self):
         """delete the KoshStore object"""
+        self.close()
         if not self.use_lock_file or "://" in self.db_uri:
             return
         name = self.lock_file.name
@@ -389,22 +468,37 @@ class KoshStore(object):
         if os.path.exists(name):
             os.remove(name)
 
+    @lock_strategies.lock_method
     def get_sina_store(self):
         """Returns the sina store object"""
         return self.__sina_store
 
+    @lock_strategies.lock_method
     def get_sina_records(self):
         """Returns sina store's records"""
-        return self.__record_handler__
+        return self.__sina_store.records
 
+    @lock_strategies.lock_method
     def close(self):
         """closes store and sina related things"""
+        try:
+            # We need to update the features
+            recs = self.get_sina_records()
+            store_rec = get_store_info_record(recs)
+            cached_features = get_store_info_record_attribute(recs, "cached_features")
+            cached_features.update(self._cached_features_)
+            store_rec["user_defined"]["cached_features"] = cached_features
+            recs.update(store_rec)
+        except Exception:  # store is likely closed already
+            pass
         self.__sina_store.close()
         gc.collect()
 
+    @lock_strategies.lock_method
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.close()
 
+    @lock_strategies.lock_method
     def delete_all_contents(self, force=""):
         """
         Delete EVERYTHING in a datastore; this cannot be undone.
@@ -415,11 +509,13 @@ class KoshStore(object):
         :type force: str
         :returns: whether the deletion happened.
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         ret = self.__sina_store.delete_all_contents(force=force)
         update_store_and_get_info_record(self.__sina_store.records)
         create_kosh_users(self.__sina_store.records)
         return ret
 
+    @lock_strategies.lock_method
     def save_loader(self, loader):
         """Save a loader to the store
         Executed immediately even in async mode
@@ -427,7 +523,7 @@ class KoshStore(object):
         :param loader: Loader to save
         :type loader: KoshLoader
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         pickled = kosh_pickler.dumps(loader)
         rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
         if rec is not None:
@@ -439,13 +535,14 @@ class KoshStore(object):
         self.__record_handler__.insert(rec)
         self.unlock()
 
+    @lock_strategies.lock_method
     def get_record(self, Id):
         """Gets the sina record tied to an id
         tags record with time of last access to db
         :param Id: record id
         :type Id: str
         :return: sina record
-        :rtpye: sina.model.Record
+        :rtype: sina.model.Record
         """
         if (not self.__sync__) and Id in self.__sync__dict__:
             record = self.__sync__dict__[Id]
@@ -467,6 +564,7 @@ class KoshStore(object):
                 record["user_defined"]['kosh_information'] = {"last_update_from_db": time.time()}
         return record
 
+    @lock_strategies.lock_method
     def delete(self, Id):
         """remove a record from store.
         for datasets dissociate all associated data first.
@@ -474,6 +572,7 @@ class KoshStore(object):
         :param Id: unique Id or kosh_obj
         :type Id: str
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         if not isinstance(Id, six.string_types):
             Id = Id.id
         rec = self.get_record(Id)
@@ -491,6 +590,7 @@ class KoshStore(object):
         else:
             self.__record_handler__.delete(Id)
 
+    @lock_strategies.lock_method
     def create_ensemble(self, name="Unnamed Ensemble", id=None, metadata={}, schema=None, **kargs):
         """Create a Kosh ensemble object
         :param name: name for the dataset, defaults to None
@@ -507,8 +607,10 @@ class KoshStore(object):
         :return: KoshEnsemble
         :rtype: KoshEnsemble
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         return self.create(name=name, id=id, metadata=metadata, schema=schema, sina_type=self._ensembles_type, **kargs)
 
+    @lock_strategies.lock_method
     def create(self, name="Unnamed Dataset", id=None,
                metadata={}, schema=None, sina_type=None, **kargs):
         """create a new (possibly named) dataset
@@ -531,6 +633,7 @@ class KoshStore(object):
         :return: KoshDataset
         :rtype: KoshDataset
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         if "datasetId" in kargs:
             if id is None:
                 warnings.warn(
@@ -586,7 +689,8 @@ class KoshStore(object):
             raise err
         return out
 
-    def _find_loader(self, Id, verbose=False, requestorId=None):
+    @lock_strategies.lock_method
+    def _find_loader(self, Id, verbose=False, requestorId=None, use_cache=True):
         """_find_loader returns a loader that can open Id
 
         :param Id: Id of the object to load
@@ -595,9 +699,14 @@ class KoshStore(object):
         :type verbose: bool
         :param requestorId: The id of the dataset requesting data
         :type requestorId: str
+        :param use_cache: do we use cached feature
+        :typpe use_cache: True
         :return: Kosh loader object
+        :rtype: KoshLoader
         """
         Id_original = str(Id)
+        if verbose:
+            print(f"Getting loader for Id: {Id}")
         if "__uri__" in Id:
             # Ok this is a pure sina file with mime_type
             Id, uri = Id.split("__uri__")
@@ -607,7 +716,7 @@ class KoshStore(object):
             print("Finding loader for: {}".format(uri))
         if (Id_original, requestorId) in self._cached_loaders:
             try:
-                feats = self._cached_loaders[Id_original, requestorId][0].list_features()  # != []
+                feats = self._cached_loaders[Id_original, requestorId][0]._list_features(use_cache=use_cache)  # != []
             except Exception as err:
                 feats = []
                 if verbose:
@@ -634,7 +743,8 @@ class KoshStore(object):
         if mime_type in self.loaders:
             for ld in self.loaders[mime_type]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed,
+                               uri=uri)._list_features(use_cache=use_cache, verbose=verbose)
                 except Exception as err:
                     # Something happened can't list features
                     feats = []
@@ -650,7 +760,8 @@ class KoshStore(object):
         if record["type"] in self.loaders:  # ok not a generic loader let's use it
             for ld in self.loaders[record["type"]]:
                 try:
-                    feats = ld(obj, mime_type=mime_type_passed, uri=uri, requestorId=requestorId).list_features()
+                    feats = ld(obj, mime_type=mime_type_passed,
+                               uri=uri, requestorId=requestorId)._list_features(use_cache=use_cache)
                 except Exception:
                     # Something happened can't list features
                     feats = []
@@ -661,6 +772,7 @@ class KoshStore(object):
             return self._cached_loaders[Id_original, requestorId]
         return None, None
 
+    @lock_strategies.lock_method
     def open(self, Id, loader=None, requestorId=None, *args, **kargs):
         """open loads an object in store based on its Id
         and run its open function
@@ -673,7 +785,8 @@ class KoshStore(object):
         :type requestorId: str
         :return:
         """
-        if isinstance(Id, sina.model.Record):  # Sina record by itself
+        from sina.model import Record
+        if isinstance(Id, Record):  # Sina record by itself
             Id = Id.id
 
         if loader is None:
@@ -682,6 +795,7 @@ class KoshStore(object):
             loader = loader(self._load(Id), requestorId=requestorId)
         return loader.open(*args, **kargs)
 
+    @lock_strategies.lock_method
     def _load(self, Id):
         """_load returns an associated source based on id
 
@@ -699,6 +813,7 @@ class KoshStore(object):
                                   record_handler=self.__record_handler__,
                                   store=self, record=record)
 
+    @lock_strategies.lock_method
     def get(self, Id, feature, format=None, loader=None,
             transformers=[], requestorId=None, *args, **kargs):
         """get returns an associated source's data
@@ -723,6 +838,7 @@ class KoshStore(object):
 
         return loader.get(feature, format, transformers=[], *args, **kargs)
 
+    @lock_strategies.lock_method
     def search(self, *atts, **keys):
         """
         Deprecated use find
@@ -732,6 +848,7 @@ class KoshStore(object):
                       DeprecationWarning)
         return self.find(*atts, **keys)
 
+    @lock_strategies.lock_method
     def find_ensembles(self, *atts, **keys):
         """Find ensembles matching some metadata in the store
         arguments are the metadata name we are looking for e.g
@@ -746,7 +863,8 @@ class KoshStore(object):
         """
         return self.find(types=self._ensembles_type, *atts, **keys)
 
-    def find(self, load_type='dataset', *atts, **keys):
+    @lock_strategies.lock_method
+    def find(self, *atts, **keys):
         """Find objects matching some metadata in the store
         and its associated stores.
 
@@ -770,6 +888,7 @@ class KoshStore(object):
         :rtype: generator
         """
 
+        from sina.model import Record
         if 'id_pool' in keys:
             if isinstance(keys['id_pool'], str):
                 ids_to_add = [keys['id_pool']]
@@ -778,14 +897,11 @@ class KoshStore(object):
         else:
             ids_to_add = []
 
-        # If no *atts are passed, just a single value, load_type gets overwritten
-        if load_type not in ('dataset', 'record', 'dictionary'):
-            atts = atts + (load_type,)
-            load_type = 'dataset'
+        keys['load_type'] = keys.get('load_type', 'dataset')
 
         atts_to_remove = []
         for attr in atts:
-            if isinstance(attr, (sina.model.Record, kosh.dataset.KoshDataset)):  # Sina record or Kosh dataset by itself
+            if isinstance(attr, (Record, kosh.dataset.KoshDataset)):  # Sina record or Kosh dataset by itself
                 ids_to_add.append(attr.id)
                 atts_to_remove.append(attr)
             elif isinstance(attr, types.GeneratorType):  # Multiple records from Sina.find() or Kosh.find()
@@ -797,7 +913,7 @@ class KoshStore(object):
         if 'id_pool' in keys or ids_to_add:  # Create key if doesn't exist
             keys['id_pool'] = [*set(ids_to_add)]
 
-        for result in self._find(load_type, *atts, **keys):
+        for result in self._find(*atts, **keys):
             yield result
 
         searched_stores = [self.db_uri]
@@ -822,7 +938,8 @@ class KoshStore(object):
                 if id_ in store.searched_stores:
                     store.searched_stores.remove(id_)
 
-    def _find(self, load_type='dataset', *atts, **keys):
+    @lock_strategies.lock_method
+    def _find(self, *atts, **keys):
         """Find objects matching some metadata in the store
         arguments are the metadata name we are looking for e.g
         find("attr1", "attr2")
@@ -842,7 +959,7 @@ class KoshStore(object):
         :return: generator of matching objects in store
         :rtype: generator
         """
-
+        from sina.utils import Negation, not_, exists
         mode = self.__sync__
         if mode:
             # we will not update any rec in here, turnin off sync
@@ -852,6 +969,7 @@ class KoshStore(object):
             self.synchronous()
         sina_kargs = {}
         ids_only = keys.pop("ids_only", False)
+        load_type = keys.pop("load_type", "dataset")
         # We only want to search sina for ids not records
         sina_kargs["ids_only"] = True
 
@@ -869,7 +987,7 @@ class KoshStore(object):
         if isinstance(record_types, six.string_types):
             record_types = [record_types, ]
         if record_types not in [None, (None, None)] and not isinstance(
-                record_types, (list, tuple, sina.utils.Negation)):
+                record_types, (list, tuple, Negation)):
             raise ValueError("`types` must be None, str, list or sina.utils.Negation")
 
         if 'file_uri' in keys and 'file' in keys:
@@ -895,7 +1013,7 @@ class KoshStore(object):
             "query_order", ("data", "file_uri", "types"))
 
         if record_types == (None, None):
-            record_types = sina.utils.not_(self._kosh_reserved_record_types)
+            record_types = not_(self._kosh_reserved_record_types)
             if sina_kargs["id_pool"] is not None:
                 record_types = None
 
@@ -911,7 +1029,7 @@ class KoshStore(object):
 
         # Maybe user is trying to get an attribute data
         for att in atts:
-            sina_data[att] = sina.utils.exists()
+            sina_data[att] = exists()
 
         sina_data.update(keys)
         sina_kargs["data"] = sina_data
@@ -957,6 +1075,7 @@ class KoshStore(object):
                 elif load_type == 'dictionary':
                     yield self.__record_handler__.get(rec_id).__dict__['raw']
 
+    @lock_strategies.lock_method
     def check_sync_conflicts(self, keys):
         """Checks if their will be sync conflicts
         :param keys: keys of objects to syncs (id/type)
@@ -1069,6 +1188,7 @@ class KoshStore(object):
                     pass
         return conflicts
 
+    @lock_strategies.lock_method
     def is_synchronous(self):
         """is_synchronous is store is synchronous mode
 
@@ -1077,6 +1197,7 @@ class KoshStore(object):
         """
         return self.__sync__
 
+    @lock_strategies.lock_method
     def synchronous(self, mode=None):
         """Change sync mode for the store
 
@@ -1095,6 +1216,7 @@ class KoshStore(object):
             self.__sync__ = mode
         return self.__sync__
 
+    @lock_strategies.lock_method
     def sync(self, keys=None):
         """Sync with db
         :param keys: keys of objects to sync (id/type)
@@ -1145,49 +1267,62 @@ class KoshStore(object):
                 continue
             try:
                 db = self.__record_handler__.get(key)
-                for att in local["user_defined"]['kosh_information']:
-                    if att[-14:] == "_last_modified":  # We touched it
-                        if att[-27:-14] == "___associated":
-                            # ok it's an associated thing
-                            uri = att[:-27]
-                            if uri not in local["files"]:  # dissociated
-                                del db["files"][uri]
-                            elif att not in db["user_defined"]['kosh_information']:  # newly associated
-                                db["files"][uri] = local["files"][uri]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                            elif local["user_defined"]['kosh_information'][att] > \
-                                    db["user_defined"]['kosh_information'][att]:
-                                # last changed locally
-                                db["files"][uri] = local["files"][uri]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                        else:
-                            name = att[:-14]
-                            if name not in local["data"]:  # we deleted it
-                                if name in db["data"]:
-                                    del db["data"][name]
-                            elif local["user_defined"]['kosh_information'][att] > \
-                                    db["user_defined"]['kosh_information'][att]:
-                                db["data"][name] = local["data"][name]
-                                db["user_defined"]['kosh_information'][att] = \
-                                    local["user_defined"]['kosh_information'][att]
-                if db is not None:
-                    update_records.append(db)
-                else:  # db did not have that key and returned None (no error)
-                    update_records.append(local)
-                del_keys.append(key)
-            except Exception:
+            except ValueError:
+                # not in main store yet
+                self.__record_handler__.insert(local)
+                # now we can retrieve it process for associated file not in storer yet
+                db = self.__record_handler__.get(key)
+            for att in local["user_defined"]['kosh_information']:
+                if att[-14:] == "_last_modified":  # We touched it
+                    if att[-27:-14] == "___associated":
+                        # ok it's an associated thing
+                        uri = att[:-27]
+                        if uri not in local["files"]:  # dissociated
+                            del db["files"][uri]
+                            continue
+                        # Now let's see if it is in main store
+                        try:
+                            self.__record_handler__.get(local["files"][uri]["kosh_id"])
+                        except ValueError:
+                            # Ok it is not in the store itself
+                            rec = self.get_record(local["files"][uri]["kosh_id"])
+                            self.__record_handler__.insert(rec)
+                        if att not in db["user_defined"]['kosh_information']:  # newly associated
+                            db["files"][uri] = local["files"][uri]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+                        elif local["user_defined"]['kosh_information'][att] > \
+                                db["user_defined"]['kosh_information'][att]:
+                            # last changed locally
+                            db["files"][uri] = local["files"][uri]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+                    else:
+                        name = att[:-14]
+                        if name not in local["data"]:  # we deleted it
+                            if name in db["data"]:
+                                del db["data"][name]
+                        elif local["user_defined"]['kosh_information'][att] > \
+                                db["user_defined"]['kosh_information'][att]:
+                            db["data"][name] = local["data"][name]
+                            db["user_defined"]['kosh_information'][att] = \
+                                local["user_defined"]['kosh_information'][att]
+            if db is not None:
+                update_records.append(db)
+            else:  # db did not have that key and returned None (no error)
                 update_records.append(local)
+            del_keys.append(key)
 
         rels = []
         relationships = self.get_sina_store().relationships
         for id_ in update_records:
             rels += relationships.find(id_.id, None, None)
             rels += relationships.find(None, None, id_.id)
-        self.__record_handler__.delete(del_keys)
-        self.__record_handler__.insert(update_records)
-        relationships.insert(rels)
+        if not self.__sync__:
+            self.__record_handler__.delete(del_keys)
+            self.__record_handler__.insert(update_records)
+            relationships.insert(rels)
+        self.__record_handler__.update(update_records)
         for key in list(keys):
             try:
                 self._added_unsync_mem_store.records.delete(key)
@@ -1199,6 +1334,7 @@ class KoshStore(object):
                 # probably coming from del then
                 del self.__sync__deleted__[key]
 
+    @lock_strategies.lock_method
     def add_user(self, username, groups=[]):
         """add_user adds a user to the Kosh store
 
@@ -1207,7 +1343,7 @@ class KoshStore(object):
         :param groups: kosh specific groups to add to this user
         :type groups: list
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_users = self.__record_handler__.find_with_type(
             self._users_type)
         users = [rec["data"]["username"]["value"] for rec in existing_users]
@@ -1221,13 +1357,14 @@ class KoshStore(object):
         else:
             raise ValueError("User {} already exists".format(username))
 
+    @lock_strategies.lock_method
     def add_group(self, group):
         """Add a kosh specific group, cannot match existing group on unix system
 
         :param group: ugroup to add
         :type group: str
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_groups = self.__record_handler__.find_with_type(
             self._groups_type)
         groups_names = [rec["data"]["name"]["value"]
@@ -1249,6 +1386,7 @@ class KoshStore(object):
         group_rec.add_data("name", group)
         self.__record_handler__.insert(group_rec)
 
+    @lock_strategies.lock_method
     def add_user_to_group(self, username, groups):
         """Add a user to some group(s)
 
@@ -1257,7 +1395,7 @@ class KoshStore(object):
         :param groups: kosh specific groups to add to this user
         :type groups: list
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         users_filter = self.__record_handler__.find_with_type(
             self._users_type, ids_only=True)
         names_filter = list(
@@ -1282,12 +1420,12 @@ class KoshStore(object):
                 continue
             user_groups.append(group)
         if len(user_groups) == 0:
-            user.add_data("groups", None)
+            user.set_data("groups", None)
         else:
-            user.add_data("groups", list(set(user_groups)))
-        self.__record_handler__.delete(names_filter[0])
-        self.__record_handler__.insert(user)
+            user.set_data("groups", list(set(user_groups)))
+        self.__record_handler__.update(user)
 
+    @lock_strategies.lock_method
     def export_dataset(self, datasets, file=None):
         """exports a dataset
 
@@ -1304,6 +1442,7 @@ class KoshStore(object):
             else:
                 return dataset.export(file)
 
+    @lock_strategies.lock_method
     def import_dataset(self, datasets, match_attributes=[
                        "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[],
                        ingest_funcs=None):
@@ -1347,6 +1486,7 @@ class KoshStore(object):
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         out = []
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
@@ -1363,6 +1503,7 @@ class KoshStore(object):
                                                 ingest_funcs=ingest_funcs))
         return out
 
+    @lock_strategies.lock_method
     def _import_dataset(self, datasets, match_attributes=[
             "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[], ingest_funcs=None):
         """import dataset that was exported from another store, or load them from a json file
@@ -1394,11 +1535,19 @@ class KoshStore(object):
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
+        from sina.model import Relationship, generate_record_from_json
         if isinstance(datasets, str):
             with open(datasets) as f:
                 from_file = orjson.loads(f.read())
-                records_in = from_file.get("records", [])
-                relationships_in = from_file.get("relationships", [])
+                if isinstance(from_file, list):
+                    records_in = []
+                    relationships_in = []
+                    for entry in from_file:
+                        records_in.append(entry.get("records", []))
+                        relationships_in.append(entry.get("relationships", []))
+                else:
+                    records_in = from_file.get("records", [])
+                    relationships_in = from_file.get("relationships", [])
         elif isinstance(datasets, dict):
             from_file = datasets
             records_in = from_file["records"]
@@ -1414,7 +1563,7 @@ class KoshStore(object):
         if ingest_funcs is not None:
             temp_store = connect(None)
             temp_store.get_sina_records().insert(
-                [sina.model.generate_record_from_json(record) for record in records_in])
+                [generate_record_from_json(record) for record in records_in])
             temp_datasets = list(temp_store.find())
             if isinstance(ingest_funcs, (list, tuple)):
                 for ingest_func in ingest_funcs:
@@ -1435,12 +1584,21 @@ class KoshStore(object):
         matches = []
         remapped = {}
         for record in records_in:
+            if "id" not in record:
+                if "local_id" in record:
+                    record["id"] = record["local_id"]
+                else:  # Cannot import a rec w/o id
+                    warnings.warn(f"Skipped record w/o id or local_id: {record}")
+                    continue
             if 'user_defined' not in record.keys():
                 record["user_defined"] = {}
             record["user_defined"]['kosh_information'] = {}
             for section in skip_sina_record_sections:
                 record[section] = {}
-            data = record["data"]
+            if "data" in record:
+                data = record["data"]
+            else:
+                data = {}
             if record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
             else:
@@ -1461,7 +1619,7 @@ class KoshStore(object):
                     if attribute in atts:
                         match_dict[attribute] = atts[attribute]
                     elif attribute == "id":
-                        match_dict["id"] = record["id"]
+                        match_dict["id_pool"] = record["id"]
 
                 matching = list(self.find(**match_dict))
                 if len(matching) > 1:
@@ -1513,7 +1671,7 @@ class KoshStore(object):
             if isinstance(match_rec, dict):
                 if 'id' not in match_rec:
                     match_rec['id'] = uuid.uuid4().hex
-                match_rec = sina.model.generate_record_from_json(match_rec)
+                match_rec = generate_record_from_json(match_rec)
 
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
@@ -1600,14 +1758,11 @@ class KoshStore(object):
                             rec["data"]["mime_type"]["value"])
                         altered = True
                 if altered:
-                    try:
-                        self.__record_handler__.delete(rec["id"])
-                    except ValueError:
-                        pass
-                    self.__record_handler__.insert(rec)
+                    self.__record_handler__.update(rec)
 
         return [self.open(x) for x in matches]
 
+    @lock_strategies.lock_method
     def reassociate(self, target, source=None, absolute_path=True):
         """This function allows to re-associate data whose uri might have changed
 
@@ -1622,12 +1777,12 @@ class KoshStore(object):
         :return: None
         :rtype: None
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         # First let's convert to abs path if necessary
         if absolute_path:
             if os.path.exists(target):
                 target = os.path.abspath(target)
-            if source is not None and os.path.exists(source):
+            if source is not None and not re.search("[0-9a-f]{64}", source):  # full path doesn't apply to sha
                 source = os.path.abspath(source)
 
         if os.path.isdir(target):
@@ -1685,6 +1840,7 @@ class KoshStore(object):
                 except Exception:
                     pass
 
+    @lock_strategies.lock_method
     def cleanup_files(self, dry_run=False, interactive=False, clean_fastsha=False,
                       **dataset_search_keys):
         """Cleanup the store from references to dead files
@@ -1703,6 +1859,7 @@ class KoshStore(object):
         :returns: list of uris (to be) removed.
         :rtype: list
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         missings = []
         datasets = self.find()
         for dataset in datasets:
@@ -1712,6 +1869,7 @@ class KoshStore(object):
                                               **dataset_search_keys)
         return missings
 
+    @lock_strategies.lock_method
     def check_integrity(self):
         """Runs a sanity check on the store:
         1- Are associated files reachable?
@@ -1719,6 +1877,7 @@ class KoshStore(object):
         """
         return self.cleanup_files(dry_run=True, clean_fastsha=True)
 
+    @lock_strategies.lock_method
     def associate(self, store, reciprocal=False):
         """Associate another store
 
@@ -1736,6 +1895,7 @@ class KoshStore(object):
                            the association in both stores.
         :type reciprocal: bool
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         if not isinstance(store, KoshStore):
             raise TypeError("store must be a KoshStore or path to one")
 
@@ -1747,12 +1907,12 @@ class KoshStore(object):
         if store.db_uri not in stores:
             stores.append(store.db_uri)
             store_info["data"]["associated_stores"]["value"] = stores
-            sina_recs.delete(store_info["id"])
-            sina_recs.insert(store_info)
+            sina_recs.update(store_info)
             self._associated_stores_.append(store)
         if reciprocal:
             store.associate(self)
 
+    @lock_strategies.lock_method
     def dissociate(self, store, reciprocal=False):
         """Dissociate another store
 
@@ -1765,6 +1925,7 @@ class KoshStore(object):
                            the dissociation in both stores.
         :type reciprocal: bool
         """
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         if not isinstance(store, (six.string_types, KoshStore)):
             raise TypeError("store must be a KoshStore or path to one")
 
@@ -1786,8 +1947,7 @@ class KoshStore(object):
         if store.db_uri in stores:
             stores.remove(store.db_uri)
             store_info["data"]["associated_stores"]["value"] = stores
-            sina_recs.delete(store_info["id"])
-            sina_recs.insert(store_info)
+            sina_recs.update(store_info)
             self._associated_stores_.remove(store)
         else:
             warnings.warn("store {} does not seem to be associated with this store ({})".format(
@@ -1796,6 +1956,7 @@ class KoshStore(object):
         if reciprocal:
             store.dissociate(self)
 
+    @lock_strategies.lock_method
     def get_associated_store(self, uri):
         """Returns the associated store based on its uri.
 
@@ -1814,6 +1975,7 @@ class KoshStore(object):
         raise ValueError(
             "{} store does not seem to be associated with this store: {}".format(uri, store.db_uri))
 
+    @lock_strategies.lock_method
     def get_associated_stores(self, uris=True):
         """Return the list of associated stores
         :param uris: Return the list of uri pointing to the store if True,
@@ -1828,6 +1990,7 @@ class KoshStore(object):
             else:
                 yield store
 
+    @lock_strategies.lock_method
     def _cli_list_creator(self, arg, var, cmmd, path=""):
         """Creates a list of arg and var pairs for the cmmd passed to kosh_command.py
 
@@ -1858,6 +2021,7 @@ class KoshStore(object):
 
         return cmmd
 
+    @lock_strategies.lock_method
     def _mv_cp(self, src, dst, mv_cp,
                stores, destination_stores, dataset_record_type,
                dataset_matching_attributes, version, merge_strategy, mk_dirs):
@@ -1930,6 +2094,7 @@ class KoshStore(object):
 
         KoshCmd._mv_cp_(self, mv_cp, store_args=cmmd)
 
+    @lock_strategies.lock_method
     def mv(self, src, dst, stores=[],
            destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
            version=False, merge_strategy="conservative", mk_dirs=False):
@@ -1955,10 +2120,11 @@ class KoshStore(object):
         :param mk_dirs: Make destination directories if they don't exist
         :type mk_dirs: bool, optional
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write'])
         self._mv_cp(src, dst, "mv", stores, destination_stores, dataset_record_type,
                     dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
+    @lock_strategies.lock_method
     def cp(self, src, dst, stores=[],
            destination_stores=[], dataset_record_type="dataset", dataset_matching_attributes=['name', ],
            version=False, merge_strategy="conservative", mk_dirs=False):
@@ -1984,10 +2150,11 @@ class KoshStore(object):
         :param mk_dirs: Make destination directories if they don't exist
         :type mk_dirs: bool, optional
         """
-
+        __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         self._mv_cp(src, dst, "cp", stores, destination_stores, dataset_record_type,
                     dataset_matching_attributes, version, merge_strategy, mk_dirs)
 
+    @lock_strategies.lock_method
     def tar(self, tar_file, tar_opts, src="", tar_type="tar",
             stores=[], dataset_record_type="dataset", no_absolute_path=False,
             dataset_matching_attributes=["name", ], merge_strategy="conservative"):
@@ -2017,6 +2184,8 @@ class KoshStore(object):
 
         # Options includes src
         opts = tar_opts.split()
+        if isinstance(src, str):
+            src = [src]
         opts.extend(src)
 
         # --stores
@@ -2047,3 +2216,63 @@ class KoshStore(object):
         cmmd.extend(["--merge_strategy", merge_strategy])
 
         KoshCmd._tar(self, tar_type, store_args=cmmd, opts=opts)
+
+    @lock_strategies.lock_method
+    def to_dataframe(self, data_columns=[], *atts, **keys):
+        """Return the find object as a Pandas DataFrame.
+
+        Pass in the same arguments and keyword arguments as the find method.
+
+        Arguments are the metadata name we are looking for e.g
+        find("attr1", "attr2")
+        you can further restrict by specifying exact value for a metadata
+        via key=value
+        you can return ids only by using: ids_only=True
+        range can be specified via: sina.utils.DataRange(min, max)
+
+        "file_uri" is a reserved key that will return all records being associated
+                   with the given "uri", e.g store.find(file_uri=uri)
+        "types" let you search over specific sina record types only.
+        "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
+
+        :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator'].
+                             If nothing is passed, will return all data.
+        :type data_columns: Union(str, list), optional
+        :return: Pandas DataFrame
+        :rtype: Pandas DataFrame
+        """
+        import pandas as pd
+        if isinstance(data_columns, str):
+            data_columns = [data_columns]
+
+        keys['load_type'] = 'dictionary'
+        keys['ids_only'] = False
+        datasets = list(self.find(*atts, **keys))
+
+        attr_dict = {}
+        total_datasets = len(datasets)
+
+        # Always have these by default
+        defaults = ['id', 'name', 'creator']
+
+        # Acquire all data if `data_columns` was not passed
+        if not data_columns:
+            unique_keys = []
+            for i, dataset in enumerate(datasets):
+                unique_keys.extend(list(dataset['data'].keys()))
+
+            data_columns = sorted(set(unique_keys))
+
+        data_columns = defaults + data_columns  # Want defaults in front
+        data_columns = [dc for dc in data_columns if "_ENSEMBLE_TAG_" not in dc]  # Remove ensemble tags
+        attr_dict = {d: [pd.NA] * total_datasets for d in data_columns}
+
+        for i, dataset in enumerate(datasets):
+            for column in data_columns:
+                if column == "id":
+                    attr_dict[column][i] = dataset['id']
+                else:
+                    attr_dict[column][i] = dataset['data'].get(column, {}).get('value', pd.NA)
+
+        df = pd.DataFrame(attr_dict)
+        return df

@@ -1,26 +1,17 @@
 from __future__ import absolute_import
-import pkg_resources
+import collections
 import os
 import kosh
 import hashlib
-import numpy
 import random
-import networkx as nx
-from .wrapper import KoshScriptWrapper  # noqa
 import warnings
-from sina.model import Record
-from kosh.exec_graphs import find_network_ends, populate
 import pickle
+from .wrapper import KoshScriptWrapper # noqa
+from . import lock_strategies
 try:
     import orjson
 except ImportError:
     import json as orjson  # noqa
-
-
-try:
-    default_nx_layout = nx.planar_layout
-except AttributeError:  # planar is available from nx version 2.5
-    default_nx_layout = nx.circular_layout
 
 
 class KoshPickler(object):
@@ -199,7 +190,7 @@ def draw_execution_graph(G,
                          output_format=None,
                          png_name="kosh_execution_graph.png",
                          clear=True,
-                         layout=default_nx_layout):
+                         layout=None):
     """Draws the graph and if provided an output format, draws the shortest path to it
     :param G: networkx graph or KoshExecutionGraph
     :type G: networkx.Graph
@@ -210,12 +201,16 @@ def draw_execution_graph(G,
     :param clear: clear matplotlib figure after saving
     :type clear: bool
     :param layout: A dictionary with nodes as keys and positions as values.
-                   If not specified a {} layout positioning will be computed.
+                   If not specified a planar layout positioning will be computed.
                    See networkx.drawing.layout for functions that compute node positions.
     :type layout: dict or function
     :returns: None but draws the matplotlib plt is updated and possibly saved
     :rtype: None
-    """.format(default_nx_layout.__name__)
+    """
+    import networkx as nx
+    if layout is None:
+        layout = nx.planar_layout
+    from kosh.exec_graphs import find_network_ends
     if not isinstance(layout, dict):
         layout = layout(G)
 
@@ -284,6 +279,7 @@ def compute_fast_sha(uri, n_samples=10):
     :return sha: hexdigested sha
     :rtype: str
     """
+    import numpy
     if not os.path.exists(uri):
         sha = hashlib.sha256(uri.encode())
         return sha.hexdigest()
@@ -327,16 +323,47 @@ def compute_long_sha(uri, buff_size=65536):
     return sha.hexdigest()
 
 
-def update_store_and_get_info_record(records, ensemble_predicate=None):
+def update_store_record(records, store_record):
+    """Updates the store record
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param store_record: sina record for store info
+    :type store_record: Record
+    """
+    if hasattr(records, "insert"):
+        try:
+            records.update(store_record)
+        except Exception:  # in case multi-processors interfere with each others
+            pass
+    return
+
+
+@lock_strategies.lock_function
+def get_store_info_record_attribute(records, attribute):
+    """Obtain an attribute from the store record info.
+Sometimes when multiple process try to initiate that record it comes back with missing attributes
+This will wrap into the lock strategy
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param attribute: The attribute to retrievr
+    :type attribute: str
+    :returns: sina record for store info
+    :rtype: object
+    """
+    rec = get_store_info_record(records)
+    return rec["user_defined"][attribute]
+
+
+@lock_strategies.lock_function
+def get_store_info_record(records):
     """Obtain the sina record containing store info
     If necessary update store to latest standards
     :param records: The sina store "records" object
     :type records: sina.datastore.DataStore.RecordOperations
-    :param ensemble_predicate: The predicate for the relationship to an ensemble
-    :type ensemble_predicate: str
     :returns: sina record for store info
     :rtype: Record
     """
+    from sina.model import Record
     # First let's see if this store contains a dedicated record
     # describing this store specs
     store_info = list(records.find_with_type("__kosh_storeinfo__"))
@@ -363,12 +390,31 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         # revisit then...
         ver = sum(
             [float(x) / 10**i for i, x in enumerate(version().split(".")) if x[0] != 'g'])
-        min_ver = rec["data"]["kosh_min_version"]["value"]
+        try:
+            min_ver = rec["data"]["kosh_min_version"]["value"]
+        except Exception:  # Ok rec is somehow missing this info, setting to 0
+            min_ver = "0.0"
         min_ver = sum(
             [float(x) / 10**i for i, x in enumerate(min_ver.split("."))])
         if ver < min_ver:
             raise RuntimeError(
                 "This Kosh store requires Kosh version greater than {}, you have {}".format(min_ver, version()))
+    return rec
+
+
+def update_store_and_get_info_record(records, ensemble_predicate=None):
+    """Obtain the sina record containing store info
+    If necessary update store to latest standards
+    :param records: The sina store "records" object
+    :type records: sina.datastore.DataStore.RecordOperations
+    :param ensemble_predicate: The predicate for the relationship to an ensemble
+    :type ensemble_predicate: str
+    :returns: sina record for store info
+    :rtype: Record
+    """
+    # First let's see if this store contains a dedicated record
+    # describing this store specs
+    rec = get_store_info_record(records)
     need_update = False
     if "sources_type" not in rec["data"]:
         rec.add_data("sources_type", "file")
@@ -391,6 +437,9 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         else:
             rec.add_data("ensemble_predicate", ensemble_predicate)
         need_update = True
+    if "cached_features" not in rec["user_defined"]:
+        rec["user_defined"]["cached_features"] = collections.OrderedDict()
+        need_update = True
     if "kosh_min_version" not in rec["data"]:
         rec.add_data("kosh_min_version", "1.2.1")
         need_update = True
@@ -404,15 +453,8 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
         rec["data"]["reserved_types"]["value"] = ['__kosh_storeinfo__',
                                                   'file', 'group', 'kosh_ensemble', 'koshloader', 'user']
         need_update = True
-    if need_update and hasattr(records, "insert"):
-        try:
-            records.delete(rec.id)
-        except Exception:  # in case multi-processors interfere with each others
-            pass
-        try:
-            records.insert(rec)
-        except Exception:  # in case multi-processors interfere with each others
-            pass
+    if need_update:
+        update_store_record(records, rec)
     return rec
 
 
@@ -423,6 +465,7 @@ def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), 
     :param users: list of usernames to add
     :type users: list
     """
+    from sina.model import Record
     store_info = list(record_handler.find_with_type(
         ["__kosh_storeinfo__", ]))[0]
 
@@ -453,6 +496,8 @@ def create_new_db(name, db='sql',
     :return store: An handle to the Kosh store created
     :rtype: KoshStoreClass
     """
+    if os.path.exists(name):
+        os.remove(name)
     from kosh import connect
     kargs["keyspace"] = keyspace
     kargs["db"] = db
@@ -474,6 +519,7 @@ def version(comparable=False):
     :returns: version string or tuple
     :rtype: str or tuple
     """
+    import pkg_resources
     try:
         __version__ = pkg_resources.get_distribution("kosh").version
     except Exception:
@@ -523,6 +569,8 @@ def get_graph(input_type, loader, transformers):
     :returns: execution graph
     :rtype: networkx.OrderDiGraph
     """
+    import networkx as nx
+    from kosh.exec_graphs import populate
     if input_type not in loader.types:
         raise RuntimeError(
             "loader cannot load mime_type {}".format(input_type))
@@ -573,9 +621,23 @@ def record_to_dataset(record):
     return next(temp_store.find())
 
 
+def record_to_dataframe(rec_uri):
+    """Converts a Sina record to a Pandas DataFrame
+    :param rec_uri: The Sina Record URI to convert
+    :type rec_uri: str
+    :return: Pandas DataFrame version of the record
+    :rtype: Pandas.DataFrame"""
+    temp_store = kosh.connect(None)
+    temp_store.import_dataset(rec_uri, match_attributes=['id'])
+    return temp_store.to_dataframe()
+
+
 def datasets_in_place_of_records(func):
     """This decorator will convert all Record input or output to KoshDataset
     This allows a user to use sina functions that expect Record with Kosh datasets instead"""
+
+    from sina.model import Record
+
     def wrapper(*args, **kwargs):
         new_args = [x.get_record() if isinstance(x, kosh.KoshDataset) else x for x in args]
         new_kwargs = {}
@@ -608,8 +670,22 @@ def update_json_file_with_records_and_relationships(file, output_dict):
             file_dict = output_dict
 
         with open(file, "w") as f:
+            rels = []
+            for relationship in file_dict['relationships']:
+                rels.append(relationship.__dict__)
+            file_dict['relationships'] = rels
             try:
                 f.write(orjson.dumps(file_dict).decode())
             except AttributeError:
                 f.write(orjson.dumps(file_dict))
     return output_dict
+
+
+def __check_valid_connection_type__(connection_type, connection_types_allowed):
+    """Checks if the `connection_type` is in `connection_types_allowed` for different stores
+
+    :param connection_types_allowed: The connection types allowed for this store type
+    :type connection_types_allowed: lst
+    """
+    if connection_type not in connection_types_allowed:
+        raise RuntimeError(f"This functionality is allowed for {connection_types_allowed} only stores.")

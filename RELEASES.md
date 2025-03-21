@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.2.0](#320-release)
 * [3.1](#31-release)
 * [3.0.1](#301-release)
 * [3.0](#30-release)
@@ -12,12 +13,41 @@
 * [0.9](#09-release)
 * [0.8](#08-release)
 
+## 3.2.0 Release
+
+### Description
+
+This release includes several new defining features that improve Kosh data management and functionality.
+
+### New in this release
+
+* Pandas read functions were added as loader types and added examples to notebooks.
+* `examples/Example_Simulation_Workflow.ipynb` notebook shows the user how to add, update, and access data for Kosh in a generic simulation workflow.
+* `examples/MPI_Kosh_data_management.ipynb` notebook shows the user how to load and operate on large datasets in a distributed way.
+* Convert `.find()` methods to Pandas DataFrames
+* L1, L2 and L* operators.
+* Organize datasets within ensembles with `ensemble_tags` which also work with `ensemble.find_datasets(data=target_data, ensemble_tags=target_ensemble_tags))`.
+* Lock Strategies for parallel calls see: `examples/Example_ThreadSafe.ipynb`
+* Added `connection_type='append'` which allows the user to only add data but not modify or delete data.
+
+### Improvements
+
+* `koshClustering` operator can return a non-dimensional loss, distribute data from one rank, and added example updates.
+* `dataset.list_features(use_cache=True)` allows for faster listing of features since they are now cached.
+* original `import sina` is much faster as most imports are delayed until actually needed (lazy imports).
+* When printing extremely long strings stored as attributes, the terminal output is overwhelming for users. We now utilize the reprlib library.
+
+### Bug fixes
+
+* Fixes to internal tests
+* tar `-v` command is now accepted
+* Some special sina files couldn't be imported by Kosh (e.g no `data` section)
 
 ## 3.1 Release
 
 ### Description
 
-This release is a minor release with a few bux fixes and new features. We encourage users to upgrade.
+This release is a minor release with a few bug fixes and new features. We encourage users to upgrade.
 
 ### New in this release
 
