@@ -242,9 +242,6 @@ class KoshStore(object):
                     database_type='cassandra', read_only=read_only,
                     allow_connection_pooling=allow_connection_pooling,
                     connection_type=connection_type)
-            from sina.model import Record
-            from sina.utils import DataRange
-            global Record, DataRange
 
             rec = update_store_and_get_info_record(self.__sina_store.records, ensemble_predicate)
 
@@ -523,6 +520,7 @@ class KoshStore(object):
         :param loader: Loader to save
         :type loader: KoshLoader
         """
+        from sina.model import Record
         __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         pickled = kosh_pickler.dumps(loader)
         rec = next(self.find(types="koshloader", code=pickled, ids_only=True), None)
@@ -633,6 +631,7 @@ class KoshStore(object):
         :return: KoshDataset
         :rtype: KoshDataset
         """
+        from sina.model import Record
         __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         if "datasetId" in kargs:
             if id is None:
@@ -1343,6 +1342,7 @@ class KoshStore(object):
         :param groups: kosh specific groups to add to this user
         :type groups: list
         """
+        from sina.model import Record
         __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_users = self.__record_handler__.find_with_type(
             self._users_type)
@@ -1364,6 +1364,7 @@ class KoshStore(object):
         :param group: ugroup to add
         :type group: str
         """
+        from sina.model import Record
         __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
         existing_groups = self.__record_handler__.find_with_type(
             self._groups_type)
