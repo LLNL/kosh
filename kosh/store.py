@@ -1537,18 +1537,25 @@ class KoshStore(object):
         :rtype: list of KoshSinaDataset
         """
         from sina.model import Relationship, generate_record_from_json
+        from sina.utils import load_document
         if isinstance(datasets, str):
-            with open(datasets) as f:
-                from_file = orjson.loads(f.read())
-                if isinstance(from_file, list):
-                    records_in = []
-                    relationships_in = []
-                    for entry in from_file:
-                        records_in.append(entry.get("records", []))
-                        relationships_in.append(entry.get("relationships", []))
-                else:
-                    records_in = from_file.get("records", [])
-                    relationships_in = from_file.get("relationships", [])
+            # First let's try using Sina's load
+            try:
+                recs, relationships_in = load_document(datasets)
+                records_in = [rec.raw for rec in recs]
+                from_file = False
+            except Exception:
+                with open(datasets) as f:
+                    from_file = orjson.loads(f.read())
+                    if isinstance(from_file, list):
+                        records_in = []
+                        relationships_in = []
+                        for entry in from_file:
+                            records_in.append(entry.get("records", []))
+                            relationships_in.append(entry.get("relationships", []))
+                    else:
+                        records_in = from_file.get("records", [])
+                        relationships_in = from_file.get("relationships", [])
         elif isinstance(datasets, dict):
             from_file = datasets
             records_in = from_file["records"]
@@ -1600,7 +1607,7 @@ class KoshStore(object):
                 data = record["data"]
             else:
                 data = {}
-            if record["type"] == from_file.get("sources_type", "file"):
+            if from_file and record["type"] == from_file.get("sources_type", "file"):
                 is_source = True
             else:
                 is_source = False
@@ -1608,7 +1615,7 @@ class KoshStore(object):
             # row
             keys = sorted(data.keys())
             atts = dict(zip(keys, [data[x]["value"] for x in keys]))
-            min_ver = from_file.get("minimum_kosh_version", (0, 0, 0))
+            min_ver = from_file.get("minimum_kosh_version", (0, 0, 0)) if from_file else None
             if min_ver is not None and kosh.version(comparable=True) < min_ver:
                 raise ValueError("Cannot import dataset it requires min kosh version of {}, we are at: {}".format(
                     min_ver, kosh.version(comparable=True)))
@@ -1672,7 +1679,13 @@ class KoshStore(object):
             if isinstance(match_rec, dict):
                 if 'id' not in match_rec:
                     match_rec['id'] = uuid.uuid4().hex
-                match_rec = generate_record_from_json(match_rec)
+                if from_file:
+                    match_rec = generate_record_from_json(match_rec)
+                else:
+                    for rec in recs:
+                        if rec["id"] == record["id"]:
+                            match_rec = rec
+                            break
 
             # User defined and files are preserved?
             for section in ["user_defined", "files", "library_data"]:
