@@ -1450,7 +1450,7 @@ class KoshStore(object):
         """import datasets and ensembles that were exported from another store, or load them from a json file
         :param datasets: Dataset/Ensemble object exported by another store, a dataset/ensemble
                          or a json file containing these.
-        :type datasets: json file, json loaded object, KoshDataset or KoshEnsemble
+        :type datasets: json, csv, hdf5 file, json loaded object, kosh.KoshDataset, sina.Record, pandas.DataFrame
         :param match_attributes: parameters on a dataset to use if this it is already in the store
                                  in general we can't use 'id' since it is randomly generated at creation
                                  If the "same" dataset was created in two different stores
@@ -1488,7 +1488,17 @@ class KoshStore(object):
         :rtype: list of KoshSinaDataset
         """
         __check_valid_connection_type__(self.__connection_type__, ['write', 'append'])
+
+        from pandas import DataFrame
+        from sina.model import generate_record_from_csv, generate_record_from_pandas
+
         out = []
+        if isinstance(datasets, DataFrame):
+            datasets = generate_record_from_pandas(datasets)
+        elif isinstance(datasets, str):
+            if os.path.exists(datasets) and ".json" not in datasets and ".hdf5" not in datasets:
+                datasets = generate_record_from_csv(datasets)
+
         if not isinstance(datasets, (list, tuple, types.GeneratorType)):
             return self._import_dataset(datasets, match_attributes=match_attributes,
                                         merge_handler=merge_handler,
@@ -1509,7 +1519,7 @@ class KoshStore(object):
             "name", ], merge_handler=None, merge_handler_kargs={}, skip_sina_record_sections=[], ingest_funcs=None):
         """import dataset that was exported from another store, or load them from a json file
         :param datasets: Dataset object exported by another store, a dataset or a json file containing the dataset
-        :type datasets: json file, json loaded object or kosh.KoshDataset
+        :type datasets: json, csv, hdf5 file, json loaded object, kosh.KoshDataset, sina.Record, pandas.DataFrame
         :param match_attributes: parameters on a dataset to use if this it is already in the store
                                  in general we can't use 'id' since it is randomly generated at creation
                                  If the "same" dataset was created in two different stores
@@ -1536,12 +1546,20 @@ class KoshStore(object):
         :return: list of datasets
         :rtype: list of KoshSinaDataset
         """
-        from sina.model import Relationship, generate_record_from_json
-        from sina.utils import load_document
+        from sina.model import Relationship, generate_record_from_json, Record
+        from sina.utils import load_document, load_document_hdf5
+
+        if isinstance(datasets, Record):
+            datasets = datasets.to_json().decode('utf-8')
+            datasets = {"records": [eval(datasets.replace("null", "None"))]}
+
         if isinstance(datasets, str):
             # First let's try using Sina's load
             try:
-                recs, relationships_in = load_document(datasets)
+                try:
+                    recs, relationships_in = load_document_hdf5(datasets)
+                except:  # noqae722
+                    recs, relationships_in = load_document(datasets)
                 records_in = [rec.raw for rec in recs]
                 from_file = False
             except Exception:
