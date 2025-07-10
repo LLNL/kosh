@@ -31,7 +31,7 @@ class KoshTestList(KoshTest):
 
         for filename in find_json_files([os.getcwd(), '../sina', 'sina']):
             print("file:", filename)
-            if "kosh_test_venv" in filename:
+            if "kosh_test_venv" in filename or "tests/kosh_export.json" in filename:  # from other test
                 continue
             store.import_dataset(filename)
             store.delete_all_contents(force="SKIP PROMPT")

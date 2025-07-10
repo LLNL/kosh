@@ -3,6 +3,8 @@ import os
 import json
 from koshbase import KoshTest
 import sina.postprocessing
+import sina
+import pandas as pd
 import numpy
 from kosh.utils import datasets_in_place_of_records
 
@@ -309,6 +311,60 @@ class KoshTestImportExport(KoshTest):
         target_store.close()
         os.remove(db_source)
         os.remove(db_target)
+
+    def test_import_export_dataset_multiple_formats(self):
+        csv_file = "tests/baselines/csv/my_csv_file.csv"
+
+        # Record
+        store, source = self.connect()
+        records = sina.model.generate_record_from_csv(csv_file)
+        store.import_dataset(records)
+        store_df = store.to_dataframe()
+        self.assertTrue(store_df.shape, (24, 12))
+        store.close()
+        os.remove(source)
+
+        # Pandas
+        store, source = self.connect()
+        df = pd.read_csv(csv_file)
+        store.import_dataset(df)
+        store_df = store.to_dataframe()
+        self.assertTrue(store_df.shape, (24, 12))
+        store.close()
+        os.remove(source)
+
+        # CSV
+        store, source = self.connect()
+        store.import_dataset(csv_file)
+        store_df = store.to_dataframe()
+        self.assertTrue(store_df.shape, (24, 12))
+        store.close()
+        os.remove(source)
+
+        # HDF5
+        hdf5_file = "test_case.hdf5"
+        relationships = []
+        for i, rec in enumerate(records):
+            relationships.append(sina.model.Relationship(subject_id=rec.id,
+                                                         predicate="related to",
+                                                         object_id=records[i+1].id if i < len(records) - 1 else records[0].id)  # noqae501
+                                 )
+        sina.utils.save_doc_to_hdf5(records, relationships, hdf5_file)
+        self.assertTrue(os.path.isfile(hdf5_file))
+        store, source = self.connect()
+        store.import_dataset(hdf5_file)
+        store_df = store.to_dataframe()
+        self.assertTrue(store_df.shape, (24, 12))
+
+        # Export
+        dataset = list(store.find())[0]
+        dataset.export(sina_record=True, output_format="json")
+        self.assertTrue(os.path.isfile(f"{dataset.id}.json"))
+        dataset.export(sina_record=True, output_format="hdf5")
+        self.assertTrue(os.path.isfile(f"{dataset.id}.hdf5"))
+
+        store.close()
+        os.remove(source)
 
 
 def my_handler(store_dataset, imported_dataset_dict,

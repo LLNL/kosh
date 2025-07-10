@@ -1008,12 +1008,14 @@ class KoshDataset(KoshSinaObject):
                 yield rec_id if ids_only else self.__record_handler__.get(rec_id).__dict__['raw']
 
     @lock_strategies.lock_method
-    def export(self, file=None, sina_record=False):
+    def export(self, file=None, sina_record=False, output_format='json'):
         """Exports this dataset
         :param file: export dataset to a file
         :type file: None or str
-        :param sina_record: export the dataset as a Sina record
-        :type sina_record: bool
+        :param sina_record: filename to export the dataset as a Sina record. If `True`, uses id as filename.
+        :type sina_record: bool or str
+        :param output_format: Output format must either be 'json' or 'hdf5'
+        :type output_format: str
         :return: dataset and its associated data
         :rtype: dict"""
         rec = self.get_record()
@@ -1040,6 +1042,23 @@ class KoshDataset(KoshSinaObject):
         }
 
         update_json_file_with_records_and_relationships(file, output_dict)
+
+        if sina_record:
+            if output_format.lower() == 'json':
+                from sina.utils import save_doc_as_json
+                try:
+                    save_doc_as_json([rec], relationships, sina_record)
+                except:  # noqae722
+                    save_doc_as_json([rec], relationships, f"{rec.id}.json")
+            elif output_format.lower() == 'hdf5':
+                from sina.utils import save_doc_to_hdf5
+                try:
+                    save_doc_to_hdf5([rec], relationships, sina_record)
+                except:  # noqae722
+                    save_doc_to_hdf5([rec], relationships, f"{rec.id}.hdf5")
+            else:
+                print("output_format must either be 'json' or 'hdf5'")
+
         return output_dict
 
     @lock_strategies.lock_method
