@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 import collections
 import os
+import time
+from datetime import datetime
 import kosh
 import hashlib
 import random
@@ -113,7 +115,8 @@ def merge_datasets_handler(target_dataset, imported_dataset, section="data", **k
         imported_dataset.pop("creator", None)
 
     for attribute, value in imported_dataset.items():
-        if attribute in target_dict:
+        if attribute in target_dict and attribute not in ['creation_date',
+                                                          'last_modified_date']:
             if target_dict[attribute] != value:
                 if handling_method in [None, "conservative"]:
                     msg = "Trying to import dataset with attribute '{}'".format(
@@ -603,7 +606,6 @@ def cleanup_sina_record_from_kosh_sync(record):
     :return: json loaded representation of the record
     :rtype: dict"""
     # cleanup the record
-    record["user_defined"]['kosh_information'].pop("last_update_from_db", None)
     for key in list(record["user_defined"]['kosh_information'].keys()):
         if key.endswith("last_modified"):
             record["user_defined"]['kosh_information'].pop(key)
@@ -689,3 +691,50 @@ def __check_valid_connection_type__(connection_type, connection_types_allowed):
     """
     if connection_type not in connection_types_allowed:
         raise RuntimeError(f"This functionality is allowed for {connection_types_allowed} only stores.")
+
+
+def _update_record(records, kosh_store, sina_store=None, delete=False):
+    """Central location to insert or update or delete a record in the sina store
+    :param record: The record(s) to update
+    :type record: sina.model.Record
+    :param kosh_store: kosh store to lock so that sina store can update
+    :type kosh_store: Kosh store
+    :param sina_store: sina store to update
+    :type sina_store: sina.datastore.DataStore"""
+    kosh_store.lock()
+
+    if sina_store is None:
+        sina_store = kosh_store.get_sina_store()
+
+    if not isinstance(records, list):
+        records = [records]
+
+    for record in records:
+
+        try:
+            if isinstance(record, str):  # just record id
+                record = kosh_store.get_record(record)
+
+            id_ = record.id
+        except ValueError:  # unsynced delete won't be in database
+            id_ = record
+
+        if delete:
+            sina_store.records.delete(id_)
+        else:
+            rels = sina_store.relationships.find(id_, None, None)
+            rels += sina_store.relationships.find(None, None, id_)
+            if not kosh_store.__sync__:
+                sina_store.records.delete(id_)
+                sina_store.records.insert(record)
+                sina_store.relationships.insert(rels)
+            record.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
+
+            try:
+                sina_store.records.update(record)
+
+            # record does not exist
+            except:  # noqae722
+                sina_store.records.insert(record)
+
+    kosh_store.unlock()

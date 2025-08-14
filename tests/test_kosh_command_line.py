@@ -97,7 +97,8 @@ class KoshTestCmdLine(KoshTest):
         # Created a new dataset
         self.assertEqual(len(datasets), 1)
         ds = datasets[0]
-        self.assertEqual(ds.list_attributes(), ["creator", "id", "name", "paramfloat", "paramint", "paramstr"])
+        self.assertEqual(ds.list_attributes(), ["creation_date", "creator", "id", "last_modified_date", "name",
+                                                "paramfloat", "paramint", "paramstr"])
 
         self.assertEqual(ds.paramint, 2)
         self.assertIsInstance(ds.paramint, int)
@@ -119,7 +120,8 @@ class KoshTestCmdLine(KoshTest):
         # Created a new dataset
         self.assertEqual(len(ensembles), 1)
         ensemble = ensembles[0]
-        self.assertEqual(ensemble.list_attributes(), ["creator", "id", "name", "paramfloat", "paramint", "paramstr"])
+        self.assertEqual(ensemble.list_attributes(), ["creation_date", "creator", "id", "last_modified_date", "name",
+                                                      "paramfloat", "paramint", "paramstr"])
 
         self.assertEqual(ensemble.paramint, 2)
         self.assertIsInstance(ensemble.paramint, int)

@@ -30,9 +30,13 @@ KOSH ENSEMBLE
         id: {id}
         name: Unnamed Ensemble
         creator: {creator}
+        creation date: {creation_date}
+        last modified date: {last_modified_date}
 
 --- Attributes ---
+        creation_date: {creation_date}
         creator: {creator}
+        last_modified_date: {last_modified_date}
         name: Unnamed Ensemble
         root: foo
 --- Associated Data ({n_data})---{data}
@@ -45,6 +49,8 @@ KOSH ENSEMBLE
             printTestResults.format(
                 id=e1.id,
                 creator=e1.creator,
+                creation_date=e1.creation_date,
+                last_modified_date=e1.last_modified_date,
                 n_data=0,
                 data="",
                 n_datasets=0,
@@ -58,9 +64,13 @@ KOSH ENSEMBLE
         id: {}
         name: Unnamed Dataset
         creator: {}
+        creation date: {}
+        last modified date: {}
 
 --- Attributes ---
+        creation_date: {}
         creator: {}
+        last_modified_date: {}
         name: Unnamed Dataset
 --- Associated Data (0)---
 --- Ensembles (1)---
@@ -69,7 +79,8 @@ KOSH ENSEMBLE
         --- Ensemble {} ---
                 ['root']
 --- Alias Feature Dictionary ---
-""".format(str(ds1.id), username, username, str(e1.id), str(e1.id))
+""".format(str(ds1.id), username, ds1.creation_date, ds1.last_modified_date,
+           ds1.creation_date, username, ds1.last_modified_date, str(e1.id), str(e1.id))
         self.assertEqual(ds1_str, good_ds1.strip())
         e1_str = str(e1).replace("\t", "        ")
         self.assertEqual(
@@ -77,6 +88,8 @@ KOSH ENSEMBLE
             printTestResults.format(
                 id=e1.id,
                 creator=e1.creator,
+                creation_date=e1.creation_date,
+                last_modified_date=e1.last_modified_date,
                 n_data=0,
                 data="",
                 n_datasets=1,
@@ -337,12 +350,14 @@ KOSH ENSEMBLE
 
         # Attributes and Tags
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id)
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
                                             'same',
                                             'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
 
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id, obscure=False)
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
                                             'same',
                                             'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES',
                                             'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
@@ -358,8 +373,10 @@ KOSH ENSEMBLE
                                                 '7': 'dataset_0_attributes_7',
                                                 '8': 'dataset_0_attributes_8',
                                                 '9': 'dataset_0_attributes_9',
+                                                'creation_date': ds_atts_and_tags['creation_date'],
                                                 'creator': os.environ.get("USER", "default"),
                                                 'id': 'dataset_0',
+                                                'last_modified_date': ds_atts_and_tags['last_modified_date'],
                                                 'name': 'Unnamed Dataset',
                                                 'same': 'dataset 0',
                                                 'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
@@ -376,8 +393,10 @@ KOSH ENSEMBLE
                                                 '7': 'dataset_0_attributes_7',
                                                 '8': 'dataset_0_attributes_8',
                                                 '9': 'dataset_0_attributes_9',
+                                                'creation_date': ds_atts_and_tags['creation_date'],
                                                 'creator': os.environ.get("USER", "default"),
                                                 'id': 'dataset_0',
+                                                'last_modified_date': ds_atts_and_tags['last_modified_date'],
                                                 'name': 'Unnamed Dataset',
                                                 'same': 'dataset 0',
                                                 'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES': False,
@@ -385,7 +404,8 @@ KOSH ENSEMBLE
                                                 'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
 
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=['ensemble_0', 'ensemble_9'])
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
                                             'same',
                                             'ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
                                             'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
@@ -405,7 +425,8 @@ KOSH ENSEMBLE
         ens.remove(ds[0])
 
         ds_ens_tags = ds[0].list_attributes(ensemble_id=ens.id)
-        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'creator', 'id', 'name',
+        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                                       'creation_date', 'creator', 'id', 'last_modified_date', 'name',
                                        'same'])
 
         # Testing Schema
