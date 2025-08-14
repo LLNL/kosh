@@ -1,5 +1,6 @@
 import os
 import gc
+import atexit
 import sys
 import uuid
 import collections
@@ -185,6 +186,7 @@ class KoshStore(object):
         :param verbose_attributes: Should we print attribute values of over length 30?
         :type verbose_attributes: bool
         """
+        atexit.register(self._clean_up)
         from sina import connect as sina_connect
         from sina.utils import Negation
         if lock_strategy is None:
@@ -455,7 +457,7 @@ class KoshStore(object):
             pass
 
     @lock_strategies.lock_method
-    def __del__(self):
+    def _clean_up(self):
         """delete the KoshStore object"""
         self.close()
         if not self.use_lock_file or "://" in self.db_uri:
