@@ -60,7 +60,7 @@ class KoshTestDataset(KoshTest):
         # Check datset was created
         all_ds = list(store.find())
         self.assertEqual(len(all_ds), 1)
-        self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
+        self.assertEqual(ds.listattributes(), ["creation_date", "creator", "id", "last_modified_date", "name"])
         # check error on non-existing attribute
         with self.assertRaises(AttributeError):
             print(ds.person)
@@ -68,17 +68,17 @@ class KoshTestDataset(KoshTest):
         ds.person = "Charles"
         self.assertEqual(
             ds.listattributes(), [
-                "creator", "id", "name", "person"])
+                "creation_date", "creator", "id", "last_modified_date", "name", "person"])
         self.assertEqual(ds.person, "Charles")
         # modify attribute
         ds.person = "Charles Doutriaux"
         self.assertEqual(
             ds.listattributes(), [
-                "creator", "id", "name", "person"])
+                "creation_date", "creator", "id", "last_modified_date", "name", "person"])
         self.assertEqual(ds.person, "Charles Doutriaux")
         # delete attribute
         del ds.person
-        self.assertEqual(ds.listattributes(), ["creator", "id", "name"])
+        self.assertEqual(ds.listattributes(), ["creation_date", "creator", "id", "last_modified_date", "name"])
         with self.assertRaises(AttributeError):
             print(ds.person)
         # Protected Attributes
@@ -94,16 +94,20 @@ KOSH DATASET
         id: {id}
         name: Unnamed Dataset
         creator: {creator}
+        creation date: {creation_date}
+        last modified date: {last_modified_date}
 
 --- Attributes ---
+        creation_date: {creation_date}
         creator: {creator}
+        last_modified_date: {last_modified_date}
         name: Unnamed Dataset
 --- Associated Data (0)---
 --- Ensembles (0)---
         []
 --- Ensemble Attributes ---
 --- Alias Feature Dictionary ---
-""".format(id=ds.id, creator=ds.creator)
+""".format(id=ds.id, creator=ds.creator, creation_date=ds.creation_date, last_modified_date=ds.last_modified_date)
         print(str(ds).replace("\t", "        "))
         self.assertEqual(
             str(ds).replace(
@@ -111,18 +115,20 @@ KOSH DATASET
                 "        ").strip(),
             printTestResults.strip())
         # Set/update many attributes at once
+        creator = ds.creator
         ds.update({"creator": "a new creator!",
                    "some_new_attribute": "a new one",
                    "some_int_attribute": 5})
         # Check they are all here
         self.assertEqual(
             ds.listattributes(), [
-                "creator", "id", "name", "some_int_attribute", "some_new_attribute"])
+                "creation_date", "creator", "id", "last_modified_date", "name", "some_int_attribute",
+                "some_new_attribute"])
         # Check they are correctly added with correct value
         self.assertEqual(ds.some_new_attribute, "a new one")
         self.assertEqual(ds.some_int_attribute, 5)
         # Check the pre-existing one was updated
-        self.assertEqual(ds.creator, "a new creator!")
+        self.assertEqual(ds.creator, creator)
         store.close()
         os.remove(kosh_db)
 

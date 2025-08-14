@@ -40,6 +40,8 @@ class KoshTestSinaCurves(KoshTest):
 	id: obj1
 	name: ???
 	creator: ???
+\tcreation date: ???
+\tlast modified date: ???
 
 --- Attributes ---
 	param1: 1

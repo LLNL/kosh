@@ -8,17 +8,14 @@ from datetime import datetime
 def create_dataset(datastore, num):
 
     for i in range(num):
-        datastore.create(i)
-        dataset = list(datastore.search(name=i))[0]
-        metadata = {"param1": random.random() * 2.,
-                    "param2": random.random() * 1.5,
-                    "param3": random.random() * 5,
-                    "param4": random.random() * 3,
-                    "param5": random.random() * 2.5,
-                    "param6": chr(random.randint(65, 91)),
-                    }
-        dataset.update(metadata)
-
+        ds = datastore.create(i, metadata={"param1": random.random() * 2.,
+                                           "param2": random.random() * 1.5,
+                                           "param3": random.random() * 5,
+                                           "param4": random.random() * 3,
+                                           "param5": random.random() * 2.5,
+                                           "param6": chr(random.randint(65, 91)),
+                                           })
+        print(ds)
     return datastore
 
 
@@ -65,20 +62,21 @@ class TestKoshFastLoad(koshbase.KoshTest):
 
         # Everything
         df = store.to_dataframe()
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        print(df.columns)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'param1', 'param2', 'param3', 'param4', 'param5', 'param6']
 
         # Only certain columns
         df = store.to_dataframe(data_columns='param1')
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'param1']
 
         df = store.to_dataframe(data_columns=['param1'])
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'param1']
 
         df = store.to_dataframe(data_columns=['param1', 'param6'])
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'param1', 'param6']
 
         # Everything with unique data
@@ -86,7 +84,7 @@ class TestKoshFastLoad(koshbase.KoshTest):
         store.create('new_dataset2', metadata={'myotherattribute': 10})
 
         df = store.to_dataframe()
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'mynewattribute', 'myotherattribute',
                                               'param1', 'param2', 'param3', 'param4', 'param5', 'param6']
 
@@ -95,13 +93,13 @@ class TestKoshFastLoad(koshbase.KoshTest):
         df = store.to_dataframe(data=target_data)
         for val in df["mynewattribute"].values:
             self.assertEqual(val, 5)
-        assert df.shape == (1, 4)
+        assert df.shape == (1, 6)
 
         # Find data with missing columns
         target_data = {'mynewattribute': 5}
         df = store.to_dataframe(data=target_data, data_columns=['param1', 'param6'])
-        assert df.shape == (1, 5)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (1, 7)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               'param1', 'param6']
 
     def test_dataset_to_pandas(self):
@@ -203,13 +201,15 @@ class TestKoshFastLoad(koshbase.KoshTest):
 
         # Everything
         df = ensembles[0].to_dataframe()
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -219,13 +219,15 @@ class TestKoshFastLoad(koshbase.KoshTest):
                                               'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
 
         df = ensembles[1].to_dataframe()
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
                                               # ensemble attributes
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_1_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_0', 'ensemble_1_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_2', 'ensemble_1_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_1_ENSEMBLE_ATTRIBUTE_4', 'ensemble_1_ENSEMBLE_ATTRIBUTE_5',
@@ -236,13 +238,15 @@ class TestKoshFastLoad(koshbase.KoshTest):
 
         # Only certain columns
         df = ensembles[0].to_dataframe(data_columns='4')
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '4',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -252,13 +256,15 @@ class TestKoshFastLoad(koshbase.KoshTest):
                                               'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
 
         df = ensembles[0].to_dataframe(data_columns=['4'])
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '4',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -268,13 +274,15 @@ class TestKoshFastLoad(koshbase.KoshTest):
                                               'ensemble_0_ENSEMBLE_TAG_data_type0', 'ensemble_0_ENSEMBLE_TAG_eoo0']
 
         df = ensembles[0].to_dataframe(data_columns=['4', '9'])
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '4', '9',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -291,19 +299,21 @@ class TestKoshFastLoad(koshbase.KoshTest):
         for i in range(n_ensembles):
             for val in df[f'ensemble_0_ENSEMBLE_ATTRIBUTE_{i}'].values:
                 self.assertEqual(val, f"ensemble_0_attributes_{i}")
-        assert df.shape == (5, 29)
+        assert df.shape == (5, 33)
 
         # Find data with missing columns
         target_data = {'my_dataset_attribute': 0}
         df = ensembles[0].to_dataframe(data=target_data, data_columns=['param1', 'param6'])
-        assert df.shape == (5, 20)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (5, 24)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               'param1', 'param6',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -317,7 +327,7 @@ class TestKoshFastLoad(koshbase.KoshTest):
         ensemble_tags = {"eoo0": "even", "data_type0": "test data"}
         df = ensembles[0].to_dataframe(data=target_data,
                                        ensemble_tags=ensemble_tags)
-        assert df.shape == (1, 29)
+        assert df.shape == (1, 33)
 
         # Find data with ensemble tags and with missing columns
         target_data = {'my_dataset_attribute': 0}
@@ -325,14 +335,16 @@ class TestKoshFastLoad(koshbase.KoshTest):
         df = ensembles[0].to_dataframe(data=target_data,
                                        ensemble_tags=ensemble_tags,
                                        data_columns=['param1', 'param6'])
-        assert df.shape == (1, 20)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (1, 24)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               'param1', 'param6',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -347,8 +359,8 @@ class TestKoshFastLoad(koshbase.KoshTest):
         df = ensembles[0].to_dataframe(data=target_data,
                                        ensemble_tags=ensemble_tags,
                                        include_ensemble_attributes=False)
-        assert df.shape == (1, 16)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (1, 18)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
                                               # ensemble tags
@@ -360,14 +372,16 @@ class TestKoshFastLoad(koshbase.KoshTest):
         df = ensembles[0].to_dataframe(data=target_data,
                                        ensemble_tags=ensemble_tags,
                                        include_ensemble_tags=False)
-        assert df.shape == (1, 27)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (1, 31)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute',
                                               # ensemble attributes
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_id',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_name',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_creator',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_creation_date',
+                                              'ensemble_0_ENSEMBLE_ATTRIBUTE_last_modified_date',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_0', 'ensemble_0_ENSEMBLE_ATTRIBUTE_1',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_2', 'ensemble_0_ENSEMBLE_ATTRIBUTE_3',
                                               'ensemble_0_ENSEMBLE_ATTRIBUTE_4', 'ensemble_0_ENSEMBLE_ATTRIBUTE_5',
@@ -381,7 +395,44 @@ class TestKoshFastLoad(koshbase.KoshTest):
                                        ensemble_tags=ensemble_tags,
                                        include_ensemble_attributes=False,
                                        include_ensemble_tags=False)
-        assert df.shape == (1, 14)
-        assert df.columns.values.tolist() == ['id', 'name', 'creator',
+        assert df.shape == (1, 16)
+        assert df.columns.values.tolist() == ['id', 'name', 'creator', 'creation_date', 'last_modified_date',
                                               # dataset attributes
                                               '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'my_dataset_attribute']
+
+    def test_sort_by(self):
+
+        store, kosh_db = self.connect()
+
+        n_ensembles = 10
+        n_datasets = 10
+
+        datasets = []
+
+        for i in range(n_datasets):
+            metadata = {"ds_attribute": f"dataset_{i}"}
+            ds = store.create(id=f"dataset_{i}", metadata=metadata)
+            datasets.append(ds)
+
+        for i in range(n_ensembles):
+            metadata = {"ens_attribute": f"ensemble_{i}"}
+            ens = store.create_ensemble(id=f"ensemble_{i}", metadata=metadata)
+            ens.add(ds, inherit_attributes=False)
+
+        # Default Ascending
+        for i, ds in enumerate(list(store.find(sort_by="ds_attribute"))):
+            self.assertEqual(f"dataset_{i}", ds.ds_attribute)
+
+        for i_ens, ens in enumerate(list(store.find_ensembles(sort_by="ens_attribute"))):
+            self.assertEqual(f"ensemble_{i_ens}", ens.ens_attribute)
+            for i, ds in enumerate(list(ens.find(sort_by="ds_attribute"))):
+                self.assertEqual(f"dataset_{i}", ds.ds_attribute)
+
+        # Descending sort_by_descending=True
+        for i, ds in enumerate(list(store.find(sort_by="ds_attribute", sort_by_descending=True))):
+            self.assertEqual(f"dataset_{n_datasets - 1 - i}", ds.ds_attribute)
+
+        for i_ens, ens in enumerate(list(store.find_ensembles(sort_by="ens_attribute", sort_by_descending=True))):
+            self.assertEqual(f"ensemble_{n_ensembles - 1 - i_ens}", ens.ens_attribute)
+            for i, ds in enumerate(list(ens.find(sort_by="ds_attribute", sort_by_descending=True))):
+                self.assertEqual(f"dataset_{n_datasets - 1 - i}", ds.ds_attribute)

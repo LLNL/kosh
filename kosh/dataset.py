@@ -1,6 +1,7 @@
 import os
 import uuid
 import time
+from datetime import datetime
 import warnings
 from .core_sina import KoshSinaObject, kosh_pickler
 from .utils import get_graph
@@ -43,7 +44,8 @@ class KoshDataset(KoshSinaObject):
             super(KoshDataset, self).__init__(id, kosh_type=kosh_type,
                                               protected=[
                                                 "__name__", "__creator__", "__store__",
-                                                "_associated_data_", "__features__"],
+                                                "_associated_data_", "__features__",
+                                                "__creation_date__"],
                                               record_handler=store.__record_handler__,
                                               store=store, schema=schema, record=record)
             self.__dict__["__record_handler__"] = store.__record_handler__
@@ -51,6 +53,10 @@ class KoshDataset(KoshSinaObject):
                 record = self.get_record()
             try:
                 self.__dict__["__creator__"] = record["data"]["creator"]["value"]
+            except Exception:
+                pass
+            try:
+                self.__dict__["__creation_date__"] = record["data"]["creation_date"]["value"]
             except Exception:
                 pass
             try:
@@ -84,6 +90,14 @@ class KoshDataset(KoshSinaObject):
             st += "\tcreator: {}\n".format(self.creator)
         except Exception:
             st += "\tcreator: ???\n"
+        try:
+            st += "\tcreation date: {}\n".format(self.creation_date)
+        except Exception:
+            st += "\tcreation date: ???\n"
+        try:
+            st += "\tlast modified date: {}\n".format(self.last_modified_date)
+        except Exception:
+            st += "\tlast modified date: ???\n"
         atts = self.__attributes__
         if len(atts) > 0:
             st += "\n--- Attributes ---\n"
@@ -133,7 +147,7 @@ class KoshDataset(KoshSinaObject):
         for ensemble in ensembles:
             st += "\t--- Ensemble {} ---\n".format(ensemble.id)
             eas = ensemble.list_attributes()
-            for ignore in ['creator', 'id', 'name']:
+            for ignore in ['creator', 'id', 'name', 'creation_date', 'last_modified_date']:
                 eas.remove(ignore)
             eas.sort()
             st += f"\t\t{reprtool(eas)}\n"
@@ -713,7 +727,7 @@ class KoshDataset(KoshSinaObject):
         if self.__store__.__sync__:
             self._update_record(rec)
         # Get all object that have been associated with this uri
-        rec = self.__store__.get_record(kosh_id)
+        rec = self.get_record(kosh_id)
         associated_ids = rec.data.get("associated", {"value": []})["value"]
         associated_ids.remove(self.id)
         rec.data["associated"]["value"] = associated_ids
@@ -722,7 +736,7 @@ class KoshDataset(KoshSinaObject):
         else:
             self._update_record(rec, self.__store__._added_unsync_mem_store)
         if len(associated_ids) == 0:  # ok no other object is associated
-            self.__store__.delete(kosh_id)
+            self._update_record(kosh_id, delete=True)
             if (kosh_id, self.id) in self.__store__._cached_loaders:
                 del self.__store__._cached_loaders[kosh_id, self.id]
             if (kosh_id, None) in self.__store__._cached_loaders:
@@ -809,8 +823,13 @@ class KoshDataset(KoshSinaObject):
                         uri = os.path.abspath(uri)
                     if not os.path.isdir(uri) and "fast_sha" not in meta:
                         meta["fast_sha"] = compute_fast_sha(uri)
-                rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
-                    uri=uri)] = now
+                try:
+                    rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
+                        uri=uri)] = now
+                except KeyError:  # Sina records will not have this
+                    rec["user_defined"]['kosh_information'] = {}
+                    rec["user_defined"]['kosh_information']["{uri}___associated_last_modified".format(
+                        uri=uri)] = now
                 # We need to check if the uri was already associated somewhere
                 tmp_uris = list(self.__store__.find(
                     types=[self.__store__._sources_type, ], uri=uri, ids_only=True))
@@ -820,7 +839,7 @@ class KoshDataset(KoshSinaObject):
                     rec_obj = Record(id=Id, type=self.__store__._sources_type, user_defined={'kosh_information': {}})
                     new_recs.append(rec_obj)
                 else:
-                    rec_obj = self.__store__.get_record(tmp_uris[0])
+                    rec_obj = self.get_record(tmp_uris[0])
                     Id = rec_obj.id
                     existing_mime = rec_obj["data"]["mime_type"]["value"]
                     mime_type = mime_types[i]
@@ -845,7 +864,7 @@ class KoshDataset(KoshSinaObject):
                     last_modif_att = "{name}_last_modified".format(name=key)
                     rec_obj["user_defined"]['kosh_information'][last_modif_att] = time.time()
                 if not self.__store__.__sync__:
-                    rec_obj["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                    rec_obj.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
                     self.__store__.__sync__dict__[Id] = rec_obj
             except TypeError as err:
                 raise err
@@ -864,16 +883,12 @@ class KoshDataset(KoshSinaObject):
             kosh_file_ids.append(Id)
 
         if self.__store__.__sync__:
-            self.__store__.lock()
-            self.__store__.__record_handler__.insert(new_recs)
-            self.__store__.unlock()
+            self._update_record(new_recs)
             self._update_record(rec)
-            for rec_up in updated_recs:
-                self._update_record(rec_up)
+            self._update_record(updated_recs)
         else:
             self._update_record(rec, self.__store__._added_unsync_mem_store)
-            for rec_up in updated_recs:
-                self._update_record(rec_up, self.__store__._added_unsync_mem_store)
+            self._update_record(updated_recs, self.__store__._added_unsync_mem_store)
 
         # Since we changed the associated, we need to cleanup
         # the features cache
@@ -1005,7 +1020,7 @@ class KoshDataset(KoshSinaObject):
             if load_type == 'source':
                 yield rec_id if ids_only else self.__store__._load(rec_id)
             elif load_type == 'dictionary':
-                yield rec_id if ids_only else self.__record_handler__.get(rec_id).__dict__['raw']
+                yield rec_id if ids_only else self.get_record(rec_id).__dict__['raw']
 
     @lock_strategies.lock_method
     def export(self, file=None, sina_record=False, output_format='json'):
@@ -1479,6 +1494,10 @@ class KoshDataset(KoshSinaObject):
             data_columns = sorted(set(unique_keys))
 
         data_columns = defaults + data_columns  # Want defaults in front
+        try:
+            data_columns.remove('last_modified_date')
+        except ValueError:  # if data_columns is passed this won't be there
+            pass
         attr_dict = {d: [pd.NA] * total_sources for d in data_columns}
 
         for i, source in enumerate(sources):

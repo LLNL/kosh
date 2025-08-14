@@ -32,9 +32,10 @@ These datasets will inherit attributes and associated sources from the ensemble.
                                                kosh_type=store._ensembles_type)
             self.__dict__["__protected__"] = ["__name__", "__creator__", "__store__",
                                               "_associated_data_", "__features__",
-                                              "_associated_datasets_", "__ok_duplicates__"]
+                                              "_associated_datasets_", "__ok_duplicates__",
+                                              "__creation_date__"]
             # Attributes that the members can have on their own
-            self.__dict__["__ok_duplicates__"] = ["creator", "id", "name"]
+            self.__dict__["__ok_duplicates__"] = ["creator", "id", "name", 'creation_date', 'last_modified_date']
 
     @lock_strategies.lock_method
     def __str__(self):
@@ -86,7 +87,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         for dataset_id in self.get_members(ids_only=True):
             records.append(
                 cleanup_sina_record_from_kosh_sync(
-                    self.__store__.get_record(dataset_id)))
+                    self.get_record(dataset_id)))
         # We also need to export the relationships
         relationships = self.get_sina_store().relationships.find(
             None, self.__store__._ensemble_predicate, self.id)
@@ -353,7 +354,8 @@ These datasets will inherit attributes and associated sources from the ensemble.
         "types" let you search over specific sina record types only.
         "id_pool" will search based on id of Sina record or Kosh dataset. Can be a list.
 
-        :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator'].
+        :param data_columns: Columns to extract. By default this will include ['id', 'name', 'creator',
+                                                                               'creation_date', 'last_modified_date'].
                              If nothing is passed, will return all data.
         :type data_columns: Union(str, list), optional
         :param include_ensemble_attributes: Include ensemble attributes in DataFrame.
@@ -375,7 +377,7 @@ These datasets will inherit attributes and associated sources from the ensemble.
         total_datasets = len(datasets)
 
         # Always have these by default
-        defaults = ['id', 'name', 'creator']
+        defaults = ['id', 'name', 'creator', 'creation_date', 'last_modified_date']
 
         unique_keys = set()
         for dataset in datasets:
@@ -394,11 +396,13 @@ These datasets will inherit attributes and associated sources from the ensemble.
         if include_ensemble_attributes:
             data_columns_ens_default_attributes = [f"{self.id}_ENSEMBLE_ATTRIBUTE_id",
                                                    f"{self.id}_ENSEMBLE_ATTRIBUTE_name",
-                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_creator"]
+                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_creator",
+                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_creation_date",
+                                                   f"{self.id}_ENSEMBLE_ATTRIBUTE_last_modified_date"]
 
             ens_attrs = self.list_attributes(dictionary=True)
             data_columns_ens_other_attributes = [f"{self.id}_ENSEMBLE_ATTRIBUTE_{attr}" for attr in ens_attrs.keys()
-                                                 if attr not in ['id', 'name', 'creator']]
+                                                 if attr not in defaults]
 
             data_columns += data_columns_ens_default_attributes + data_columns_ens_other_attributes
 
