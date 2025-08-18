@@ -145,7 +145,7 @@ class KoshStore(object):
                  verbose=True, use_lock_file=False, kosh_reserved_record_types=[],
                  read_only=False, allow_connection_pooling=False, ensemble_predicate=None,
                  execution_options={}, connection_type='write', lock_strategy=None,
-                 verbose_attributes=False):
+                 session_sort_by=None, session_sort_by_descending=False, verbose_attributes=False):
         """__init__ initialize a new Sina-based store
 
         :param db: type of database, defaults to 'sql', can be 'cass'
@@ -184,6 +184,10 @@ class KoshStore(object):
         :type lock_strategy: LockStrategy
         :raises ConnectionRefusedError: Could not connect to cassandra
         :raises SystemError: more than one user match.
+        :param session_sort_by: A default sort_by key for find operations for this store
+        :type session_sort_by: str
+        :param session_sort_by_descending: A default sort_by_descending flag for this store
+        :type session_sort_by_descending: bool
         :param verbose_attributes: Should we print attribute values of over length 30?
         :type verbose_attributes: bool
         """
@@ -193,6 +197,8 @@ class KoshStore(object):
         if lock_strategy is None:
             lock_strategy = lock_strategies.NoLocking()
         self.lock_strategy = lock_strategy
+        self.session_sort_by = session_sort_by
+        self.session_sort_by_descending = session_sort_by_descending
         self.verbose_attributes = verbose_attributes
 
         with lock_strategy:
@@ -656,9 +662,9 @@ class KoshStore(object):
             try:  # Correct format, don't do anything
                 datetime.strptime(metadata["creation_date"], 'YYYY-MM-DD HH:MM:SS.microseconds')
             except ValueError:
-                metadata["creation_date"] = datetime.fromtimestamp(time.time())
+                metadata["creation_date"] = str(datetime.fromtimestamp(time.time()))
         else:
-            metadata["creation_date"] = datetime.fromtimestamp(time.time())
+            metadata["creation_date"] = str(datetime.fromtimestamp(time.time()))
 
         if "name" not in metadata:
             metadata["name"] = name
@@ -897,8 +903,8 @@ class KoshStore(object):
             ids_to_add = []
 
         keys['load_type'] = keys.get('load_type', 'dataset')
-        sort_by = keys.pop("sort_by", None)
-        sort_by_descending = keys.pop("sort_by_descending", False)
+        sort_by = keys.pop("sort_by", self.session_sort_by)
+        sort_by_descending = keys.pop("sort_by_descending", self.session_sort_by_descending)
 
         atts_to_remove = []
         for attr in atts:

@@ -90,6 +90,13 @@ class KoshSinaObject(object):
                         else:
                             self.__store__.__sync__dict__[Id] = record
 
+            if "creation_date" not in record["data"]:
+                record.set_data("creation_date", "-1")
+                if store.__sync__:
+                    self._update_record(record)
+                else:
+                    record.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
+                    self.__store__.__sync__dict__[Id] = record
             metadata_copy = metadata.copy()
             for key in metadata:
                 if key in self.__dict__["__protected__"]:

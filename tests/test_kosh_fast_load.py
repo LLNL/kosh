@@ -436,3 +436,51 @@ class TestKoshFastLoad(koshbase.KoshTest):
             self.assertEqual(f"ensemble_{n_ensembles - 1 - i_ens}", ens.ens_attribute)
             for i, ds in enumerate(list(ens.find(sort_by="ds_attribute", sort_by_descending=True))):
                 self.assertEqual(f"dataset_{n_datasets - 1 - i}", ds.ds_attribute)
+
+    def test_session_sort_by(self):
+
+        store, kosh_db = self.connect()
+
+        n_ensembles = 1
+        n_datasets = 10
+
+        datasets = []
+
+        for i in range(n_datasets):
+            metadata = {"ds_attribute": f"dataset_{i}"}
+            ds = store.create(id=f"dataset_{i}", metadata=metadata)
+            datasets.append(ds)
+
+        for i in range(n_ensembles):
+            metadata = {"ens_attribute": f"ensemble_{i}"}
+            ens = store.create_ensemble(id=f"ensemble_{i}", metadata=metadata)
+            ens.add(ds, inherit_attributes=False)
+
+        # Default Ascending
+        store, kosh_db = self.connect(session_sort_by="ds_attribute")
+        for i, ds in enumerate(list(store.find())):
+            self.assertEqual(f"dataset_{i}", ds.ds_attribute)
+
+        for i_ens, ens in enumerate(list(store.find_ensembles())):
+            self.assertEqual(f"ensemble_{i_ens}", ens.ens_attribute)
+            for i, ds in enumerate(list(ens.find())):
+                self.assertEqual(f"dataset_{i}", ds.ds_attribute)
+
+        # Descending sort_by_descending=True
+        store, kosh_db = self.connect(session_sort_by="ds_attribute", session_sort_by_descending=True)
+        for i, ds in enumerate(list(store.find())):
+            self.assertEqual(f"dataset_{n_datasets - 1 - i}", ds.ds_attribute)
+
+        for i_ens, ens in enumerate(list(store.find_ensembles())):
+            self.assertEqual(f"ensemble_{n_ensembles - 1 - i_ens}", ens.ens_attribute)
+            for i, ds in enumerate(list(ens.find())):
+                self.assertEqual(f"dataset_{n_datasets - 1 - i}", ds.ds_attribute)
+
+        # Override session sort preferences to be in ascending order
+        for i, ds in enumerate(list(store.find(sort_by_descending=False))):
+            self.assertEqual(f"dataset_{i}", ds.ds_attribute)
+
+        for i_ens, ens in enumerate(list(store.find_ensembles(sort_by_descending=False))):
+            self.assertEqual(f"ensemble_{i_ens}", ens.ens_attribute)
+            for i, ds in enumerate(list(ens.find(sort_by_descending=False))):
+                self.assertEqual(f"dataset_{i}", ds.ds_attribute)
