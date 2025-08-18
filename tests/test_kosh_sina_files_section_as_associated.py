@@ -102,10 +102,12 @@ class KoshTestSinaFiles(KoshTest):
 	id: obj1
 	name: ???
 	creator: ???
-\tcreation date: ???
-\tlast modified date: ???
+\tcreation date: -1
+\tlast modified date: {}
 
 --- Attributes ---
+\tcreation_date: -1
+\tlast_modified_date: {}
 	param1: 1
 	param2: 2
 	param3: 3.3
@@ -120,7 +122,7 @@ class KoshTestSinaFiles(KoshTest):
 \t[]
 --- Ensemble Attributes ---
 --- Alias Feature Dictionary ---
-""".format(dataset.param5)  # noqa
+""".format(dataset.last_modified_date, dataset.last_modified_date, dataset.param5)  # noqa
 
         self.assertEqual(print_str.strip(), str(dataset).strip())
         store.close()
@@ -161,10 +163,12 @@ class KoshTestSinaFiles(KoshTest):
 	id: obj1
 	name: ???
 	creator: ???
-\tcreation date: ???
-\tlast modified date: ???
+\tcreation date: -1
+\tlast modified date: {}
 
 --- Attributes ---
+\tcreation_date: -1
+\tlast_modified_date: {}
 	param1: 1
 	param2: 2
 	param3: 3.3
@@ -181,7 +185,7 @@ class KoshTestSinaFiles(KoshTest):
 \t[]
 --- Ensemble Attributes ---
 --- Alias Feature Dictionary ---
-""".format(dataset.param5)  # noqa
+""".format(dataset.last_modified_date, dataset.last_modified_date, dataset.param5)  # noqa
         self.assertEqual(print_str.strip(), str(dataset).strip())
         store.close()
         os.remove(kosh_db)
