@@ -950,9 +950,10 @@ class KoshStore(object):
             results = list(find_generator(*atts, **keys))
             results.sort(key=lambda result: getattr(result, sort_by, -1),
                          reverse=sort_by_descending)
-            return results
+            for result in results:
+                yield result
         else:
-            return find_generator(*atts, **keys)
+            yield from find_generator(*atts, **keys)
 
     @lock_strategies.lock_method
     def _find(self, *atts, **keys):
