@@ -40,8 +40,12 @@ class KoshTestSinaCurves(KoshTest):
 	id: obj1
 	name: ???
 	creator: ???
+\tcreation date: -1
+\tlast modified date: {}
 
 --- Attributes ---
+\tcreation_date: -1
+\tlast_modified_date: {}
 	param1: 1
 	param2: 2
 	param3: 3.3
@@ -56,7 +60,7 @@ class KoshTestSinaCurves(KoshTest):
 \t[]
 --- Ensemble Attributes ---
 --- Alias Feature Dictionary ---
-""".format(dataset.param5)  # noqa
+""".format(dataset.last_modified_date, dataset.last_modified_date, dataset.param5)  # noqa
 
         self.assertEqual(str(dataset).strip(), print_str.strip())
         features = dataset.list_features()

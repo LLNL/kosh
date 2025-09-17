@@ -2,12 +2,14 @@
 from .core import KoshLoader
 import sys
 import os
+import numpy
 sys.path.append("/usr/gapps/pydv/current")  # noqa
 
 
 class UltraLoader(KoshLoader):
     """Kosh Loader for ultra files"""
-    types = {"ultra": ["dict", "numpy"]}
+    types = {"ultra": ["curves", "curves/pydv", "curves/pdv", "pydv", "pdv",
+                       "dict", "numpy"]}
 
     def __init__(self, obj, **kargs):
         super(UltraLoader, self).__init__(obj, **kargs)
@@ -42,25 +44,46 @@ class UltraLoader(KoshLoader):
         if not isinstance(variable, (list, tuple)) and variable is not None:  # only one variable requested
             variable = [variable, ]
 
-        variables = {}
+        pydv_format = self.format in ["curves", "curves/pydv", "curves/pdv", "pydv", "pdv"]
+
+        if pydv_format or self.format == "numpy":
+            variables = []
+        else:
+            variables = {}
 
         if variable is None:  # all curves
-            for c in self.curves:
-                name = c.name
-                variables[name] = {}
-                variables[name]['x-axis'] = c.x
-                variables[name]['y-axis'] = c.y
+            if pydv_format:
+                return self.curves
+            elif self.format == "numpy":
+                return numpy.array([[c.x, c.y] for c in self.curves])
+            else:
+                for c in self.curves:
+                    name = c.name
+                    variables[name] = {}
+                    variables[name]['x-axis'] = c.x
+                    variables[name]['y-axis'] = c.y
         else:
             for var in variable:
                 for c in self.curves:
                     name = c.name
                     if name == var:
-                        variables[name] = {}
-                        variables[name]['x-axis'] = c.x
-                        variables[name]['y-axis'] = c.y
+                        if pydv_format:
+                            variables.append(c)
+                        elif self.format == "numpy":
+                            variables.append(numpy.array([c.x, c.y]))
+                        else:
+                            variables[name] = {}
+                            variables[name]['x-axis'] = c.x
+                            variables[name]['y-axis'] = c.y
                         break
 
-        return variables
+        if self.format == "numpy":
+            variables = numpy.array(variables)
+
+        if len(variable) == 1:
+            return variables[0]
+        else:
+            return variables
 
     def extract(self, *args, **kargs):
         """Extract a feature"""

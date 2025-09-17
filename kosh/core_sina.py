@@ -1,9 +1,10 @@
 import uuid
 import warnings
 import time
+from datetime import datetime
 import reprlib
 from .schema import KoshSchema
-from .utils import KoshPickler
+from .utils import KoshPickler, _update_record
 from . import lock_strategies
 
 
@@ -20,8 +21,11 @@ class KoshSinaObject(object):
     """KoshSinaObject Base class for sina objects
     """
     @lock_strategies.lock_method
-    def get_record(self):
-        return self.__store__.get_record(self.id)
+    def get_record(self, rec=None):
+        if rec is None:
+            return self.__store__.get_record(self.id)
+        else:
+            return self.__store__.get_record(rec)
 
     def __init__(self, Id, store, kosh_type,
                  record_handler, protected=[], metadata={}, schema=None,
@@ -50,18 +54,16 @@ class KoshSinaObject(object):
             self.__dict__["__record_handler__"] = record_handler
             self.__dict__["__protected__"] = [
                 "id", "__type__", "__protected__",
-                "__record_handler__", "__store__", "id", "__schema__"] + protected
+                "__record_handler__", "__store__", "id", "__schema__", "__creation_date__"] + protected
             self.__dict__["__type__"] = kosh_type
             self.__dict__["lock_strategy"] = store.lock_strategy
             if Id is None:
                 Id = uuid.uuid4().hex
                 record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
                 if store.__sync__:
-                    store.lock()
-                    store.__record_handler__.insert(record)
-                    store.unlock()
+                    self._update_record(record)
                 else:
-                    record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                    record.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
                     self.__store__.__sync__dict__[Id] = record
                 self.__dict__["id"] = Id
             else:
@@ -72,12 +74,10 @@ class KoshSinaObject(object):
                     except BaseException:  # record exists nowhere
                         record = Record(id=Id, type=kosh_type, user_defined={'kosh_information': {}})
                         if store.__sync__:
-                            store.lock()
-                            store.__record_handler__.insert(record)
-                            store.unlock()
+                            self._update_record(record)
                         else:
                             self.__store__.__sync__dict__[Id] = record
-                            record["user_defined"]['kosh_information']["last_update_from_db"] = time.time()
+                            record.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
                 else:
                     deleted_items = False
                     for att in self.__dict__["__protected__"]:
@@ -90,6 +90,13 @@ class KoshSinaObject(object):
                         else:
                             self.__store__.__sync__dict__[Id] = record
 
+            if "creation_date" not in record["data"]:
+                record.set_data("creation_date", "-1")
+                if store.__sync__:
+                    self._update_record(record)
+                else:
+                    record.set_data("last_modified_date", str(datetime.fromtimestamp(time.time())))
+                    self.__store__.__sync__dict__[Id] = record
             metadata_copy = metadata.copy()
             for key in metadata:
                 if key in self.__dict__["__protected__"]:
@@ -176,7 +183,7 @@ class KoshSinaObject(object):
             # old records have user id let's fix this
             if value in self.__store__.__record_handler__.find_with_type(
                     self.__store__._users_type, ids_only=True):
-                value = self.__store__.get_record(value)["data"]["username"]["value"]
+                value = self.get_record(value)["data"]["username"]["value"]
         return value
 
     @lock_strategies.lock_method
@@ -236,6 +243,8 @@ class KoshSinaObject(object):
             return record
         if record is None:
             record = self.get_record()
+        if name in ['creator', 'creation_date', 'last_modified_date']:  # protected at metadata level
+            return record
         if name == "schema":
             assert isinstance(value, KoshSchema)
             value.validate(self)
@@ -334,24 +343,13 @@ class KoshSinaObject(object):
         return record
 
     @lock_strategies.lock_method
-    def _update_record(self, record, store=None):
-        """Updates a record in the sina store
+    def _update_record(self, record, store=None, delete=False):
+        """Central location to insert or update a record in the sina store
         :param record: The record to update
         :type record: sina.model.Record
         :param store: sina store to update
         :type store: sina.datastore.DataStore"""
-        self.__store__.lock()
-        if store is None:
-            store = self.__store__.get_sina_store()
-        id_ = record.id
-        rels = store.relationships.find(id_, None, None)
-        rels += store.relationships.find(None, None, id_)
-        if not self.__store__.__sync__:
-            store.records.delete(id_)
-            store.records.insert(record)
-            store.relationships.insert(rels)
-        store.records.update(record)
-        self.__store__.unlock()
+        _update_record(record, self.__store__, store, delete)
 
     @lock_strategies.lock_method
     def __delattr__(self, name):
@@ -437,7 +435,7 @@ class KoshSinaObject(object):
                 # old records have user id let's fix this
                 if attributes[a] in self.__store__.__record_handler__.find_with_type(
                         self.__store__._users_type, ids_only=True):
-                    attributes[a] = self.__store__.get_record(attributes[a])["data"]["username"]["value"]
+                    attributes[a] = self.get_record(attributes[a])["data"]["username"]["value"]
         return attributes
 
     @lock_strategies.lock_method

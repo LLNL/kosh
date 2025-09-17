@@ -1,5 +1,7 @@
 from .core import KoshOperator
 
+pydv_format = ["curves", "curves/pydv", "curves/pdv", "pydv", "pdv"]
+
 
 class KoshLNorm(KoshOperator):
     """Interpolates Two 2-D Arrays [x0, y0], [xy, y1] or four 1-D arrays x0, y0, x1, y1
@@ -8,7 +10,14 @@ class KoshLNorm(KoshOperator):
     """
     types = {"numpy": ["numpy", ],
              "dict": ["numpy", ],
-             "hdf5": ["numpy", ]}
+             "hdf5": ["numpy",],
+             "curves": ["numpy", ],
+             "curves/pydv": ["numpy", ],
+             "curves/pdv": ["numpy", ],
+             "pydv": ["numpy", ],
+             "pdv": ["numpy", ],
+             "ultra": ["curves", "curves/pydv", "curves/pdv", "pydv", "pdv",
+                       "dict", "numpy"]}
 
     def __init__(self, *args, **options):
         """
@@ -37,43 +46,33 @@ class KoshLNorm(KoshOperator):
         """
         super(KoshLNorm, self).__init__(*args, **options)
         self.options = options
-        loaders_used = {}
-        for i, arg in enumerate(args):
-            loaders_used[i] = {}
-            loaders_used[i]['start_nodes'] = arg.__dict__['start_nodes']
-            loaders_used[i]['end_nodes'] = arg.__dict__['end_nodes']
-        self.loaders_used = loaders_used
 
     def operate(self, *inputs, **kargs):
         import numpy as np
+        import h5py
 
         features = {}
         features[0] = {}
         features[1] = {}
-
         # Gather data from inputs
         if len(inputs) == 2:
 
             for i in range(2):
-
                 # UltraLoader dict
-                if (self.loaders_used[i]['start_nodes'][0][0] == 'ultra' and
-                        self.loaders_used[i]['end_nodes'][0][0] == 'dict'):
-
+                if isinstance(inputs[i], dict):
                     for key, value in inputs[i].items():
                         features[i]['x-axis'] = value['x-axis']
                         features[i]['y-axis'] = value['y-axis']
 
-                # HDF5Loader HDF5
-                elif (self.loaders_used[i]['start_nodes'][0][0] == 'hdf5' and
-                      self.loaders_used[i]['end_nodes'][0][0] == 'numpy'):
+                # HDF5Loader HDF5 or numpy
+                elif isinstance(inputs[i], (np.ndarray, h5py._hl.dataset.Dataset)):
                     features[i]['x-axis'] = inputs[i][0]
                     features[i]['y-axis'] = inputs[i][1]
 
-                # 2D Numpy
-                elif (self.loaders_used[i]['end_nodes'][0][0] == 'numpy'):
-                    features[i]['x-axis'] = inputs[i][0]
-                    features[i]['y-axis'] = inputs[i][1]
+                # UltraLoader curves
+                else:
+                    features[i]['x-axis'] = inputs[i][0].x
+                    features[i]['y-axis'] = inputs[i][0].y
 
         elif len(inputs) == 4:
 

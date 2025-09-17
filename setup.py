@@ -58,7 +58,7 @@ setup(name="kosh",
                ],
       zip_safe=False,
       install_requires=[
-          'llnl-sina >=1.15',
+          'llnl-sina >=1.15.1',
           'networkx>=2.6',
           'numpy>=1.20',
           'scipy',
