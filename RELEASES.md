@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.3.0](#330-release)
 * [3.2.0](#320-release)
 * [3.1](#31-release)
 * [3.0.1](#301-release)
@@ -12,6 +13,31 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+## 3.3.0 Release
+
+### Description
+
+This is a minor release which includes a couple of new features and bug fixes.
+
+### New in this release
+
+* `store.import_dataset()` now works with Record, Pandas DataFrame, CSV, and HDF5 objects/files.
+* Users can now sort (default is ascending) by an attribute in the `.find(session_sort_by=None, session_sort_by_descending=False)` methods.
+* Users can now sort (default is ascending) by an attribute at the store session level `store.connect(session_sort_by=None, session_sort_by_descending=False)`.
+
+### Improvements
+
+* Can now export `dataset` as HDF5 file
+* `"creation_date"` and `"last_modified_date"` were added to default `dataset` attributes.
+* Ultra loader now defaults to PyDV curve objects for user familarity.
+* `examples/Example_Simulation_Workflow.ipynb` notebook has been updated with more examples.
+
+### Bug fixes
+
+* Flake8 Record global import.
+* Records of the type 'run' were not ingestable by Kosh.
+* Garbage collection on store closure with new lock strategies.
 
 ## 3.2.0 Release
 
