@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.3.1](#331-release)
 * [3.3.0](#330-release)
 * [3.2.0](#320-release)
 * [3.1](#31-release)
@@ -13,6 +14,22 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+## 3.3.1 Release
+ 
+### Description
+ 
+This is a patch release which includes a couple of bug fixes.
+ 
+### New in this release
+ 
+* Kosh now requires Sina 1.16.0
+ 
+### Bug fixes
+ 
+* Test when reading json files and decoding them
+* Read HDF5 function name updated
+* Missing `"name"`, `"creator"`, `"creation_date"` in `import_dataset()`
 
 ## 3.3.0 Release
 

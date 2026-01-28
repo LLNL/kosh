@@ -1581,8 +1581,14 @@ class KoshStore(object):
         from sina.utils import load_document, load_document_hdf5
 
         if isinstance(datasets, Record):
-            datasets = datasets.to_json().decode('utf-8')
-            datasets = {"records": [eval(datasets.replace("null", "None"))]}
+            json_data = datasets.to_json()
+            if isinstance(json_data, bytes):
+                json_str = json_data.decode('utf-8')
+            else:
+                json_str = json_data
+            json_str = re.sub(r'\bNaN\b', 'null', json_str, flags=re.IGNORECASE)
+            parsed = orjson.loads(json_str)
+            datasets = {"records": [parsed]}
 
         if isinstance(datasets, str):
             # First let's try using Sina's load
@@ -1647,6 +1653,12 @@ class KoshStore(object):
                 else:  # Cannot import a rec w/o id
                     warnings.warn(f"Skipped record w/o id or local_id: {record}")
                     continue
+            if "name" not in record["data"]:
+                record["data"]["name"] = {"value": "Unnamed Dataset"}
+            if "creator" not in record["data"]:
+                record["data"]["creator"] = {"value": self.__user_id__}
+            if "creation_date" not in record["data"]:
+                record["data"]["creation_date"] = {"value": str(datetime.fromtimestamp(time.time()))}
             if 'user_defined' not in record.keys():
                 record["user_defined"] = {}
             record["user_defined"]['kosh_information'] = {}
