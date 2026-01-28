@@ -834,6 +834,18 @@ class KoshDataset(KoshSinaObject):
                 tmp_uris = list(self.__store__.find(
                     types=[self.__store__._sources_type, ], uri=uri, ids_only=True))
 
+                temp_mime_types = {}
+                for tmprec in tmp_uris:
+                    temp = self.get_record(tmprec)
+                    try:
+                        if isinstance(temp, Record):
+                            temp_mime_types[temp["data"]["mime_type"]["value"]
+                                            ] = True if temp["data"]["associated"]["value"] else False
+                        else:
+                            temp_mime_types[temp.mime_type] = True if temp.associated else False
+                    except AttributeError:
+                        pass
+
                 if len(tmp_uris) == 0:
                     Id = uuid.uuid4().hex
                     rec_obj = Record(id=Id, type=self.__store__._sources_type, user_defined={'kosh_information': {}})
@@ -843,10 +855,12 @@ class KoshDataset(KoshSinaObject):
                     Id = rec_obj.id
                     existing_mime = rec_obj["data"]["mime_type"]["value"]
                     mime_type = mime_types[i]
-                    if existing_mime != mime_types[i]:
-                        rec["files"][uri]["mime_type"] = existing_mime
-                        raise TypeError("source {} is already associated with another dataset with mimetype"
-                                        " '{}' you specified mime_type '{}'".format(uri, existing_mime, mime_types[i]))
+                    for key, val in temp_mime_types.items():
+                        if key != mime_types[i] and val is True:
+                            rec["files"][uri]["mime_type"] = existing_mime
+                            raise TypeError("source {} is already associated with another dataset with mimetype"
+                                            " '{}' you specified mime_type '{}'".format(uri, existing_mime,
+                                                                                        mime_types[i]))
                     updated_recs.append(rec_obj)
                 rec.add_file(uri, mime_types[i])
                 rec["files"][uri]["kosh_id"] = Id
@@ -1066,11 +1080,11 @@ class KoshDataset(KoshSinaObject):
                 except:  # noqae722
                     save_doc_as_json([rec], relationships, f"{rec.id}.json")
             elif output_format.lower() == 'hdf5':
-                from sina.utils import save_doc_to_hdf5
+                from sina.utils import save_doc_as_hdf5
                 try:
-                    save_doc_to_hdf5([rec], relationships, sina_record)
+                    save_doc_as_hdf5([rec], relationships, sina_record)
                 except:  # noqae722
-                    save_doc_to_hdf5([rec], relationships, f"{rec.id}.hdf5")
+                    save_doc_as_hdf5([rec], relationships, f"{rec.id}.hdf5")
             else:
                 print("output_format must either be 'json' or 'hdf5'")
 

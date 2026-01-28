@@ -349,7 +349,7 @@ class KoshTestImportExport(KoshTest):
                                                          predicate="related to",
                                                          object_id=records[i+1].id if i < len(records) - 1 else records[0].id)  # noqae501
                                  )
-        sina.utils.save_doc_to_hdf5(records, relationships, hdf5_file)
+        sina.utils.save_doc_as_hdf5(records, relationships, hdf5_file)
         self.assertTrue(os.path.isfile(hdf5_file))
         store, source = self.connect()
         store.import_dataset(hdf5_file)
