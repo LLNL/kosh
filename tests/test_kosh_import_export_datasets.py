@@ -7,6 +7,7 @@ import sina
 import pandas as pd
 import numpy
 from kosh.utils import datasets_in_place_of_records
+import uuid
 
 
 class KoshTestImportExport(KoshTest):
@@ -342,12 +343,16 @@ class KoshTestImportExport(KoshTest):
         os.remove(source)
 
         # HDF5
-        hdf5_file = "test_case.hdf5"
+        hdf5_file = f"test_case_{uuid.uuid4().hex}.hdf5"
         relationships = []
         for i, rec in enumerate(records):
             relationships.append(sina.model.Relationship(subject_id=rec.id,
                                                          predicate="related to",
-                                                         object_id=records[i+1].id if i < len(records) - 1 else records[0].id)  # noqae501
+                                                         object_id=(
+                                                             records[i + 1].id
+                                                             if i < len(records) - 1
+                                                             else records[0].id
+                                                         ))
                                  )
         sina.utils.save_doc_as_hdf5(records, relationships, hdf5_file)
         self.assertTrue(os.path.isfile(hdf5_file))
@@ -359,12 +364,17 @@ class KoshTestImportExport(KoshTest):
         # Export
         dataset = list(store.find())[0]
         dataset.export(sina_record=True, output_format="json")
-        self.assertTrue(os.path.isfile(f"{dataset.id}.json"))
+        json_out = f"{dataset.id}.json"
+        self.assertTrue(os.path.isfile(json_out))
         dataset.export(sina_record=True, output_format="hdf5")
-        self.assertTrue(os.path.isfile(f"{dataset.id}.hdf5"))
+        hdf5_out = f"{dataset.id}.hdf5"
+        self.assertTrue(os.path.isfile(hdf5_out))
 
         store.close()
         os.remove(source)
+        os.remove(hdf5_file)
+        os.remove(json_out)
+        os.remove(hdf5_out)
 
 
 def my_handler(store_dataset, imported_dataset_dict,

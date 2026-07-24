@@ -10,7 +10,7 @@ import mkdocs_gen_files
 
 nav = mkdocs_gen_files.Nav()
 
-src_path = Path('.') 
+src_path = Path(".")
 
 # Resolve whether in docs dir or project root (local vs readthedocs config)
 proj_toml = Path('.') / 'pyproject.toml'

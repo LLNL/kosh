@@ -33,6 +33,8 @@ sys.path.append(path_to_kosh_repo)
 
 For more details look into the [installation doc](INSTALL.md)
 
+If you want to use Kosh through Codex, see [the Codex skill install guide](docs/codex_skill.md).
+
 # First steps
 
 See [this file](docs/source/users/index.md)

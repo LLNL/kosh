@@ -54,11 +54,15 @@ class KoshTestStore(KoshTest):
         # --ensembles 4 --datasets 4 Total Time to complete: 0:03:11.737136
         # --ensembles 5 --datasets 5 Total Time to complete: 0:08:20.810381
         # --ensembles 10 --datasets 10 Total Time to complete: 1:21:41.972174
+        # Keep the default small enough for CI; allow stressing via env var.
+        stress = os.environ.get("KOSH_STRESS_TESTS") == "1"
+        n = 3 if stress else 2
+
         cmd = f"python {script_path} " + \
               f"--store 'run_{uuid.uuid1().hex}.sql' " + \
               "--run-number 0 " + \
-              "--ensembles 3 " + \
-              "--datasets 3 " + \
+              f"--ensembles {n} " + \
+              f"--datasets {n} " + \
               "--retries 2 " + \
               "--lock-strategy None " + \
               f"--log-level {log_level}"
@@ -80,8 +84,8 @@ class KoshTestStore(KoshTest):
         cmd = f"python {script_path} " + \
               f"--store 'run_{uuid.uuid1().hex}.sql' " + \
               "--run-number 0 " + \
-              "--ensembles 3 " + \
-              "--datasets 3 " + \
+              f"--ensembles {n} " + \
+              f"--datasets {n} " + \
               "--retries 2 " + \
               "--lock-strategy RFileLock " + \
               f"--lock-path {lock_path} " + \

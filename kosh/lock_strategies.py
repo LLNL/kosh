@@ -161,7 +161,7 @@ class RFileLock(LockStrategy):
 
     def lock(self):
         import random
-        LOGGER.info(msg=f"    {self.pid = } entering lock with {self.timeout = } secs & count {pid_map[self.pid]}...")
+        LOGGER.info(msg=f"    {self.pid=} entering lock with {self.timeout=} secs & count {pid_map[self.pid]}...")
         exceptions = []
         for i in range(self.num_tries):
             try:
@@ -174,7 +174,7 @@ class RFileLock(LockStrategy):
             except Timeout as e:
                 exceptions.append(e)
                 if i < (self.num_tries - 1):
-                    msg = f"    Lock {self.timeout = } timed out. Waiting {self.patience} seconds before next attempt."
+                    msg = f"    Lock {self.timeout=} timed out. Waiting {self.patience} seconds before next attempt."
                     LOGGER.warning(msg=msg)
                     time.sleep(self.patience + random.random())  # random in case parallel calls retry at same time
         for e in exceptions:
@@ -199,7 +199,8 @@ class RFileLock(LockStrategy):
             self.functions.append(str(func))
             while num_tries > 0:
                 try:
-                    LOGGER.info(msg=f'Entering function: {func} with {*args,} & { {k: v for k, v in kargs.items()} }')
+                    kwargs_repr = {k: v for k, v in kargs.items()}
+                    LOGGER.info(msg=f"Entering function: {func} with args={args} kwargs={kwargs_repr}")
                     result = func(*args, **kargs)
                     if isinstance(result, Generator):
                         result = self.lock_generator(result)
@@ -217,7 +218,7 @@ class RFileLock(LockStrategy):
                     exceptions.append(e)
                     msg = f"\nError in parent function {error_stack[0]}.\n"
                     msg += f"Exception {e} in child function {func.__name__}. "
-                    msg += f'Details: {func} with {*args,} & { {k: v for k, v in kargs.items()} } '
+                    msg += f"Details: {func} with args={args} kwargs={kwargs_repr} "
                     msg += f"Retrying in {self.patience} seconds. {num_tries} retries remaining..."
                     trace = "\n\t\t".join([str(x) for x in traceback.extract_tb(tb)])
                     msg += f"\nError Stack:\n\t\t{trace}"

@@ -1,0 +1,8 @@
+display_name: Kosh
+short_description: Persist results, query stores, and parse files
+default_prompt: >-
+  Help me use Kosh to store results, attach files, query them later, and build
+  loaders, transformers, and operators. Mention how to combine data from
+  different sources or formats, how to use alias_feature to match alternate
+  feature names such as uppercase CSV headers against lowercase HDF5 datasets,
+  and how slice propagation works through __getitem_propagate__.

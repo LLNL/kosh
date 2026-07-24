@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kosh"
+dynamic = ["version"]
+description = "Manages Data Store with External Bulk Data"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+  {name = "Charles Doutriaux"},
+  {name = "Renee Olson"},
+]
+requires-python = ">=3.8"
+dependencies = [
+  "llnl-sina>=1.16.0",
+  "networkx>=2.6",
+  "numpy>=1.20",
+  "filelock",
+  "scipy",
+  "h5py>=3",
+  "scikit-learn>=1.0.2",
+  "pandas",
+  "hdbscan",
+  "matplotlib",
+  "tqdm",
+]
+
+[project.urls]
+Homepage = "https://github.com/LLNL/Kosh"
+
+[project.scripts]
+kosh = "kosh.cli:main"
+kosh_workflow = "kosh.workflow:main"
+
+[tool.setuptools]
+include-package-data = true
+script-files = ["scripts/sbang"]
+
+[tool.setuptools.package-data]
+kosh = ["skills/*", "skills/**/*"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.dynamic]
+version = {attr = "kosh.current_version.current_version"}

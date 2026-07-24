@@ -204,6 +204,15 @@ class KoshCluster(KoshOperator):
             if data is None:
                 return [None, ]
 
+        # For some MPI configurations, non-primary ranks can legitimately have
+        # no retained samples. When the user asked for `output="indices"`,
+        # returning `None` makes downstream MPI gathers awkward (e.g. tests
+        # that `allgather` indices and `np.concatenate` them). Normalize to an
+        # empty 1-D array instead.
+        if self.options.get("output") == "indices" and isinstance(r_data, list) and r_data and r_data[0] is None:
+            import numpy as np
+            r_data[0] = np.array([], dtype=int)
+
         return r_data
 
 

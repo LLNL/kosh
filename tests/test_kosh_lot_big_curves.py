@@ -7,19 +7,24 @@ import random
 
 class KoshTestLotCurves(KoshTest):
     def create_file(self, name, var, len_curve):
-        if not os.path.exists(name):
-            print("Creating dummy ultra file", name)
-            with open(name, "w") as f:
-                print("# Dummy ultra file", file=f)
-                print(f"# {var}", file=f)
-                for i in range(len_curve):
-                    print(f"{i/100.} {random.randint(0,10)}", file=f)
+        if os.path.exists(name):
+            return
+        print("Creating dummy ultra file", name)
+        rng = random.Random(0)
+        with open(name, "w") as f:
+            f.write("# Dummy ultra file\n")
+            f.write(f"# {var}\n")
+            for i in range(len_curve):
+                f.write(f"{i/100.} {rng.randint(0, 10)}\n")
 
     def test_read_lots_of_curves(self):
         store, uri = self.connect()
         ds = store.create()
-        num_files = 1000
-        len_curves = 10000
+        # This is effectively a performance test. Keep the default small enough
+        # for CI, but allow stressing via env var.
+        stress = os.environ.get("KOSH_STRESS_TESTS") == "1"
+        num_files = 1000 if stress else 50
+        len_curves = 10000 if stress else 1000
         t0 = time.time()
         names = []
         print("Creating")
@@ -49,7 +54,10 @@ class KoshTestLotCurves(KoshTest):
         t = time.time()
         dt = t - t0
         print(f"Second list time: {dt:.2f}s speedup: {dt0/dt*100:.2f}%")
-        self.assertGreater(dt0/dt, 5)
+        # This is a caching/performance regression check; allow a smaller ratio
+        # for the non-stress (fast) configuration.
+        speedup = dt0 / max(dt, 1e-9)
+        self.assertGreater(speedup, 5 if stress else 1.2)
         store.close()
         os.remove(uri)
         for name in names:

@@ -134,6 +134,7 @@ class Cluster(object):
 
             if (Nclusters > 0):
                 def dbs_clust_func(distance_threshold):
+                    distance_threshold = np.asarray(distance_threshold).item()
                     dbs_obj = sklearn.cluster.DBSCAN(
                         eps=distance_threshold,
                         min_samples=min_samples,
@@ -166,8 +167,7 @@ class Cluster(object):
         else:
             if (Nclusters > 0):
                 def dbs_clust_func(distance_threshold):
-                    if isinstance(distance_threshold, np.ndarray) and distance_threshold.shape == (1,):
-                        distance_threshold = float(distance_threshold)
+                    distance_threshold = np.asarray(distance_threshold).item()
                     dbs_obj = sklearn.cluster.DBSCAN(eps=distance_threshold,
                                                      min_samples=min_samples,
                                                      n_jobs=n_jobs,
@@ -313,6 +313,7 @@ class Cluster(object):
         from scipy.optimize import brute, basinhopping
         import scipy.cluster.hierarchy as sch
         from pandas import DataFrame
+        import numpy as np
 
         # Create hierarchy
         try:
@@ -335,6 +336,7 @@ class Cluster(object):
         if (Nclusters > 0):
 
             def clust_func(distance_threshold):
+                distance_threshold = np.asarray(distance_threshold).item()
                 clust_labels = sch.fcluster(
                     L2, distance_threshold, criterion='distance')
                 Nclust_1 = clust_labels.max()
@@ -648,7 +650,8 @@ class Cluster(object):
                 # compute loss between sample_indices and removed samples
                 if clust_data.shape[0] == 2:
                     dist = self.computeDistance(clust_data, distance_function)
-                    tot_dist.append(float(dist))
+                    scalar_dist = dist.item()
+                    tot_dist.append(scalar_dist)
                 elif clust_data.shape[0] > 2:
                     dist = self.computeDistance(clust_data, distance_function)
                     sq_dist = squareform(dist)
@@ -931,7 +934,7 @@ class Cluster(object):
 
                 if dataN.shape[0] == 2:
                     dist = self.computeDistance(dataN, distance_function)
-                    tot_dist.append(dist.astype(float))
+                    tot_dist.append(np.asarray(dist).item())
                 elif dataN.shape[0] > 2:
                     dist = self.computeDistance(dataN, distance_function)
                     sq_dist = squareform(dist)
@@ -952,7 +955,7 @@ class Cluster(object):
                 else:
                     tot_dist.append(0.0)
 
-            total_dist.append(float(sum(tot_dist)))
+            total_dist.append(np.asarray(np.sum(tot_dist)).item())
 
         if draw_plot:
             if isinstance(draw_plot, plt.Axes):

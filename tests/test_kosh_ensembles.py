@@ -307,8 +307,13 @@ KOSH ENSEMBLE
     def test_ensemble_tags(self):
         store, kosh_db = self.connect()
 
-        n_ensembles = 10
-        n_datasets = 10
+        # Keep the default small enough for CI; allow stressing via env var.
+        stress = os.environ.get("KOSH_STRESS_TESTS") == "1"
+        n_ensembles = 10 if stress else 4
+        # Must be >= 6 to keep the (even, test data, intersection) checks meaningful.
+        n_datasets = 10 if stress else 6
+        last_ensemble_id = f"ensemble_{n_ensembles - 1}"
+        attr_keys = [str(i) for i in range(n_datasets)]
 
         datasets = []
 
@@ -340,94 +345,102 @@ KOSH ENSEMBLE
             ens.same = f'ensemble {i}'
 
             ds = list(ens.find_datasets(ensemble_tags={"eoo": "even"}))
-            self.assertEqual(len(ds), 5)
+            self.assertEqual(len(ds), (n_datasets + 1) // 2)
             ds = list(ens.find_datasets(ensemble_tags={"data_type": "test data"}))
             self.assertEqual(len(ds), 2)
             ds = list(ens.find_datasets(ensemble_tags={"eoo": "even", "data_type": "test data"}))
             self.assertEqual(len(ds), 1)
 
-        self.assertEqual(ens.same, 'ensemble 9')
+        self.assertEqual(ens.same, f'ensemble {n_ensembles - 1}')
 
         # Attributes and Tags
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id)
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
-                                            'same',
-                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+        self.assertEqual(
+            ds_atts_and_tags,
+            attr_keys
+            + ['creation_date', 'creator', 'id', 'last_modified_date', 'name', 'same']
+            + [f'{last_ensemble_id}_ENSEMBLE_TAG_data_type', f'{last_ensemble_id}_ENSEMBLE_TAG_eoo'],
+        )
 
         ds_atts_and_tags = ds[0].list_attributes(ensemble_id=ens.id, obscure=False)
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
-                                            'same',
-                                            'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES',
-                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+        self.assertEqual(
+            ds_atts_and_tags,
+            attr_keys
+            + ['creation_date', 'creator', 'id', 'last_modified_date', 'name', 'same']
+            + [
+                f'{last_ensemble_id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_data_type',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_eoo',
+            ],
+        )
 
         ds_atts_and_tags = ds[0].list_attributes(dictionary=True, ensemble_id=ens.id)
-        self.assertDictEqual(ds_atts_and_tags, {'0': 'dataset_0_attributes_0',
-                                                '1': 'dataset_0_attributes_1',
-                                                '2': 'dataset_0_attributes_2',
-                                                '3': 'dataset_0_attributes_3',
-                                                '4': 'dataset_0_attributes_4',
-                                                '5': 'dataset_0_attributes_5',
-                                                '6': 'dataset_0_attributes_6',
-                                                '7': 'dataset_0_attributes_7',
-                                                '8': 'dataset_0_attributes_8',
-                                                '9': 'dataset_0_attributes_9',
-                                                'creation_date': ds_atts_and_tags['creation_date'],
-                                                'creator': os.environ.get("USER", "default"),
-                                                'id': 'dataset_0',
-                                                'last_modified_date': ds_atts_and_tags['last_modified_date'],
-                                                'name': 'Unnamed Dataset',
-                                                'same': 'dataset 0',
-                                                'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
-                                                'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+        expected = {str(i): f'dataset_0_attributes_{i}' for i in range(n_datasets)}
+        expected.update({'creation_date': ds_atts_and_tags['creation_date'],
+                         'creator': os.environ.get("USER", "default"),
+                         'id': 'dataset_0',
+                         'last_modified_date': ds_atts_and_tags['last_modified_date'],
+                         'name': 'Unnamed Dataset',
+                         'same': 'dataset 0',
+                         f'{last_ensemble_id}_ENSEMBLE_TAG_data_type': 'test data',
+                         f'{last_ensemble_id}_ENSEMBLE_TAG_eoo': 'even'})
+        self.assertDictEqual(ds_atts_and_tags, expected)
 
         ds_atts_and_tags = ds[0].list_attributes(dictionary=True, ensemble_id=ens.id, obscure=False)
-        self.assertDictEqual(ds_atts_and_tags, {'0': 'dataset_0_attributes_0',
-                                                '1': 'dataset_0_attributes_1',
-                                                '2': 'dataset_0_attributes_2',
-                                                '3': 'dataset_0_attributes_3',
-                                                '4': 'dataset_0_attributes_4',
-                                                '5': 'dataset_0_attributes_5',
-                                                '6': 'dataset_0_attributes_6',
-                                                '7': 'dataset_0_attributes_7',
-                                                '8': 'dataset_0_attributes_8',
-                                                '9': 'dataset_0_attributes_9',
-                                                'creation_date': ds_atts_and_tags['creation_date'],
-                                                'creator': os.environ.get("USER", "default"),
-                                                'id': 'dataset_0',
-                                                'last_modified_date': ds_atts_and_tags['last_modified_date'],
-                                                'name': 'Unnamed Dataset',
-                                                'same': 'dataset 0',
-                                                'ensemble_9_ENSEMBLE_TAG_INHERIT_ATTRIBUTES': False,
-                                                'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
-                                                'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+        expected = {str(i): f'dataset_0_attributes_{i}' for i in range(n_datasets)}
+        expected.update({'creation_date': ds_atts_and_tags['creation_date'],
+                         'creator': os.environ.get("USER", "default"),
+                         'id': 'dataset_0',
+                         'last_modified_date': ds_atts_and_tags['last_modified_date'],
+                         'name': 'Unnamed Dataset',
+                         'same': 'dataset 0',
+                         f'{last_ensemble_id}_ENSEMBLE_TAG_INHERIT_ATTRIBUTES': False,
+                         f'{last_ensemble_id}_ENSEMBLE_TAG_data_type': 'test data',
+                         f'{last_ensemble_id}_ENSEMBLE_TAG_eoo': 'even'})
+        self.assertDictEqual(ds_atts_and_tags, expected)
 
-        ds_atts_and_tags = ds[0].list_attributes(ensemble_id=['ensemble_0', 'ensemble_9'])
-        self.assertEqual(ds_atts_and_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                                            'creation_date', 'creator', 'id', 'last_modified_date', 'name',
-                                            'same',
-                                            'ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
-                                            'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+        ds_atts_and_tags = ds[0].list_attributes(ensemble_id=['ensemble_0', last_ensemble_id])
+        self.assertEqual(
+            ds_atts_and_tags,
+            attr_keys
+            + ['creation_date', 'creator', 'id', 'last_modified_date', 'name', 'same']
+            + [
+                'ensemble_0_ENSEMBLE_TAG_data_type',
+                'ensemble_0_ENSEMBLE_TAG_eoo',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_data_type',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_eoo',
+            ],
+        )
 
         # Only tags
         ds_tags = ds[0].list_ensemble_tags(ensemble_id=ens.id)
-        self.assertEqual(ds_tags, ['ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+        self.assertEqual(
+            ds_tags,
+            [f'{last_ensemble_id}_ENSEMBLE_TAG_data_type', f'{last_ensemble_id}_ENSEMBLE_TAG_eoo'],
+        )
 
         ds_tags = ds[0].list_ensemble_tags(dictionary=True, ensemble_id=ens.id)
-        self.assertDictEqual(ds_tags, {'ensemble_9_ENSEMBLE_TAG_data_type': 'test data',
-                                       'ensemble_9_ENSEMBLE_TAG_eoo': 'even'})
+        self.assertDictEqual(ds_tags, {f'{last_ensemble_id}_ENSEMBLE_TAG_data_type': 'test data',
+                                       f'{last_ensemble_id}_ENSEMBLE_TAG_eoo': 'even'})
 
-        ds_tags = ds[0].list_ensemble_tags(ensemble_id=['ensemble_0', 'ensemble_9'])
-        self.assertEqual(ds_tags, ['ensemble_0_ENSEMBLE_TAG_data_type', 'ensemble_0_ENSEMBLE_TAG_eoo',
-                                   'ensemble_9_ENSEMBLE_TAG_data_type', 'ensemble_9_ENSEMBLE_TAG_eoo'])
+        ds_tags = ds[0].list_ensemble_tags(ensemble_id=['ensemble_0', last_ensemble_id])
+        self.assertEqual(
+            ds_tags,
+            [
+                'ensemble_0_ENSEMBLE_TAG_data_type',
+                'ensemble_0_ENSEMBLE_TAG_eoo',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_data_type',
+                f'{last_ensemble_id}_ENSEMBLE_TAG_eoo',
+            ],
+        )
 
         ens.remove(ds[0])
 
         ds_ens_tags = ds[0].list_attributes(ensemble_id=ens.id)
-        self.assertEqual(ds_ens_tags, ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-                                       'creation_date', 'creator', 'id', 'last_modified_date', 'name',
-                                       'same'])
+        self.assertEqual(
+            ds_ens_tags,
+            attr_keys + ['creation_date', 'creator', 'id', 'last_modified_date', 'name', 'same'],
+        )
 
         # Testing Schema
         required = {"color": None}

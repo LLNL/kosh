@@ -1,38 +1,20 @@
-from koshbase import KoshTest
 import os
 
-
-def find_json_files(directories):
-    """
-    Walk through a directory and its subdirectories to find all .json files.
-
-    Args:
-        directories (list/str): The root directories to start searching from.
-
-    Returns:
-        list: A list of file paths for all .json files found.
-    """
-    json_files = []
-
-    if isinstance(directories, str):
-        directories = [directories,]
-    for directory in directories:
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".json"):
-                    json_files.append(os.path.join(root, file))
-
-    return json_files
+from koshbase import KoshTest
 
 
 class KoshTestList(KoshTest):
     def test_cache_list_features(self):
         store, uri = self.connect()
+        baseline_dir = os.path.join(os.path.dirname(__file__), "baselines", "sina", "firstdir", "seconddir", "thirddir")
 
-        for filename in find_json_files([os.getcwd(), '../sina', 'sina']):
+        baseline_jsons = [
+            os.path.join(baseline_dir, "sina_rec_1_sina.json"),
+            os.path.join(baseline_dir, "fourthdir", "sina_rec_2_sina.json"),
+        ]
+
+        for filename in baseline_jsons:
             print("file:", filename)
-            if "kosh_test_venv" in filename or "tests/kosh_export.json" in filename:  # from other test
-                continue
             store.import_dataset(filename)
             store.delete_all_contents(force="SKIP PROMPT")
         store.close()

@@ -24,3 +24,4 @@ Jupyter Notebooks
    jupyter/Example_MNIST
    jupyter/Example_Advanced_Data_Slicing
    jupyter/Example_Cluster_Sampling
+   jupyter/Example_Workflow_Manager

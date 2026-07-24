@@ -45,7 +45,7 @@ def run_reassociate(store_sources, new_uris, original_uris=[]):
 class KoshTestReassociate(KoshTest):
     def test_reassociate_multiple_files(self):
         store, db_uri = self.connect()
-        filename = f"some_file_reassociation_test_{random.randint(0,100000)}.txt"
+        filename = f"some_file_reassociation_test_{random.randint(0, 100000)}.txt"
         create_file(filename)
         ds1 = store.create()
         ds2 = store.create()
@@ -82,7 +82,7 @@ class KoshTestReassociate(KoshTest):
 
     def test_reassociate_multiple_files_with_dir(self):
         store, db_uri = self.connect()
-        filename = f"some_file_reassociation_test_{random.randint(0,100000)}.txt"
+        filename = f"some_file_reassociation_test_{random.randint(0, 100000)}.txt"
         create_file(filename)
         ds1 = store.create()
         ds2 = store.create()

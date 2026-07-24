@@ -87,6 +87,7 @@ theme:
 nav:
     - User Guide: 'source/users/index.md'
     - Frequently Asked Questions: 'source/faqs/index.md'
+    - Codex Skill: codex_skill.md
     - Examples: 
         - Example 00 Opening a Store: 'source/jupyter/Example_00_Open_Store_And_Add_Datasets.ipynb'
         - Example 01 Adding Data: 'source/jupyter/Example_01_Add_Data_To_Datasets.ipynb'
@@ -101,6 +102,7 @@ nav:
         - Kosh and Sina Interoperability: 'source/jupyter/Kosh_and_Sina_Interoperability.ipynb'
         - Column-based Text Files: 'source/jupyter/Example_column_based_text_files.ipynb'
         - Command Line: 'source/jupyter/Example_Command_Line_Kosh.ipynb'
+        - Workflow (Parameter Sets): 'source/jupyter/Example_Workflow_Manager.ipynb'
         - Moving Datasets: 'source/jupyter/Example_Moving_Datasets.ipynb'
         - Custom Loaders: 'source/jupyter/Example_Custom_Loader.ipynb'
         - Clustering Data: 'source/jupyter/Example_Cluster_Sampling.ipynb'

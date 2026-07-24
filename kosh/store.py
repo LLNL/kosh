@@ -495,6 +495,23 @@ class KoshStore(object):
             _update_record(store_rec, self)
         except Exception:  # store is likely closed already
             pass
+        # Best-effort cleanup to avoid SQLAlchemy emitting
+        # "SQLite objects created in a thread..." warnings at interpreter shutdown.
+        # These can happen if a DB-API connection is finalized on a different
+        # thread than it was created on.
+        try:
+            dao = getattr(self.__sina_store, "_record_dao", None)
+            session = getattr(dao, "session", None) if dao is not None else None
+            if session is not None:
+                try:
+                    bind = session.get_bind()
+                except Exception:
+                    bind = None
+                session.close()
+                if bind is not None and hasattr(bind, "dispose"):
+                    bind.dispose()
+        except Exception:
+            pass
         self.__sina_store.close()
         gc.collect()
 

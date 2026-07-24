@@ -1,5 +1,4 @@
 import kosh
-import time
 from koshbase import KoshTest
 import os
 from kosh.utils import get_store_info_record_attribute
@@ -7,59 +6,54 @@ from kosh.utils import get_store_info_record_attribute
 
 class FakeLoader(kosh.KoshLoader):
     types = {"fake": [int, ]}
+    call_count = 0
 
     def extract(self):
         return 2
 
     def list_features(self, *args, **kargs):
-        time.sleep(3)
+        FakeLoader.call_count += 1
         return ["fake"]
 
 
 class FakeLoader2(kosh.KoshLoader):
     types = {"fake": [int, ]}
+    call_count = 0
 
     def extract(self):
         return 2
 
     def list_features(self, *args, **kargs):
+        FakeLoader2.call_count += 1
         print("IN LIST FEATURES*********************", args, kargs)
-        time.sleep(3)
         return ["fake"]
 
 
 class KoshTestList(KoshTest):
     def test_cache_list_features(self):
+        FakeLoader.call_count = 0
         store, uri = self.connect()
         store.add_loader(FakeLoader)
         ds = store.create()
-        t = time.time()
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "fake", preload_features=True)
-        t = time.time() - t
-        # Associate should have called list_features
-        self.assertTrue(t > 3)
-        t = time.time()
+        self.assertEqual(FakeLoader.call_count, 1)
         print(ds["fake"][:])
-        t = time.time() - t
-        self.assertTrue(t < 3)
+        self.assertEqual(FakeLoader.call_count, 1)
 
         store.close()
         store = kosh.connect(uri)
         print("CACHED FEATURES:", store._cached_features_)
         store.add_loader(FakeLoader)
         ds = next(store.find())  # only one ds in store
-        t = time.time()
         print(ds["fake"][:])
-        t = time.time() - t
-        self.assertTrue(t < 3)
+        self.assertEqual(FakeLoader.call_count, 1)
         store.delete_loader(FakeLoader)
         store.add_loader(FakeLoader)
-        t = time.time()
+        previous_calls = FakeLoader.call_count
         print(ds["fake"][:])
-        t = time.time() - t
-        self.assertTrue(t > 3)
+        self.assertGreater(FakeLoader.call_count, previous_calls)
         recs = store.get_sina_records()
         cached_features = get_store_info_record_attribute(recs, "cached_features")
         self.assertEqual(len(cached_features), 1)
@@ -76,15 +70,12 @@ class KoshTestList(KoshTest):
         store = kosh.connect(uri)
         store.add_loader(FakeLoader)
         ds = next(store.find())  # only one ds in store
-        t = time.time()
+        previous_calls = FakeLoader.call_count
         ds.associate(
             "tests/baselines/node_extracts2/node_extracts2.hdf5",
             "fake", preload_features=True)
-        t = time.time() - t
-        self.assertTrue(t > 3)
-        t = time.time()
+        self.assertGreater(FakeLoader.call_count, previous_calls)
         print(ds["fake"][:])
-        t = time.time() - t
-        self.assertTrue(t < 3)
+        self.assertEqual(FakeLoader.call_count, previous_calls + 1)
         store.close()
         os.remove(uri)

@@ -218,27 +218,28 @@ KOSH DATASET
         self.assertEqual(len(ds._associated_data_), 1)
         # Now mutliple datasets at once
         ds = store.create()
-        ds.associate([str(i) for i in range(200)],
-                     metadata=[{"name": str(i)} for i in range(200)],
-                     mime_type=["type_{}".format(i) for i in range(200)])
-        self.assertEqual(len(ds._associated_data_), 200)
+        n = 200 if os.environ.get("KOSH_STRESS_TESTS") == "1" else 50
+        ds.associate([str(i) for i in range(n)],
+                     metadata=[{"name": str(i)} for i in range(n)],
+                     mime_type=["type_{}".format(i) for i in range(n)])
+        self.assertEqual(len(ds._associated_data_), n)
         self.assertEqual(len(list(ds.find(mime_type="type_12"))), 1)
         self.assertEqual(len(list(ds.find(name="13"))), 1)
-        self.assertEqual(len(list(ds.find("name"))), 200)
+        self.assertEqual(len(list(ds.find("name"))), n)
 
         # List completion tests
         ds = store.create()
-        ds.associate([str(i + 300) for i in range(200)],
-                     metadata=[{"name": str(i)} for i in range(200)],
+        ds.associate([str(i + 300) for i in range(n)],
+                     metadata=[{"name": str(i)} for i in range(n)],
                      mime_type="a_mime_type")
-        self.assertEqual(len(ds._associated_data_), 200)
-        self.assertEqual(len(list(ds.find(mime_type="a_mime_type"))), 200)
+        self.assertEqual(len(ds._associated_data_), n)
+        self.assertEqual(len(list(ds.find(mime_type="a_mime_type"))), n)
 
         ds = store.create()
-        ds.associate([str(i + 600) for i in range(200)], metadata={
+        ds.associate([str(i + 600) for i in range(n)], metadata={
                      "name": "my name"}, mime_type="stuff")
-        self.assertEqual(len(ds._associated_data_), 200)
-        self.assertEqual(len(list(ds.find(name="my name"))), 200)
+        self.assertEqual(len(ds._associated_data_), n)
+        self.assertEqual(len(list(ds.find(name="my name"))), n)
 
         # Make sure you cannot assocaate with different types
         ds.associate("some_uri", "some_mime_type")

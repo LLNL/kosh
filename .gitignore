@@ -5,3 +5,5 @@ kosh_random_npy_*.npy
 data_*.h5
 *_new_name*.py
 test_kosh_gpu_m*/
+.sandbox.config
+sandbox-config.yaml

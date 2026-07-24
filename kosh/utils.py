@@ -461,27 +461,63 @@ def update_store_and_get_info_record(records, ensemble_predicate=None):
     return rec
 
 
-def create_kosh_users(record_handler, users=[os.environ.get("USER", "default"), "anonymous"]):
-    """Add Kosh user to the Kosh store
-    :param record_handler: The sina records object
+def _user_record_exists(record_handler, user_type, user, uid=None):
+    """Check whether a Kosh user record already exists.
+
+    :param record_handler: The sina records object.
     :type record_handler: sina.records
-    :param users: list of usernames to add
-    :type users: list
+    :param user_type: The Sina record type used for users.
+    :type user_type: str
+    :param user: Username to look up.
+    :type user: str
+    :param uid: Optional deterministic user id for direct lookup.
+    :type uid: str or None
+    :returns: ``True`` when the user record is already present.
+    :rtype: bool
+    """
+    existing = list(record_handler.find(types=[user_type], data={"username": user}))
+    if existing:
+        return True
+    if uid is None:
+        return False
+    try:
+        record_handler.get(uid)
+        return True
+    except Exception:
+        return False
+
+
+def create_kosh_users(record_handler, users=None):
+    """Add Kosh users to the Kosh store.
+
+    This function is safe to call concurrently. If another process inserts the
+    same deterministic user record between the existence check and the insert,
+    the duplicate-key error is treated as success once the record is confirmed
+    to exist.
+
+    :param record_handler: The sina records object.
+    :type record_handler: sina.records
+    :param users: Usernames to ensure exist in the store.
+    :type users: list or None
     """
     from sina.model import Record
+    if users is None:
+        users = [os.environ.get("USER", "default"), "anonymous"]
     store_info = list(record_handler.find_with_type(
         ["__kosh_storeinfo__", ]))[0]
 
     user_type = store_info["data"]["users_type"]["value"]
     # Create users
     for user in users:
-        new_user = list(record_handler.find(
-            types=[user_type, ], data={"username": user}))
-        if len(new_user) == 0:
-            uid = hashlib.md5(user.encode()).hexdigest()
+        uid = hashlib.md5(user.encode()).hexdigest()
+        if not _user_record_exists(record_handler, user_type, user, uid=uid):
             user_record = Record(id=uid, type=user_type, user_defined={'kosh_information': {}})
             user_record.add_data("username", user)
-            record_handler.insert(user_record)
+            try:
+                record_handler.insert(user_record)
+            except Exception:
+                if not _user_record_exists(record_handler, user_type, user, uid=uid):
+                    raise
 
 
 def create_new_db(name, db='sql',

@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.4](#34-release)
 * [3.3.1](#331-release)
 * [3.3.0](#330-release)
 * [3.2.0](#320-release)
@@ -14,6 +15,34 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+## 3.4 Release
+
+### Description
+
+This is a minor release which adds parameterized workflow tracking and includes clustering and store robustness fixes.
+
+### New in this release
+
+* Added the `kosh_workflow` command line tool for creating, querying, and updating datasets from a workflow step plus a parameter set.
+* Added the `kosh.parameter_store.StepRequest` and `kosh.parameter_store.apply_step(...)` Python API for the same workflow-tracking behavior in scripts.
+* Workflow matching supports optional ensemble scoping, exact numeric matching with `--strict-match`, tolerance-based numeric matching with `--rtol` and `--atol`, duplicate avoidance with `--upsert`/`--upsert-init`, dataset and ensemble metadata updates, and file associations.
+* `kosh_workflow --check` reports matching dataset ids, current workflow step, and last step-update timestamp; `kosh_workflow --size` reports store or ensemble dataset counts.
+* Added `examples/Example_Workflow_Manager.ipynb` and documentation references for parameter-set workflow management.
+* Packaged the Kosh Codex skill files and documented workflow tracking guidance for agent use.
+
+### Improvements
+
+* Kosh now requires Sina 1.16.0 or greater.
+* Modernized package metadata through `pyproject.toml` and entry points for `kosh` and `kosh_workflow`.
+* Improved cleanup on store close to reduce SQLAlchemy/SQLite shutdown warnings when connections are finalized from a different thread.
+* Made Kosh user-record creation safer under concurrent access by treating confirmed duplicate user records as success.
+* Normalized empty MPI clustering index results to an empty array instead of `None`, which makes downstream gather/concatenate operations more reliable.
+
+### Bug fixes
+
+* Fixed clustering failures caused by single-value NumPy arrays being passed where scalar distance thresholds or loss values were required.
+* Made batch clustering tests compare against a non-batched reference instead of dependency-sensitive hard-coded sample counts.
 
 ## 3.3.1 Release
  
