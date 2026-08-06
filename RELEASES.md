@@ -1,5 +1,6 @@
 # Release Notes
 
+* [3.5](#35-release)
 * [3.4](#34-release)
 * [3.3.1](#331-release)
 * [3.3.0](#330-release)
@@ -15,6 +16,26 @@
 * [1.0](#10-release)
 * [0.9](#09-release)
 * [0.8](#08-release)
+
+
+## 3.5 Release
+
+### Description
+
+This minor release adds support for specifying column data types and replacement values when converting Kosh database data to Pandas DataFrames.
+
+### New in this release
+
+  * Added options to specify column data types in `.to_dataframe()`.
+  * Added options to replace column values during `.to_dataframe()` conversion.
+
+### Improvements
+
+* None
+
+### Bug fixes
+
+* None
 
 ## 3.4 Release
 

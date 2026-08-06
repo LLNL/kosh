@@ -2307,7 +2307,7 @@ class KoshStore(object):
         KoshCmd._tar(self, tar_type, store_args=cmmd, opts=opts)
 
     @lock_strategies.lock_method
-    def to_dataframe(self, data_columns=[], *atts, **keys):
+    def to_dataframe(self, data_columns=[], typed_columns=None, *atts, **keys):
         """Return the find object as a Pandas DataFrame.
 
         Pass in the same arguments and keyword arguments as the find method.
@@ -2328,6 +2328,39 @@ class KoshStore(object):
                                                                                'creation_date', 'last_modified_date'].
                              If nothing is passed, will return all data.
         :type data_columns: Union(str, list), optional
+        :param typed_columns: Dictionary of column types and replacement values.
+            If omitted, MySQL defaults are returned.
+
+            Supported types:
+                [
+                    "Int8", "Int16", "Int32", "Int64",
+                    "UInt8", "UInt16", "UInt32", "UInt64",
+                    "float16", "float32", "float64",
+                    "Float32", "Float64",
+                    "bool", "boolean", "string", "object",
+                    "category", "datetime64[ns]", "timedelta64[ns]",
+                ]
+
+            Example:
+                {
+                    "my_int": {
+                        "type": "Int64",
+                        "replace": {None: 42},
+                    },
+                    "my_float": {
+                        "type": "float64",
+                        "replace": {None: np.nan, 999: -1},
+                    },
+                    "my_boolean": {
+                        "type": "boolean",
+                        "replace": {None: False},
+                    },
+                    "my_string": {
+                        "type": "string",
+                        "replace": {"This is empty": "Nothing Here"},
+                    },
+                }
+        :type typed_columns: dict, optional
         :return: Pandas DataFrame
         :rtype: Pandas DataFrame
         """
@@ -2365,4 +2398,14 @@ class KoshStore(object):
                     attr_dict[column][i] = dataset['data'].get(column, {}).get('value', pd.NA)
 
         df = pd.DataFrame(attr_dict)
+
+        if isinstance(typed_columns, dict):
+            for key, config in typed_columns.items():
+                series = df[key]
+
+                if "replace" in config:
+                    series = series.replace(config["replace"]).infer_objects(copy=False)
+
+                df[key] = series.astype(config["type"])
+
         return df
